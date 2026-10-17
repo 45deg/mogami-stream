@@ -4,7 +4,8 @@ import {
   type Operator,
   type OperatorContext,
 } from "../core/stream.js";
-import { deferred, done, item } from "./deferred.js";
+import { done, item } from "./deferred.js";
+import { notifications } from "./notifications.js";
 import { integer } from "./errors.js";
 
 export interface MapOptions {
@@ -30,31 +31,21 @@ export function boundedMap<T, U>(
     create((scope) => {
       const upstream = open(source, scope);
       const results = new Map<number, Awaited<U>>();
-      const ready: number[] = [];
-      let changed = deferred<void>();
+      const completionOrder: number[] = [];
+      const changed = notifications(scope);
       let demand = false;
       let pulling = false;
       let inputDone = false;
       let running = 0;
-      let accepted = 0;
-      let emitted = 0;
-      let nextOrdered = 0;
+      let nextInputIndex = 0;
+      let nextOutputIndex = 0;
       let failure: { error: unknown } | undefined;
 
-      const notify = () => {
-        const previous = changed;
-        changed = deferred();
-        previous.resolve();
-      };
-      scope.signal.addEventListener("abort", notify, { once: true });
-      scope.finalizers.push(() =>
-        scope.signal.removeEventListener("abort", notify),
-      );
       const checkBounds = () => {
         const reserved = Number(pulling);
         if (
           reserved + running > concurrency ||
-          reserved + accepted - emitted > capacity
+          reserved + running + results.size > capacity
         ) {
           throw new Error("Internal map capacity invariant violated.");
         }
@@ -63,7 +54,8 @@ export function boundedMap<T, U>(
       function pump(): void {
         if (!demand || inputDone || pulling || failure || scope.signal.aborted)
           return;
-        if (running >= concurrency || accepted - emitted >= capacity) return;
+        if (running >= concurrency || running + results.size >= capacity)
+          return;
         pulling = true;
         checkBounds();
         const pull = (async () => {
@@ -72,10 +64,10 @@ export function boundedMap<T, U>(
           if (scope.signal.aborted) return;
           if (result.done) {
             inputDone = true;
-            notify();
+            changed.notify();
             return;
           }
-          const index = accepted++;
+          const index = nextInputIndex++;
           running++;
           checkBounds();
           const work = scope.observe(
@@ -84,28 +76,30 @@ export function boundedMap<T, U>(
               return mapper(result.value, { index, signal: scope.signal });
             }),
           );
-          void work.then(
-            (value) => {
-              running--;
-              results.set(index, value as Awaited<U>);
-              ready.push(index);
-              checkBounds();
-              notify();
-              pump();
-            },
-            (error) => {
-              running--;
-              failure = { error };
-              notify();
-            },
+          scope.observe(
+            work.then(
+              (value) => {
+                running--;
+                results.set(index, value);
+                if (!ordered) completionOrder.push(index);
+                checkBounds();
+                changed.notify();
+                pump();
+              },
+              (error) => {
+                running--;
+                failure = { error };
+                changed.notify();
+              },
+            ),
           );
-          notify();
+          changed.notify();
           pump();
         })();
         void scope.observe(pull).catch((error) => {
           pulling = false;
           failure = { error };
-          notify();
+          changed.notify();
         });
       }
 
@@ -118,15 +112,13 @@ export function boundedMap<T, U>(
               const notification = changed.promise;
               pump();
               if (failure) throw failure.error;
-              const index = ordered ? nextOrdered : ready[0];
+              const index = ordered ? nextOutputIndex : completionOrder[0];
               if (index !== undefined && results.has(index)) {
                 const value = results.get(index)!;
                 results.delete(index);
                 if (ordered) {
-                  nextOrdered++;
-                  ready.splice(ready.indexOf(index), 1);
-                } else ready.shift();
-                emitted++;
+                  nextOutputIndex++;
+                } else completionOrder.shift();
                 checkBounds();
                 return item(value);
               }

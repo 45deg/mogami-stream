@@ -12,7 +12,10 @@ export function alarm(scope: Scope, ms: number) {
       .then(
         () => !controller.signal.aborted,
         (error: unknown) => {
-          if (controller.signal.aborted && error === controller.signal.reason)
+          if (
+            controller.signal.aborted &&
+            Object.is(error, controller.signal.reason)
+          )
             return false;
           throw error;
         },

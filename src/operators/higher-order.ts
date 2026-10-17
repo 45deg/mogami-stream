@@ -5,7 +5,8 @@ import {
   type OperatorContext,
   type Source,
 } from "../core/stream.js";
-import { ChildSlot, notifications } from "../internal/child-slots.js";
+import { ChildSlot } from "../internal/child-slots.js";
+import { notifications } from "../internal/notifications.js";
 import { done, item } from "../internal/deferred.js";
 import { integer } from "../internal/errors.js";
 

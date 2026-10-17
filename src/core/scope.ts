@@ -1,4 +1,3 @@
-import { IteratorCleanupError } from "../internal/errors.js";
 import type { Scheduler } from "./scheduler.js";
 
 export interface ExecutionHost {
@@ -14,7 +13,7 @@ export class Scope {
   readonly children = new Set<Scope>();
   readonly operations = new Set<Promise<unknown>>();
   readonly finalizers: Array<() => unknown> = [];
-  private cleanup: (() => unknown) | undefined;
+  private cleanup: (() => void | PromiseLike<void>) | undefined;
   private closing: Promise<void> | undefined;
   private stopped = false;
   private finished = false;
@@ -43,14 +42,14 @@ export class Scope {
     return this.host.checkpoint(this.signal);
   }
 
-  setCleanup(cleanup: () => unknown): void {
+  setCleanup(cleanup: () => void | PromiseLike<void>): void {
     this.cleanup = cleanup;
   }
   markDone(): void {
     this.finished = true;
   }
 
-  observe<T>(work: PromiseLike<T> | T, cleanup = false): Promise<T> {
+  observe<T>(work: PromiseLike<T> | T, isCleanup = false): Promise<Awaited<T>> {
     const promise = Promise.resolve(work);
     this.operations.add(promise);
     // Attach both handlers immediately, including for operations that lose a race.
@@ -60,8 +59,8 @@ export class Scope {
       },
       (error) => {
         this.operations.delete(promise);
-        if (this.signal.aborted && error === this.signal.reason) return;
-        if (cleanup || this.stopped) this.host.suppress(error);
+        if (this.signal.aborted && Object.is(error, this.signal.reason)) return;
+        if (isCleanup || this.stopped) this.host.suppress(error);
         else this.host.fail(error);
       },
     );
@@ -78,19 +77,7 @@ export class Scope {
       const cleanup = this.cleanup;
       this.cleanup = undefined;
       try {
-        this.observe(
-          Promise.resolve(cleanup()).then((result) => {
-            if (
-              result &&
-              typeof result === "object" &&
-              "done" in result &&
-              result.done !== true
-            ) {
-              throw new IteratorCleanupError();
-            }
-          }),
-          true,
-        );
+        this.observe(cleanup(), true);
       } catch (error) {
         this.host.suppress(error);
       }
@@ -99,7 +86,8 @@ export class Scope {
 
   close(): Promise<void> {
     if (this.closing) return this.closing;
-    this.closing = this.finish();
+    // Store the promise before cleanup can call back into close().
+    this.closing = Promise.resolve().then(() => this.finish());
     return this.closing;
   }
 

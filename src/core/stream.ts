@@ -1,4 +1,5 @@
 import { done } from "../internal/deferred.js";
+import { acquireIterator } from "./iterator.js";
 import { Scope } from "./scope.js";
 import { iterate, type StreamIterator } from "../terminal/iterate.js";
 
@@ -16,7 +17,14 @@ export class Stream<T> implements AsyncIterable<T> {
   constructor(private readonly builder: Builder<T>) {}
 
   [openStream](scope: Scope): Reader<T> {
-    return this.builder(scope);
+    let reader: Reader<T> | undefined;
+    return {
+      next: () => {
+        // Acquiring an internal iterator must not start its stage yet.
+        reader ??= this.builder(scope);
+        return reader.next();
+      },
+    };
   }
   [Symbol.asyncIterator](): StreamIterator<T> {
     return iterate(this);
@@ -78,8 +86,6 @@ export function create<T>(builder: Builder<T>): Stream<T> {
   return new Stream(builder);
 }
 
-const owners = new WeakMap<object, WeakSet<object>>();
-
 /** Opens only when an operator has demand; preserves Promise values in sync inputs. */
 export function open<T>(source: Source<T>, parent: Scope): OwnedReader<T> {
   const scope = new Scope(parent.host, parent);
@@ -88,22 +94,7 @@ export function open<T>(source: Source<T>, parent: Scope): OwnedReader<T> {
     if (source instanceof Stream) {
       reader = source[openStream](scope);
     } else {
-      const iterator =
-        Symbol.asyncIterator in source
-          ? source[Symbol.asyncIterator]()
-          : source[Symbol.iterator]();
-      let claimed = owners.get(parent.host);
-      if (!claimed) {
-        claimed = new WeakSet();
-        owners.set(parent.host, claimed);
-      }
-      if (claimed.has(iterator))
-        throw new TypeError(
-          "An iterator cannot be shared within one execution.",
-        );
-      claimed.add(iterator);
-      scope.setCleanup(() => iterator.return?.());
-      reader = { next: () => Promise.resolve(iterator.next()) };
+      reader = acquireIterator(source, scope);
     }
   } catch (error) {
     parent.host.fail(error);
@@ -129,7 +120,9 @@ export function open<T>(source: Source<T>, parent: Scope): OwnedReader<T> {
       if (result.done) {
         ended = true;
         scope.markDone();
-        await scope.close();
+        // Expose exhaustion before cleanup finishes so combinators can stop
+        // siblings promptly. The owning scope still waits for this cleanup.
+        void scope.close();
       }
       return result;
     },

@@ -85,6 +85,8 @@ All stream factories and operators return a `Stream<T>`, which implements `Async
 | `toArray(source, options?)`                                     | Collect all values in memory.                                                                                                                           |
 | `reduce(source, reducer, initial, options?)`                    | Sequential reduction with a required initial accumulator; reducer receives `(accumulator, value, context)`.                                             |
 
+Compared with the aiostream API described in the supplied design, this library requires finite concurrency (default 1), defaults `zipLatest` to `partial: false`, and names its timing operators `delayStart` and `timeoutEach`.
+
 `filter`, `takeWhile`, `tap`, and `reduce` callbacks run sequentially. `take` and `skip` require non-negative safe integers. `chunks` requires a positive safe integer. Invalid numeric options throw `RangeError` when the operator is constructed.
 
 Higher-order concurrency counts children from reservation through retirement, including cleanup. Each child has one read/result slot. `concat` retains completed successors until earlier children retire, so a blocked head cannot accumulate unlimited empty successors. `zip` may consume one extra value from another input before discovering the shortest input has ended. `zipLatest` coalesces updates before initialization; afterward it retains each accepted update until demand consumes it.

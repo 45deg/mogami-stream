@@ -109,6 +109,12 @@ export function deadline<T>(durationMs: number): Operator<T, T> {
   return (source) =>
     create((scope) => {
       if (durationMs === 0) throw new DeadlineExceededError(durationMs);
+      const expiresAtMs = scope.scheduler.now() + durationMs;
+      const checkDeadline = () => {
+        if (scope.scheduler.now() >= expiresAtMs) {
+          throw new DeadlineExceededError(durationMs);
+        }
+      };
       const timer = alarm(scope, durationMs);
       scope.setCleanup(() => timer.cancel());
       void timer.promise.then(
@@ -120,7 +126,9 @@ export function deadline<T>(durationMs: number): Operator<T, T> {
       const upstream = open(source, scope);
       return {
         async next() {
+          checkDeadline();
           const result = await upstream.next();
+          checkDeadline();
           if (result.done) timer.cancel();
           return result;
         },
@@ -171,6 +179,9 @@ export function bufferTime<T>(
               ]);
               scope.check();
               if ("expired" in outcome) return item(values);
+              // A delayed timer must not pull the next window's value into
+              // this batch. Keep the settled reservation for the next demand.
+              if (outcome.arrival.at >= end) return item(values);
               pending = undefined;
               if (outcome.arrival.result.done) {
                 ended = true;

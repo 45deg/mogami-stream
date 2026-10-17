@@ -1,0 +1,56 @@
+import { IteratorCleanupError } from "../internal/errors.js";
+import type { ExecutionHost, Scope } from "./scope.js";
+import type { Reader, Source } from "./stream.js";
+
+type ExternalIterator<T> = {
+  next(): IteratorResult<T> | PromiseLike<IteratorResult<T>>;
+  return?(): IteratorResult<T> | PromiseLike<IteratorResult<T>>;
+};
+
+type IteratorSource<T> = {
+  [Symbol.iterator]?: () => Iterator<T>;
+  [Symbol.asyncIterator]?: () => AsyncIterator<T>;
+};
+
+const owners = new WeakMap<ExecutionHost, WeakSet<object>>();
+
+function validateResult<T>(result: IteratorResult<T>): IteratorResult<T> {
+  if (
+    result === null ||
+    (typeof result !== "object" && typeof result !== "function")
+  ) {
+    throw new TypeError("An iterator operation must return an object.");
+  }
+  return result;
+}
+
+/** Adapts the external protocol without awaiting values stored in its results. */
+export function acquireIterator<T>(source: Source<T>, scope: Scope): Reader<T> {
+  // Boxing lets primitive iterables (notably strings) use the same protocol.
+  const iterable: IteratorSource<T> = Object(source);
+  const getIterator: (() => ExternalIterator<T>) | undefined =
+    iterable[Symbol.asyncIterator] ?? iterable[Symbol.iterator];
+  if (typeof getIterator !== "function") {
+    throw new TypeError("The source must be iterable or async iterable.");
+  }
+  const iterator = getIterator.call(source);
+  let claimed = owners.get(scope.host);
+  if (!claimed) {
+    claimed = new WeakSet();
+    owners.set(scope.host, claimed);
+  }
+  if (claimed.has(iterator)) {
+    throw new TypeError("An iterator cannot be shared within one execution.");
+  }
+  claimed.add(iterator);
+
+  scope.setCleanup(async () => {
+    const close = iterator.return;
+    if (close == null) return;
+    const result = validateResult(await close.call(iterator));
+    if (result.done !== true) throw new IteratorCleanupError();
+  });
+  return {
+    next: () => Promise.resolve(iterator.next()).then(validateResult),
+  };
+}

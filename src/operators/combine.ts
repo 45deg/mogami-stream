@@ -1,5 +1,6 @@
 import { create, open, type Source, type Stream } from "../core/stream.js";
-import { ChildSlot, notifications } from "../internal/child-slots.js";
+import { ChildSlot } from "../internal/child-slots.js";
+import { notifications } from "../internal/notifications.js";
 import { done, item } from "../internal/deferred.js";
 
 export type SourceValues<S extends readonly Source<unknown>[]> = {
@@ -16,6 +17,7 @@ export function chain<T>(...sources: Source<T>[]): Stream<T> {
           upstream ??= open(sources[index]!, scope);
           const result = await upstream.next();
           if (!result.done) return result;
+          await upstream.scope.close();
           upstream = undefined;
           index++;
         }

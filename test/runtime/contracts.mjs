@@ -194,5 +194,88 @@ export async function runContracts() {
       throw new Error("Promise identity changed.");
     equal(await stream.reduce(stream.of(1, 2, 3), (sum, x) => sum + x, 0), 6);
   });
+  await check("primitive iterable protocol", async () => {
+    equal(await stream.toArray(stream.from("ab")), ["a", "b"]);
+    const source = {
+      [Symbol.asyncIterator]: undefined,
+      *[Symbol.iterator]() {
+        yield 1;
+      },
+    };
+    equal(await stream.toArray(stream.from(source)), [1]);
+  });
+  await check("zip stops siblings before waiting for finalizers", async () => {
+    let finishCleanup;
+    const cleanup = new Promise((resolve) => {
+      finishCleanup = resolve;
+    });
+    let returned = false;
+    const sibling = {
+      [Symbol.asyncIterator]() {
+        return this;
+      },
+      next() {
+        return { value: 1 };
+      },
+      return() {
+        returned = true;
+        finishCleanup();
+        return { done: true };
+      },
+    };
+    equal(
+      await stream.toArray(
+        stream.zip(
+          stream.empty().pipe(stream.finalize(() => cleanup)),
+          sibling,
+        ),
+      ),
+      [],
+    );
+    equal(returned, true);
+  });
+  await check("unread stages do not finalize", async () => {
+    let finalized = false;
+    const failure = new Error("sibling acquisition");
+    const unread = stream.of(1).pipe(
+      stream.finalize(() => {
+        finalized = true;
+      }),
+    );
+    const broken = {
+      [Symbol.asyncIterator]() {
+        throw failure;
+      },
+    };
+    try {
+      await stream.toArray(stream.merge(unread, broken));
+      throw new Error("Expected failure.");
+    } catch (error) {
+      if (error !== failure) throw error;
+    }
+    equal(finalized, false);
+  });
+  await check("incomplete cleanup without a done flag fails", async () => {
+    const source = {
+      [Symbol.asyncIterator]() {
+        return this;
+      },
+      next() {
+        return { value: 1 };
+      },
+      return() {
+        return { value: 2 };
+      },
+    };
+    const iterator = stream.iterate(source);
+    await iterator.next();
+    try {
+      await iterator.return();
+      throw new Error("Expected cleanup failure.");
+    } catch (error) {
+      if (!(error instanceof stream.IteratorCleanupError)) throw error;
+    }
+    equal((await iterator.closed).kind, "failed");
+  });
   return passed;
 }

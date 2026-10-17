@@ -32,7 +32,7 @@ export function iterateWithScheduler<T>(
   let reason: unknown;
   let notified = false;
   let pending = false;
-  let started = false;
+  let cleanupFinished = false;
   let closing: Promise<void> | undefined;
   let steps = 0;
   let reader: ReturnType<typeof open<T>> | undefined;
@@ -43,7 +43,7 @@ export function iterateWithScheduler<T>(
       stop("failed", error);
     },
     suppress(error) {
-      if (kind === "failed" && error === reason) return;
+      if (kind === "failed" && Object.is(error, reason)) return;
       if (!suppressedErrors.includes(error)) suppressedErrors.push(error);
       if (kind === undefined || kind === "completed") {
         kind = "failed";
@@ -65,9 +65,11 @@ export function iterateWithScheduler<T>(
     closing ??= (async () => {
       await root.close();
       options.signal?.removeEventListener("abort", abort);
+      kind ??= "completed";
+      cleanupFinished = true;
       completion.resolve({
-        kind: kind ?? "completed",
-        ...(kind === undefined ? {} : { reason }),
+        kind,
+        ...(kind === "failed" || kind === "cancelled" ? { reason } : {}),
         suppressedErrors: [...suppressedErrors],
       });
     })();
@@ -78,8 +80,8 @@ export function iterateWithScheduler<T>(
     if (kind !== undefined) {
       if (
         nextKind === "failed" &&
-        error !== reason &&
-        error !== root.signal.reason
+        !Object.is(error, reason) &&
+        !Object.is(error, root.signal.reason)
       )
         host.suppress(error);
       return;
@@ -99,6 +101,22 @@ export function iterateWithScheduler<T>(
     return done();
   }
 
+  async function readNext(
+    stopNotification: Promise<void>,
+  ): Promise<IteratorResult<T>> {
+    try {
+      reader ??= open(source, root);
+      return await Promise.race([
+        reader.next(),
+        stopNotification.then(() => done()),
+      ]);
+    } catch (error) {
+      // Record the failure here; next() delivers the first execution cause.
+      if (kind === undefined) stop("failed", error);
+      return done();
+    }
+  }
+
   const iterator: StreamIterator<T> = {
     closed: completion.promise,
     [Symbol.asyncIterator]() {
@@ -116,27 +134,15 @@ export function iterateWithScheduler<T>(
       const stopNotification = deferred<void>();
       wakePending = () => stopNotification.resolve();
       try {
-        if (!started) {
-          started = true;
-          reader = open(source, root);
-        }
-        const read = reader!.next();
-        // The reader observes its own failures; the race also handles synchronous open errors.
-        const result = await Promise.race([
-          read,
-          stopNotification.promise.then(() => done()),
-        ]);
+        const result = await readNext(stopNotification.promise);
         if (kind !== undefined) return stoppedResult();
         if (result.done) {
-          await close();
-          if (kind === "failed") return stoppedResult();
-          kind = "completed";
+          // Exhaustion still waits for cleanup, but a stop must remain able
+          // to reject this public read while finalizers are pending.
+          await Promise.race([close(), stopNotification.promise]);
+          if (kind === "failed" || kind === "cancelled") return stoppedResult();
         }
         return result;
-      } catch (error) {
-        if (notified) throw error;
-        if (kind === undefined) stop("failed", error);
-        return stoppedResult();
       } finally {
         pending = false;
         wakePending = undefined;
@@ -153,6 +159,7 @@ export function iterateWithScheduler<T>(
       return done();
     },
     async throw(error) {
+      if (cleanupFinished) throw kind === "completed" ? error : reason;
       stop("failed", error);
       notified = !pending;
       throw reason;
