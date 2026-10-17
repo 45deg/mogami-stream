@@ -1,0 +1,44 @@
+{
+  "name": "mogami-stream",
+  "version": "0.1.0",
+  "description": "Bounded, cancellable AsyncIterable pipelines with zero runtime dependencies.",
+  "type": "module",
+  "sideEffects": false,
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p test/types/tsconfig.json && tsc -p test/types/tsconfig.worker.json && tsc -p test/types/tsconfig.node.json",
+    "test": "pnpm build && node --test --test-timeout=10000 test/*.test.mjs",
+    "test:bun": "pnpm build && bun test test/*.test.mjs",
+    "check:dist": "node scripts/check-dist.mjs",
+    "check": "pnpm test && pnpm typecheck && pnpm check:dist && pnpm format:check",
+    "test:browser": "pnpm build && node scripts/test-browser.mjs",
+    "test:cloudflare": "pnpm build && node scripts/test-cloudflare.mjs",
+    "test:package": "pnpm build && node scripts/test-package.mjs",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "prepack": "pnpm build && pnpm check:dist"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "miniflare": "^4.20260730.0",
+    "playwright": "^1.64.1",
+    "prettier": "^3.9.10",
+    "typescript": "~5.9.3"
+  },
+  "packageManager": "pnpm@11.1.1",
+  "license": "MIT"
+}
