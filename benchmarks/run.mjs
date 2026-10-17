@@ -162,6 +162,16 @@ const cases = [
       ),
   },
   {
+    name: "merge-sparse-512",
+    run: (api) =>
+      consume(
+        api.merge(
+          api.range(0, items),
+          ...Array.from({ length: 511 }, () => api.empty()),
+        ),
+      ),
+  },
+  {
     name: "flatten-singletons",
     run: (api) =>
       consume(

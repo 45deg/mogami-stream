@@ -33,7 +33,6 @@ export function merge<T>(...sources: Source<T>[]): Stream<T> {
     const slots = sources.map(
       (source) => new ChildSlot(source, scope, changed.notify),
     );
-    const ended = new Set<number>();
     let started = false;
     let refill: ChildSlot<T> | undefined;
     let cursor = 0;
@@ -48,22 +47,25 @@ export function merge<T>(...sources: Source<T>[]): Stream<T> {
           }
           refill?.start();
           refill = undefined;
-          const scanStart = cursor;
-          for (let offset = 0; offset < slots.length; offset++) {
-            const index = (scanStart + offset) % slots.length;
-            if (ended.has(index)) continue;
-            const slot = slots[index]!;
+          for (let remaining = slots.length; remaining > 0; remaining--) {
+            if (cursor === slots.length) cursor = 0;
+            const slot = slots[cursor]!;
             if (slot.failure) throw slot.failure.error;
-            if (!slot.result) continue;
-            const result = slot.consume();
-            if (result.done) ended.add(index);
-            else {
-              cursor = (index + 1) % slots.length;
-              refill = slot;
-              return result;
+            if (!slot.result) {
+              cursor++;
+              continue;
             }
+            const result = slot.consume();
+            if (result.done) {
+              // Keep the cursor on the successor shifted into this position.
+              slots.splice(cursor, 1);
+              continue;
+            }
+            cursor++;
+            refill = slot;
+            return result;
           }
-          if (ended.size === slots.length) return done();
+          if (!slots.length) return done();
           await notification;
         }
       },
