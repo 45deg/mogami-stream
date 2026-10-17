@@ -6,6 +6,7 @@ import {
 } from "../core/stream.js";
 import { done } from "../internal/deferred.js";
 import { cancellationReason, integer } from "../internal/errors.js";
+import { from } from "./creation.js";
 
 export function take<T>(count: number): Operator<T, T> {
   integer(count, "count", 0);
@@ -31,6 +32,7 @@ export function take<T>(count: number): Operator<T, T> {
 
 export function skip<T>(count: number): Operator<T, T> {
   integer(count, "count", 0);
+  if (count === 0) return from;
   return (source) =>
     create((scope) => {
       const upstream = open(source, scope);

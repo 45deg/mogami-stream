@@ -39,7 +39,8 @@ const selectedCase = args.get("case");
 const sum = (items * (items - 1)) / 2;
 const asynchronousItems = Math.min(items, 128);
 const cpuItems = Math.min(items, 256);
-if (!Number.isSafeInteger(sum + items))
+const timedItems = Math.min(items, 64);
+if (!Number.isSafeInteger(sum + items ** 2))
   throw new RangeError("items is too large for an exact checksum.");
 
 async function consume(
@@ -191,6 +192,166 @@ const cases = [
       ),
   },
 ];
+
+// These stages preserve the input values, so they share the same assertions.
+for (const [name, operator] of [
+  ["filter-all", (api) => api.filter(() => true)],
+  ["take", (api) => api.take(items)],
+  ["skip-zero", (api) => api.skip(0)],
+  ["takeWhile", (api) => api.takeWhile(() => true)],
+  ["tap", (api) => api.tap(() => {})],
+  ["finalize", (api) => api.finalize(() => {})],
+  ["delayStart-zero", (api) => api.delayStart(0)],
+  ["spaceout-zero", (api) => api.spaceout(0)],
+  [
+    "rateLimit-unthrottled",
+    (api) => api.rateLimit({ count: items + 1, perMs: 1 }),
+  ],
+  ["timeoutEach", (api) => api.timeoutEach(60_000)],
+  ["deadline", (api) => api.deadline(60_000)],
+]) {
+  cases.push({
+    name,
+    run: (api) => consume(api.range(0, items).pipe(operator(api))),
+  });
+}
+for (const name of ["flatten", "concat", "flatMap", "concatMap"]) {
+  cases.push({
+    name: `${name}-sequential`,
+    run: (api) =>
+      consume(
+        name.endsWith("Map")
+          ? api.range(0, items).pipe(api[name]((value) => [value]))
+          : api
+              .from(Array.from({ length: items }, (_, value) => [value]))
+              .pipe(api[name]()),
+      ),
+  });
+}
+for (const name of ["flatten", "concat"]) {
+  cases.push({
+    name: `${name}-prefetch`,
+    run: (api) =>
+      consume(
+        api
+          .from(
+            Array.from({ length: Math.ceil(items / 32) }, (_, group) =>
+              api.range(group * 32, Math.min(items, (group + 1) * 32)),
+            ),
+          )
+          .pipe(api[name]({ concurrency: 8 })),
+      ),
+  });
+}
+for (const [name, operator] of [
+  ["spaceout-1ms", (api) => api.spaceout(1)],
+  ["rateLimit-burst", (api) => api.rateLimit({ count: 8, perMs: 1 })],
+]) {
+  cases.push({
+    name,
+    items: timedItems,
+    run: (api) =>
+      consume(
+        api.range(0, timedItems).pipe(operator(api)),
+        timedItems,
+        (timedItems * (timedItems - 1)) / 2,
+      ),
+  });
+}
+cases.push(
+  {
+    name: "filter-half",
+    run: (api) =>
+      consume(
+        api.range(0, items * 2).pipe(api.filter((value) => value % 2 === 0)),
+        items,
+        sum * 2,
+      ),
+  },
+  {
+    name: "skip-half",
+    run: (api) =>
+      consume(
+        api.range(0, items * 2).pipe(api.skip(items)),
+        items,
+        sum + items ** 2,
+      ),
+  },
+  {
+    name: "chunks-100",
+    run: (api) =>
+      consume(api.range(0, items).pipe(api.chunks(100)), items, sum, true),
+  },
+  {
+    name: "chain-singletons",
+    run: (api) =>
+      consume(api.chain(...Array.from({ length: items }, (_, i) => [i]))),
+  },
+  {
+    name: "zip-pair",
+    run: (api) =>
+      consume(
+        api.zip(api.range(0, items), api.range(0, items)),
+        items * 2,
+        sum * 2,
+        true,
+      ),
+  },
+  {
+    name: "zipLatest-pair",
+    async run(api) {
+      let previous = [-1, -1];
+      let count = 0;
+      for await (const values of api.zipLatest([
+        api.range(0, items),
+        api.range(0, items),
+      ])) {
+        assert.equal(values.length, 2);
+        for (let index = 0; index < 2; index++) {
+          assert.ok(values[index] >= previous[index] && values[index] < items);
+        }
+        previous = values;
+        count++;
+      }
+      assert.deepEqual(previous, [items - 1, items - 1]);
+      assert.ok(count > 0 && count <= items * 2);
+    },
+  },
+  {
+    name: "reduce",
+    async run(api) {
+      assert.equal(
+        await api.reduce(
+          api.range(0, items),
+          (total, value) => total + value,
+          0,
+        ),
+        sum,
+      );
+    },
+  },
+  {
+    name: "toArray",
+    async run(api) {
+      const values = await api.toArray(api.range(0, items));
+      assert.equal(values.length, items);
+      assert.equal(
+        values.reduce((total, value) => total + value, 0),
+        sum,
+      );
+    },
+  },
+  {
+    name: "buffer-large",
+    run: (api) =>
+      consume(
+        api.range(0, items).pipe(api.bufferTime(60_000, { maxItems: items })),
+        items,
+        sum,
+        true,
+      ),
+  },
+);
 if (selectedCase && !cases.some((entry) => entry.name === selectedCase))
   throw new Error(`Unknown case: ${selectedCase}`);
 const selected = cases.filter(

@@ -14,12 +14,38 @@ export interface HigherOrderOptions {
   readonly concurrency?: number;
 }
 
+/** With one child, ordering needs no slots or background input pump. */
+function combineSequentially<T>(): Operator<Source<T>, T> {
+  return (source) =>
+    create((scope) => {
+      const outer = open(source, scope);
+      let child: ReturnType<typeof open<T>> | undefined;
+      return {
+        async next() {
+          for (;;) {
+            if (!child) {
+              const result = await outer.next();
+              if (result.done) return done();
+              child = open(result.value, scope);
+            }
+            const result = await child.next();
+            if (!result.done) return result;
+            // Cleanup still occupies the single child slot.
+            await child.scope.close();
+            child = undefined;
+          }
+        },
+      };
+    });
+}
+
 function combineChildren<T>(
   ordered: boolean,
   options: HigherOrderOptions,
 ): Operator<Source<T>, T> {
   const concurrency = options.concurrency ?? 1;
   integer(concurrency, "concurrency");
+  if (concurrency === 1) return combineSequentially();
   return (source) =>
     create((scope) => {
       const outer = open(source, scope);

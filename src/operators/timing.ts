@@ -171,23 +171,21 @@ export function bufferTime<T>(
           if (values.length === maxItems || scope.scheduler.now() >= end)
             return item(values);
           const timer = alarm(scope, end - scope.scheduler.now());
+          const expiration = timer.promise.then(() => undefined);
           try {
             while (values.length < maxItems) {
-              const outcome = await Promise.race([
-                read().then((arrival) => ({ arrival })),
-                timer.promise.then(() => ({ expired: true as const })),
-              ]);
+              const arrival = await Promise.race([read(), expiration]);
               scope.check();
-              if ("expired" in outcome) return item(values);
+              if (!arrival) return item(values);
               // A delayed timer must not pull the next window's value into
               // this batch. Keep the settled reservation for the next demand.
-              if (outcome.arrival.at >= end) return item(values);
+              if (arrival.at >= end) return item(values);
               pending = undefined;
-              if (outcome.arrival.result.done) {
+              if (arrival.result.done) {
                 ended = true;
                 return item(values);
               }
-              values.push(outcome.arrival.result.value);
+              values.push(arrival.result.value);
               if (scope.scheduler.now() >= end) return item(values);
             }
             return item(values);

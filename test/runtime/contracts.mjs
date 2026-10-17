@@ -121,22 +121,28 @@ export async function runContracts() {
     );
   });
   await check("higher order streams", async () => {
-    equal(
-      await stream.toArray(
-        stream.of([1, 2], [], [3]).pipe(stream.concat({ concurrency: 2 })),
-      ),
-      [1, 2, 3],
-    );
-    equal(
-      (
-        await stream.toArray(
-          stream
-            .of(1, 2)
-            .pipe(stream.flatMap((x) => [x, x], { concurrency: 2 })),
-        )
-      ).sort(),
-      [1, 1, 2, 2],
-    );
+    for (const concurrency of [1, 2]) {
+      for (const operator of [stream.concat, stream.flatten]) {
+        equal(
+          (
+            await stream.toArray(
+              stream.of([1, 2], [], [3]).pipe(operator({ concurrency })),
+            )
+          ).sort(),
+          [1, 2, 3],
+        );
+      }
+      for (const operator of [stream.flatMap, stream.concatMap]) {
+        equal(
+          (
+            await stream.toArray(
+              stream.of(1, 2).pipe(operator((x) => [x, x], { concurrency })),
+            )
+          ).sort(),
+          [1, 1, 2, 2],
+        );
+      }
+    }
   });
   await check("cleanup failure reports", async () => {
     const failure = new Error("cleanup");
