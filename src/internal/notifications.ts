@@ -2,11 +2,11 @@ import type { Scope } from "../core/scope.js";
 import { deferred } from "./deferred.js";
 
 export function notifications(scope: Scope) {
-  let event = deferred<void>();
+  let event: ReturnType<typeof deferred<void>> | undefined;
   const notify = () => {
     const previous = event;
-    event = deferred();
-    previous.resolve();
+    event = undefined;
+    previous?.resolve();
   };
   scope.signal.addEventListener("abort", notify, { once: true });
   scope.finalizers.push(() =>
@@ -14,6 +14,7 @@ export function notifications(scope: Scope) {
   );
   return {
     get promise() {
+      event ??= deferred<void>();
       return event.promise;
     },
     notify,

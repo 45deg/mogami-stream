@@ -19,6 +19,10 @@ export interface StreamIterator<T> extends AsyncIterableIterator<T> {
   readonly closed: Promise<CloseReport>;
 }
 
+const READS_PER_CLOCK_CHECK = 32;
+const MAX_READS_PER_YIELD = 512;
+const YIELD_INTERVAL_MS = 8;
+
 /** Internal test seam: Scheduler is deliberately absent from the package entry point. */
 export function iterateWithScheduler<T>(
   source: Source<T>,
@@ -35,6 +39,7 @@ export function iterateWithScheduler<T>(
   let cleanupFinished = false;
   let closing: Promise<void> | undefined;
   let steps = 0;
+  let lastYieldAtMs: number | undefined;
   let reader: ReturnType<typeof open<T>> | undefined;
 
   const host: ExecutionHost = {
@@ -53,8 +58,17 @@ export function iterateWithScheduler<T>(
         void close();
       }
     },
-    async checkpoint(signal) {
-      if (++steps % 128 === 0) await scheduler.yield(signal);
+    checkpoint(signal) {
+      lastYieldAtMs ??= scheduler.now();
+      if (++steps % READS_PER_CLOCK_CHECK !== 0) return undefined;
+      const elapsedMs = scheduler.now() - lastYieldAtMs;
+      // Time limits longer CPU bursts; the read cap also works on frozen clocks.
+      if (steps < MAX_READS_PER_YIELD && elapsedMs < YIELD_INTERVAL_MS)
+        return undefined;
+      steps = 0;
+      return scheduler.yield(signal).then(() => {
+        lastYieldAtMs = scheduler.now();
+      });
     },
   };
   const root = new Scope(host);

@@ -277,5 +277,36 @@ export async function runContracts() {
     }
     equal((await iterator.closed).kind, "failed");
   });
+  await check(
+    "host timers can cancel a synchronous infinite filter",
+    async () => {
+      const controller = new AbortController();
+      const reason = new Error("timer cancellation");
+      let timer;
+      let closed = false;
+      const source = {
+        *[Symbol.iterator]() {
+          timer = setTimeout(() => controller.abort(reason), 0);
+          try {
+            for (;;) yield 1;
+          } finally {
+            closed = true;
+          }
+        },
+      };
+      try {
+        await stream.toArray(
+          stream.from(source).pipe(stream.filter(() => false)),
+          { signal: controller.signal },
+        );
+        throw new Error("Expected timer cancellation.");
+      } catch (error) {
+        if (error !== reason) throw error;
+      } finally {
+        clearTimeout(timer);
+      }
+      equal(closed, true);
+    },
+  );
   return passed;
 }

@@ -394,3 +394,32 @@ test("cancellation rejects a pending next promptly even after input exhaustion d
     assert.equal((await iterator.next()).done, true);
   }
 });
+
+test("cancellation during iterator acquisition closes the acquired input without reading it", async () => {
+  const controller = new AbortController();
+  const reason = new Error("cancelled during acquisition");
+  let reads = 0;
+  let returns = 0;
+  const source = {
+    [Symbol.iterator]() {
+      controller.abort(reason);
+      return {
+        next() {
+          reads++;
+          return { value: 1 };
+        },
+        return() {
+          returns++;
+          return { done: true };
+        },
+      };
+    },
+  };
+  const iterator = stream.iterate(stream.from(source), {
+    signal: controller.signal,
+  });
+  await assert.rejects(iterator.next(), (error) => error === reason);
+  await iterator.closed;
+  assert.equal(reads, 0);
+  assert.equal(returns, 1);
+});

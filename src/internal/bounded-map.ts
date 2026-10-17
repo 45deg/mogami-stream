@@ -14,6 +14,29 @@ export interface MapOptions {
   readonly ordered?: boolean;
 }
 
+/** One slot needs no result queue or background input pump. */
+function sequentialMap<T, U>(
+  mapper: (value: T, context: OperatorContext) => U,
+): Operator<T, Awaited<U>> {
+  return (source) =>
+    create((scope) => {
+      const upstream = open(source, scope);
+      let index = 0;
+      return {
+        async next() {
+          const result = await upstream.next();
+          if (result.done) return done();
+          scope.check();
+          const value = await mapper(result.value, {
+            index: index++,
+            signal: scope.signal,
+          });
+          return item(value);
+        },
+      };
+    });
+}
+
 /** A slot stays occupied from the input reservation until its output is consumed. */
 export function boundedMap<T, U>(
   mapper: (value: T, context: OperatorContext) => U,
@@ -26,6 +49,7 @@ export function boundedMap<T, U>(
   if (capacity < concurrency)
     throw new RangeError("capacity must be >= concurrency.");
   const ordered = options.ordered ?? true;
+  if (concurrency === 1 && capacity === 1) return sequentialMap(mapper);
 
   return (source) =>
     create((scope) => {
@@ -93,7 +117,6 @@ export function boundedMap<T, U>(
               },
             ),
           );
-          changed.notify();
           pump();
         })();
         void scope.observe(pull).catch((error) => {

@@ -30,6 +30,7 @@ function combineChildren<T>(
       let demand = false;
       let cursor = 0;
       let failure: { error: unknown } | undefined;
+      let refill: ChildSlot<T> | undefined;
 
       function fill(): void {
         if (
@@ -47,8 +48,10 @@ function combineChildren<T>(
               const result = await outer.next();
               pulling = false;
               scope.check();
-              if (result.done) outerDone = true;
-              else {
+              if (result.done) {
+                outerDone = true;
+                changed.notify();
+              } else {
                 const child = new ChildSlot(
                   result.value,
                   scope,
@@ -57,7 +60,6 @@ function combineChildren<T>(
                 slots.push(child);
                 child.start();
               }
-              changed.notify();
               fill();
             })(),
           )
@@ -76,8 +78,9 @@ function combineChildren<T>(
               scope.check();
               const notification = changed.promise;
               if (failure) throw failure.error;
+              refill?.start();
+              refill = undefined;
               fill();
-              slots.forEach((slot) => slot.start());
               let retired = false;
               for (let offset = 0; offset < slots.length; offset++) {
                 const index = ordered
@@ -97,6 +100,7 @@ function combineChildren<T>(
                   break;
                 }
                 cursor = (index + 1) % slots.length;
+                refill = slot;
                 return result;
               }
               if (retired) continue;

@@ -4,7 +4,7 @@ export interface ExecutionHost {
   readonly scheduler: Scheduler;
   fail(error: unknown): void;
   suppress(error: unknown): void;
-  checkpoint(signal: AbortSignal): Promise<void>;
+  checkpoint(signal: AbortSignal): Promise<void> | undefined;
 }
 
 /** Owns one stage, its outstanding operations, and its upstream stages. */
@@ -37,13 +37,15 @@ export class Scope {
     if (this.stopped) throw this.signal.reason;
   }
 
-  checkpoint(): Promise<void> {
+  checkpoint(): Promise<void> | undefined {
     this.check();
     return this.host.checkpoint(this.signal);
   }
 
   setCleanup(cleanup: () => void | PromiseLike<void>): void {
     this.cleanup = cleanup;
+    // An external iterator factory can synchronously abort during acquisition.
+    if (this.stopped) this.startCleanup();
   }
   markDone(): void {
     this.finished = true;
@@ -73,6 +75,10 @@ export class Scope {
     this.stopped = true;
     this.controller.abort(reason);
     for (const child of this.children) child.stop(reason);
+    this.startCleanup();
+  }
+
+  private startCleanup(): void {
     if (!this.finished && this.cleanup) {
       const cleanup = this.cleanup;
       this.cleanup = undefined;

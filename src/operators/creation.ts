@@ -1,16 +1,10 @@
-import { create, open, type Source, type Stream } from "../core/stream.js";
+import { create, open, type Source, Stream } from "../core/stream.js";
+import { acquireIterator } from "../core/iterator.js";
 import { done, item } from "../internal/deferred.js";
 
 export function from<T>(source: Source<T>): Stream<T> {
-  return create((scope) => {
-    let reader: ReturnType<typeof open<T>> | undefined;
-    return {
-      next() {
-        reader ??= open(source, scope);
-        return reader.next();
-      },
-    };
-  });
+  if (source instanceof Stream) return source;
+  return create((scope) => acquireIterator(source, scope));
 }
 
 export function defer<T>(

@@ -122,6 +122,8 @@ pnpm test:browser
 pnpm test:cloudflare
 ```
 
+Run `pnpm bench --items=5000 --samples=5 --warmup=2` to measure pipeline overhead and controlled timer/CPU callback workloads with the default scheduler. The benchmark checks output counts and checksums, warms each case, and reports median timings. Timer and CPU cases use at most 128 and 256 items respectively; other cases use `--items`. It samples heap usage and timer delay separately from timing; sampled peak heap can miss short-lived allocations, and retained heap deltas after GC can be negative. Use `--baseline=/absolute/path/to/dist/index.js` for alternating before/after runs, `--case=map-sequential` to focus a case, or `--json=/tmp/benchmark.json` to save measurements. Results depend on the host, runtime, callbacks, and workload.
+
 The browser runner uses installed Google Chrome on macOS when available; otherwise it uses Playwright Chromium. Set `PLAYWRIGHT_EXECUTABLE_PATH` to select another compatible executable. The Workers test uses local Miniflare/workerd, requires no account, and never deploys. Only the `workerd` dependency is allowed an install-time build script.
 
 Node.js, Bun, browser main threads, Dedicated Workers, Service Workers, and Cloudflare Workers are targets. Deno, CommonJS, stream/event adapters, Worker creation, and the `switch`, `debounce`, `throttle`, `sample`, and `interval` families are outside the initial scope.

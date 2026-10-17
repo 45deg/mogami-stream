@@ -34,15 +34,20 @@ export function merge<T>(...sources: Source<T>[]): Stream<T> {
       (source) => new ChildSlot(source, scope, changed.notify),
     );
     const ended = new Set<number>();
+    let started = false;
+    let refill: ChildSlot<T> | undefined;
     let cursor = 0;
     return {
       async next() {
         for (;;) {
           scope.check();
           const notification = changed.promise;
-          slots.forEach((slot, i) => {
-            if (!ended.has(i)) slot.start();
-          });
+          if (!started) {
+            started = true;
+            slots.forEach((slot) => slot.start());
+          }
+          refill?.start();
+          refill = undefined;
           const scanStart = cursor;
           for (let offset = 0; offset < slots.length; offset++) {
             const index = (scanStart + offset) % slots.length;
@@ -54,6 +59,7 @@ export function merge<T>(...sources: Source<T>[]): Stream<T> {
             if (result.done) ended.add(index);
             else {
               cursor = (index + 1) % slots.length;
+              refill = slot;
               return result;
             }
           }
@@ -128,15 +134,20 @@ export function zipLatest(
     const seen = new Set<number>();
     const ended = new Set<number>();
     const latest: unknown[] = Array(sources.length).fill(undefined);
+    let started = false;
+    let refill: ChildSlot<unknown> | undefined;
     let cursor = 0;
     return {
       async next() {
         for (;;) {
           scope.check();
           const notification = changed.promise;
-          slots.forEach((slot, index) => {
-            if (!ended.has(index)) slot.start();
-          });
+          if (!started) {
+            started = true;
+            slots.forEach((slot) => slot.start());
+          }
+          refill?.start();
+          refill = undefined;
           const scanStart = cursor;
           for (let offset = 0; offset < slots.length; offset++) {
             const index = (scanStart + offset) % slots.length;
@@ -152,8 +163,10 @@ export function zipLatest(
               seen.add(index);
               latest[index] = result.value;
               cursor = (index + 1) % slots.length;
-              if (partial || seen.size === slots.length)
+              if (partial || seen.size === slots.length) {
+                refill = slot;
                 return item([...latest]);
+              }
               slot.start();
             }
           }

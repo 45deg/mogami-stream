@@ -21,7 +21,10 @@ export class Stream<T> implements AsyncIterable<T> {
     return {
       next: () => {
         // Acquiring an internal iterator must not start its stage yet.
-        reader ??= this.builder(scope);
+        if (!reader) {
+          reader = this.builder(scope);
+          scope.check();
+        }
         return reader.next();
       },
     };
@@ -106,7 +109,8 @@ export function open<T>(source: Source<T>, parent: Scope): OwnedReader<T> {
     async next() {
       if (ended) return done();
       scope.check();
-      await scope.observe(scope.checkpoint());
+      const pause = scope.checkpoint();
+      if (pause) await scope.observe(pause);
       scope.check();
       let operation: Promise<IteratorResult<T>>;
       try {
