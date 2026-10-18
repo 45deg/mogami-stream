@@ -1,7 +1,13 @@
 import { done } from "../internal/deferred.js";
 import { acquireIterator } from "./iterator.js";
 import { Scope } from "./scope.js";
-import { iterate, type StreamIterator } from "../terminal/iterate.js";
+import {
+  iterate,
+  type ExecutionOptions,
+  type StreamIterator,
+} from "../terminal/iterate.js";
+import { toArray } from "../terminal/to-array.js";
+import { reduce } from "../terminal/reduce.js";
 
 export type Source<T> = Iterable<T> | AsyncIterable<T>;
 export type Operator<T, U> = (source: AsyncIterable<T>) => Stream<U>;
@@ -41,6 +47,23 @@ export class Stream<T> implements AsyncIterable<T> {
   }
   [Symbol.asyncIterator](): StreamIterator<T> {
     return iterate(this);
+  }
+  iterate(options: ExecutionOptions = {}): StreamIterator<T> {
+    return iterate(this, options);
+  }
+  toArray(options: ExecutionOptions = {}): Promise<T[]> {
+    return toArray(this, options);
+  }
+  reduce<A>(
+    reducer: (
+      accumulator: A,
+      value: T,
+      context: OperatorContext,
+    ) => A | PromiseLike<A>,
+    initial: A,
+    options: ExecutionOptions = {},
+  ): Promise<A> {
+    return reduce(this, reducer, initial, options);
   }
   pipe(): Stream<T>;
   pipe<A>(op1: Operator<T, A>): Stream<A>;

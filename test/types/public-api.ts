@@ -15,6 +15,7 @@ import {
   concat,
   reduce,
   type Stream,
+  type StreamIterator,
 } from "../../dist/index.js";
 
 type Equal<A, B> =
@@ -26,11 +27,25 @@ type Value<T> = T extends Stream<infer U> ? U : never;
 
 const mapped = of(1).pipe(map(async (value) => `${value}`));
 export type AwaitedMap = Expect<Equal<Value<typeof mapped>, string>>;
+const iterator = mapped.iterate({ signal: new AbortController().signal });
+export type MethodIterator = Expect<
+  Equal<typeof iterator, StreamIterator<string>>
+>;
+const defaultIterator = of(1).iterate();
+export type DefaultMethodIterator = Expect<
+  Equal<typeof defaultIterator, StreamIterator<number>>
+>;
+const collected = mapped.toArray({ signal: new AbortController().signal });
+export type Collected = Expect<Equal<typeof collected, Promise<string[]>>>;
 const narrowed = from<number | string>([1, "a"]).pipe(
   filter((value): value is number => typeof value === "number"),
 );
 export type NarrowedFilter = Expect<Equal<Value<typeof narrowed>, number>>;
 const promised = of(Promise.resolve(1)).pipe(take(1));
+const collectedPromises = promised.toArray();
+export type CollectedPromises = Expect<
+  Equal<typeof collectedPromises, Promise<Promise<number>[]>>
+>;
 export type PromiseValue = Expect<
   Equal<Value<typeof promised>, Promise<number>>
 >;
@@ -56,6 +71,19 @@ const chunked = of(1).pipe(chunks(2), skip(0));
 export type Chunked = Expect<Equal<Value<typeof chunked>, number[]>>;
 const reduced = reduce(of(1), async (sum, value) => sum + value, 0);
 export type Reduced = Expect<Equal<typeof reduced, Promise<number>>>;
+const methodReduced = of(1).reduce(
+  async (text, value, { index, signal }) => {
+    const typedValue: number = value;
+    const typedIndex: number = index;
+    const typedSignal: AbortSignal = signal;
+    return text + typedValue + typedIndex + typedSignal.aborted;
+  },
+  "",
+  { signal: new AbortController().signal },
+);
+export type MethodReduced = Expect<
+  Equal<typeof methodReduced, Promise<string>>
+>;
 
 // Every advertised composition length is checked with a changing intermediate type.
 const a = map((value: number) => String(value));
@@ -103,3 +131,7 @@ of(1).pipe(map((value: string) => value.length));
 of(1).pipe(flatMap(async (value) => [value]));
 // @ts-expect-error An initial accumulator is required.
 reduce(of(1), (a: number, b: number) => a + b);
+// @ts-expect-error An initial accumulator is required for the method too.
+of(1).reduce((a: number, b: number) => a + b);
+// @ts-expect-error Reducer results must match the accumulator type.
+of(1).reduce((text: string) => text.length, "");

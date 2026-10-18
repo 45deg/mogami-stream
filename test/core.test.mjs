@@ -25,6 +25,92 @@ test("construction, iterator acquisition, take(0), and pre-abort are lazy", asyn
   assert.equal(finalized, 0);
 });
 
+test("Stream.iterate is lazy and exposes completion and cancellation controls", async () => {
+  let opened = 0;
+  const source = s.defer(() => {
+    opened++;
+    return [1, 2];
+  });
+  const iterator = source.iterate();
+  assert.equal(opened, 0);
+  assert.deepEqual(await iterator.next(), { value: 1, done: false });
+  assert.deepEqual(await iterator.next(), { value: 2, done: false });
+  assert.equal((await iterator.next()).done, true);
+  assert.equal((await iterator.closed).kind, "completed");
+  assert.equal(opened, 1);
+
+  const reason = new Error("cancelled");
+  const cancelled = source.iterate();
+  cancelled.cancel(reason);
+  await assert.rejects(cancelled.next(), (error) => error === reason);
+  const report = await cancelled.closed;
+  assert.equal(report.kind, "cancelled");
+  assert.equal(report.reason, reason);
+
+  const controller = new AbortController();
+  const external = source.iterate({ signal: controller.signal });
+  controller.abort(reason);
+  await assert.rejects(external.next(), (error) => error === reason);
+  assert.equal((await external.closed).reason, reason);
+  assert.equal(opened, 1);
+});
+
+test("Stream.toArray collects pipelines, waits for cleanup, and forwards cancellation", async () => {
+  let finalized = false;
+  const source = s.of(1, 2).pipe(
+    s.map((value) => value * 2),
+    s.finalize(async () => {
+      await turn();
+      finalized = true;
+    }),
+  );
+  assert.deepEqual(await source.toArray(), [2, 4]);
+  assert.equal(finalized, true);
+  assert.deepEqual(await source.toArray(), [2, 4]);
+  assert.deepEqual(await s.empty().toArray(), []);
+
+  const controller = new AbortController();
+  const reason = new Error("cancelled");
+  controller.abort(reason);
+  await assert.rejects(
+    source.toArray({ signal: controller.signal }),
+    (error) => error === reason,
+  );
+});
+
+test("Stream.reduce supports async accumulation, cleanup, and cancellation", async () => {
+  let finalized = false;
+  const indexes = [];
+  const source = s.range(1, 4).pipe(
+    s.map((value) => value * 2),
+    s.finalize(async () => {
+      await turn();
+      finalized = true;
+    }),
+  );
+  assert.equal(
+    await source.reduce(async (text, value, { index }) => {
+      indexes.push(index);
+      return text + value;
+    }, ""),
+    "246",
+  );
+  assert.deepEqual(indexes, [0, 1, 2]);
+  assert.equal(finalized, true);
+  assert.equal(
+    await s.empty().reduce(() => assert.fail(), "initial"),
+    "initial",
+  );
+
+  const controller = new AbortController();
+  const reason = new Error("cancelled");
+  controller.abort(reason);
+  await assert.rejects(
+    source.reduce(() => assert.fail(), 0, { signal: controller.signal }),
+    (error) => error === reason,
+  );
+});
+
 test("sequential operators, index reset, reducers, and reuse", async () => {
   const indexes = [];
   const pipeline = s.range(0, 10).pipe(
