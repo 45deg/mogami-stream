@@ -2,11 +2,22 @@ import { create, type Stream } from "../core/stream.js";
 import { done, item } from "../internal/deferred.js";
 import { duration } from "../internal/errors.js";
 
+/**
+ * A scheduled value or terminal event; at is milliseconds from the first read.
+ */
 export type TimelineEvent<T> =
   | { readonly at: number; readonly kind: "value"; readonly value: T }
   | { readonly at: number; readonly kind: "complete" }
   | { readonly at: number; readonly kind: "error"; readonly error: unknown };
 
+/**
+ * Replay a demand-driven schedule relative to the first read of each execution.
+ *
+ * Times are finite, non-negative milliseconds in non-decreasing order. Equal-time events retain array order; a completion or error event may only appear last. Construction snapshots event records while preserving value and error identity. No timers run while downstream is idle.
+ * @throws RangeError for invalid times or terminator placement.
+ * @throws TypeError for an unknown event kind.
+ * @category Sources
+ */
 export function fromTimeline<T>(
   events: readonly TimelineEvent<T>[],
 ): Stream<T> {

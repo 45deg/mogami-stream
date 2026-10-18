@@ -5,6 +5,12 @@ import { take } from "../operators/selection.js";
 import type { ExecutionOptions } from "./iterate.js";
 import { reduce } from "./reduce.js";
 
+/**
+ * Await sequential effects without retaining values, then wait for cleanup.
+ *
+ * Callback return values are discarded.
+ * @category Consumption
+ */
 export async function forEach<T>(
   source: Source<T>,
   effect: (value: T, context: OperatorContext) => unknown,
@@ -33,6 +39,12 @@ export function find<T>(
   ) => boolean | PromiseLike<boolean>,
   options?: ExecutionOptions,
 ): Promise<T | undefined>;
+/**
+ * Return the first matching value, or undefined if no value matches.
+ *
+ * Await predicates sequentially and close upstream on a match. Synchronous type predicates narrow the result. A matching undefined value is indistinguishable from no match.
+ * @category Consumption
+ */
 export function find<T>(
   source: Source<T>,
   predicate: (
@@ -49,6 +61,12 @@ export function find<T>(
   );
 }
 
+/**
+ * Return whether any value matches, closing upstream on the first match.
+ *
+ * Predicates are awaited sequentially. Empty inputs return false; cleanup completes before settlement.
+ * @category Consumption
+ */
 export function some<T>(
   source: Source<T>,
   predicate: (
@@ -65,6 +83,12 @@ export function some<T>(
   );
 }
 
+/**
+ * Return whether all values match, closing upstream on the first nonmatch.
+ *
+ * Predicates are awaited sequentially. Empty inputs return true; cleanup completes before settlement.
+ * @category Consumption
+ */
 export async function every<T>(
   source: Source<T>,
   predicate: (

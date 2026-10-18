@@ -3,6 +3,12 @@ import { from } from "../operators/creation.js";
 import { tap } from "../operators/lifecycle.js";
 import { iterate, type ExecutionOptions } from "./iterate.js";
 
+/**
+ * Sequentially await a reducer and return the final accumulator after cleanup.
+ *
+ * The initial accumulator is required and used by reference. Empty inputs return it unchanged; callback indexes restart for each execution.
+ * @category Consumption
+ */
 export async function reduce<T, A>(
   source: Source<T>,
   reducer: (

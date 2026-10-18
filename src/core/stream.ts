@@ -10,10 +10,21 @@ import { toArray } from "../terminal/to-array.js";
 import { reduce } from "../terminal/reduce.js";
 import { forEach, find, some, every } from "../terminal/consume.js";
 
+/**
+ * A synchronous or asynchronous input iterable.
+ */
 export type Source<T> = Iterable<T> | AsyncIterable<T>;
+/**
+ * A lazy transformation from an async iterable to a Stream.
+ */
 export type Operator<T, U> = (source: AsyncIterable<T>) => Stream<U>;
+/**
+ * Per-operator callback state; indexes restart at zero for each execution.
+ */
 export interface OperatorContext {
+  /** Zero-based index within this operator execution. */
   readonly index: number;
+  /** Aborted when the owning stage stops; pass it to external I/O. */
   readonly signal: AbortSignal;
 }
 /** Internal delivery path: callbacks may run synchronously and must not throw. */
@@ -28,9 +39,16 @@ export type Reader<T> = {
 export type Builder<T> = (scope: Scope) => Reader<T>;
 const openStream = Symbol("openStream");
 
+/**
+ * A lazy async iterable with typed operator composition and terminal consumers.
+ *
+ * Create streams with from, defer, or another public source factory. Each iteration is a separate execution; replayability depends on the wrapped input.
+ */
 export class Stream<T> implements AsyncIterable<T> {
+  /** @internal */
   constructor(private readonly builder: Builder<T>) {}
 
+  /** @internal */
   [openStream](scope: Scope): Reader<T> {
     let reader: Reader<T> | undefined;
     const getReader = () => {
@@ -46,15 +64,19 @@ export class Stream<T> implements AsyncIterable<T> {
       read: (receive, reject) => readInto(getReader(), receive, reject),
     };
   }
+  /** Create a new execution; the first next() starts reading. */
   [Symbol.asyncIterator](): StreamIterator<T> {
     return iterate(this);
   }
+  /** Acquire a controlled iterator; equivalent to the standalone iterate function. */
   iterate(options: ExecutionOptions = {}): StreamIterator<T> {
     return iterate(this, options);
   }
+  /** Collect this execution in memory and wait for cleanup. */
   toArray(options: ExecutionOptions = {}): Promise<T[]> {
     return toArray(this, options);
   }
+  /** Sequentially reduce this execution from the required initial accumulator. */
   reduce<A>(
     reducer: (
       accumulator: A,
@@ -66,12 +88,14 @@ export class Stream<T> implements AsyncIterable<T> {
   ): Promise<A> {
     return reduce(this, reducer, initial, options);
   }
+  /** Await sequential effects and cleanup without retaining results. */
   forEach(
     effect: (value: T, context: OperatorContext) => unknown,
     options: ExecutionOptions = {},
   ): Promise<void> {
     return forEach(this, effect, options);
   }
+  /** Return the first match and close upstream; undefined also represents no match. */
   find<S extends T>(
     predicate: (value: T, context: OperatorContext) => value is S,
     options?: ExecutionOptions,
@@ -92,6 +116,7 @@ export class Stream<T> implements AsyncIterable<T> {
   ): Promise<T | undefined> {
     return find(this, predicate, options);
   }
+  /** Test for any match, closing upstream early; empty inputs return false. */
   some(
     predicate: (
       value: T,
@@ -101,6 +126,7 @@ export class Stream<T> implements AsyncIterable<T> {
   ): Promise<boolean> {
     return some(this, predicate, options);
   }
+  /** Test that every value matches, closing upstream early; empty inputs return true. */
   every(
     predicate: (
       value: T,
@@ -110,6 +136,7 @@ export class Stream<T> implements AsyncIterable<T> {
   ): Promise<boolean> {
     return every(this, predicate, options);
   }
+  /** Compose up to eight typed operators without starting execution. */
   pipe(): Stream<T>;
   pipe<A>(op1: Operator<T, A>): Stream<A>;
   pipe<A, B>(op1: Operator<T, A>, op2: Operator<A, B>): Stream<B>;

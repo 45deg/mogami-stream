@@ -16,6 +16,12 @@ export function filter<T>(
     context: OperatorContext,
   ) => boolean | PromiseLike<boolean>,
 ): Operator<T, T>;
+/**
+ * Keep values whose sequential, awaited predicate returns true.
+ *
+ * Synchronous type predicates narrow the output type.
+ * @category Transformation
+ */
 export function filter<T>(
   predicate: (
     value: T,
@@ -45,6 +51,13 @@ export function filter<T>(
     });
 }
 
+/**
+ * Group values into arrays of at most `size` items.
+ *
+ * Emit a final partial array only on normal completion.
+ * @throws RangeError if size is not a positive safe integer.
+ * @category Transformation
+ */
 export function chunks<T>(size: number): Operator<T, T[]> {
   integer(size, "size");
   return (source) =>
@@ -64,6 +77,12 @@ export function chunks<T>(size: number): Operator<T, T[]> {
     });
 }
 
+/**
+ * Emit the updated accumulator after each sequential, awaited reduction.
+ *
+ * The initial value is not emitted and is used by reference. Empty inputs emit nothing; callback indexes restart for each execution.
+ * @category Transformation
+ */
 export function scan<T, A>(
   reducer: (
     accumulator: A,

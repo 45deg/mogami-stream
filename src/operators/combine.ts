@@ -3,10 +3,17 @@ import { ChildSlot } from "../internal/child-slots.js";
 import { notifications } from "../internal/notifications.js";
 import { done, item } from "../internal/deferred.js";
 
+/**
+ * Tuple of value types corresponding to the supplied source tuple.
+ */
 export type SourceValues<S extends readonly Source<unknown>[]> = {
   -readonly [K in keyof S]: S[K] extends Source<infer T> ? T : never;
 };
 
+/**
+ * Open and drain inputs in sequence, waiting for each input to close before opening the next.
+ * @category Combination
+ */
 export function chain<T>(...sources: Source<T>[]): Stream<T> {
   return create((scope) => {
     let index = 0;
@@ -27,6 +34,12 @@ export function chain<T>(...sources: Source<T>[]): Stream<T> {
   });
 }
 
+/**
+ * Read inputs concurrently with one read/result slot per input.
+ *
+ * Ready inputs are selected in rotating order. No new read starts while downstream is idle.
+ * @category Combination
+ */
 export function merge<T>(...sources: Source<T>[]): Stream<T> {
   return create((scope) => {
     const changed = notifications(scope);
@@ -75,6 +88,12 @@ export function merge<T>(...sources: Source<T>[]): Stream<T> {
   });
 }
 
+/**
+ * Emit typed tuples of corresponding values, stopping at the shortest input.
+ *
+ * Other inputs are closed; discovering the shortest input can consume one extra value from another input.
+ * @category Combination
+ */
 export function zip<const S extends readonly Source<unknown>[]>(
   ...sources: S
 ): Stream<SourceValues<S>> {
@@ -108,9 +127,16 @@ export function zip<const S extends readonly Source<unknown>[]>(
   });
 }
 
+/**
+ * Controls whether latest-value tuples may include unseen inputs.
+ */
 export interface ZipLatestOptions {
+  /** Emit before every input has a value, using undefined for unseen inputs. Defaults to false. */
   readonly partial?: boolean;
 }
+/**
+ * Tuple of source value types, including undefined for inputs that have not emitted.
+ */
 export type PartialSourceValues<S extends readonly Source<unknown>[]> = {
   -readonly [K in keyof S]: S[K] extends Source<infer T>
     ? T | undefined
@@ -128,6 +154,12 @@ export function zipLatest<const S extends readonly Source<unknown>[]>(
   sources: S,
   options: ZipLatestOptions,
 ): Stream<PartialSourceValues<S>>;
+/**
+ * Emit tuples of the latest observed values from each input.
+ *
+ * By default, wait for every input to emit before producing a tuple. Partial mode emits earlier and uses undefined for unseen inputs. Updates may coalesce before initialization; accepted updates are retained afterward until consumed.
+ * @category Combination
+ */
 export function zipLatest(
   sources: readonly Source<unknown>[],
   { partial = false }: ZipLatestOptions = {},

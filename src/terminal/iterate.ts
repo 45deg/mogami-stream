@@ -4,18 +4,35 @@ import { defaultScheduler, type Scheduler } from "../core/scheduler.js";
 import { cancellationReason } from "../internal/errors.js";
 import { deferred, done } from "../internal/deferred.js";
 
+/**
+ * Options for one execution, including an optional external cancellation signal.
+ */
 export interface ExecutionOptions {
+  /** External cancellation signal; an already aborted signal prevents input acquisition. */
   readonly signal?: AbortSignal | undefined;
 }
+/**
+ * Cleanup outcome, preserving the primary stop reason and additional failures.
+ */
 export interface CloseReport {
+  /** Completed, explicitly cancelled, or failed, including cleanup failure. */
   readonly kind: "completed" | "cancelled" | "failed";
+  /** Primary failure or cancellation reason; absent for normal completion. */
   readonly reason?: unknown;
+  /** Additional processing and cleanup failures observed after the primary reason. */
   readonly suppressedErrors: readonly unknown[];
 }
+/**
+ * Controlled iterator whose closed promise resolves after all owned cleanup finishes.
+ */
 export interface StreamIterator<T> extends AsyncIterableIterator<T> {
+  /** Request a stop immediately; cleanup continues through closed. */
   cancel(reason?: unknown): void;
+  /** Request a stop and await cleanup; may reject on failure. */
   return(value?: unknown): Promise<IteratorResult<T>>;
+  /** Stop with an error without injecting it upstream or waiting for cleanup. */
   throw(error?: unknown): Promise<IteratorResult<T>>;
+  /** Always resolves after cleanup, including when cleanup fails. Observing it does not stop execution. */
   readonly closed: Promise<CloseReport>;
 }
 
@@ -179,6 +196,12 @@ export function iterateWithScheduler<T>(
   return iterator;
 }
 
+/**
+ * Acquire a controlled, lazy iterator with cancellation and a cleanup report.
+ *
+ * Only one next() may be pending. Failure or cancellation rejects one read; later reads return done. Request return() or cancel() when abandoning manual iteration; awaiting closed alone does not request a stop.
+ * @category Consumption
+ */
 export function iterate<T>(
   source: Source<T>,
   options: ExecutionOptions = {},

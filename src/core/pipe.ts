@@ -59,6 +59,12 @@ export function pipe<T, A, B, C, D, E, F, G, H>(
   op7: Operator<F, G>,
   op8: Operator<G, H>,
 ): Stream<H>;
+/**
+ * Wrap an input and apply operators from left to right without starting execution.
+ *
+ * Type inference supports zero through eight operators; split longer pipelines across pipe calls.
+ * @category Composition
+ */
 export function pipe(
   source: Source<any>,
   ...operators: Array<(source: any) => any>

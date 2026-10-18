@@ -16,6 +16,7 @@ jobs:
       - uses: oven-sh/setup-bun@v2
       - run: pnpm install --frozen-lockfile
       - run: pnpm check
+      - run: pnpm run docs
       - run: pnpm test:package
   browser-and-workers:
     runs-on: ubuntu-latest

@@ -2,11 +2,27 @@ import { create, open, type Source, Stream } from "../core/stream.js";
 import { acquireIterator } from "../core/iterator.js";
 import { done, item } from "../internal/deferred.js";
 
+/**
+ * Wrap an iterable without changing its replayability or awaiting Promise-valued items.
+ *
+ * Input acquisition is lazy until the first read. A single-use iterator remains single-use.
+ * @example
+ * ```ts
+ * const values = await from([1, 2, 3]).toArray();
+ * ```
+ * @category Sources
+ */
 export function from<T>(source: Source<T>): Stream<T> {
   if (source instanceof Stream) return source;
   return create((scope) => acquireIterator(source, scope));
 }
 
+/**
+ * Create a fresh input on the first read of each execution.
+ *
+ * The factory may return a PromiseLike of an iterable. Pass its signal to external I/O so cancellation can interrupt that work.
+ * @category Sources
+ */
 export function defer<T>(
   factory: (context: {
     readonly signal: AbortSignal;
@@ -32,13 +48,28 @@ export function defer<T>(
   });
 }
 
+/**
+ * Create a replayable stream containing the supplied values.
+ * @category Sources
+ */
 export function of<T>(...values: T[]): Stream<T> {
   return from(values);
 }
+/**
+ * Create a stream that completes without emitting a value.
+ * @category Sources
+ */
 export function empty<T = never>(): Stream<T> {
   return from<T>([]);
 }
 
+/**
+ * Emit safe integers from `start` toward, but excluding, `end`.
+ *
+ * A negative step produces a descending range. A step pointing away from the end produces an empty stream.
+ * @throws RangeError if a bound or step is not a safe integer, or the step is zero.
+ * @category Sources
+ */
 export function range(start: number, end: number, step = 1): Stream<number> {
   for (const [name, value] of [
     ["start", start],

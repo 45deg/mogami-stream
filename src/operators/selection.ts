@@ -8,6 +8,13 @@ import { done } from "../internal/deferred.js";
 import { cancellationReason, integer } from "../internal/errors.js";
 import { from } from "./creation.js";
 
+/**
+ * Emit at most `count` values and start closing upstream before delivering the last one.
+ *
+ * A count of zero never opens upstream. Downstream callback signals remain active.
+ * @throws RangeError if count is not a non-negative safe integer.
+ * @category Selection
+ */
 export function take<T>(count: number): Operator<T, T> {
   integer(count, "count", 0);
   return (source) =>
@@ -30,6 +37,11 @@ export function take<T>(count: number): Operator<T, T> {
     });
 }
 
+/**
+ * Discard the first `count` values, then emit the remainder.
+ * @throws RangeError if count is not a non-negative safe integer.
+ * @category Selection
+ */
 export function skip<T>(count: number): Operator<T, T> {
   integer(count, "count", 0);
   if (count === 0) return from;
@@ -50,6 +62,12 @@ export function skip<T>(count: number): Operator<T, T> {
     });
 }
 
+/**
+ * Emit values until the sequential, awaited predicate first returns false.
+ *
+ * The first failing value is consumed but not emitted; the remainder is closed.
+ * @category Selection
+ */
 export function takeWhile<T>(
   predicate: (
     value: T,

@@ -1,0 +1,14 @@
+{
+  "$schema": "https://typedoc.org/schema.json",
+  "entryPoints": ["src/index.ts"],
+  "tsconfig": "tsconfig.json",
+  "out": "docs/api",
+  "name": "mogami-stream",
+  "includeVersion": true,
+  "readme": "none",
+  "excludePrivate": true,
+  "excludeInternal": true,
+  "disableGit": true,
+  "treatWarningsAsErrors": true,
+  "disableSources": true
+}

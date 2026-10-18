@@ -31,13 +31,15 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "prepack": "pnpm build && pnpm check:dist",
-    "bench": "pnpm build && node --expose-gc benchmarks/run.mjs"
+    "bench": "pnpm build && node --expose-gc benchmarks/run.mjs",
+    "docs": "typedoc"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
     "miniflare": "^4.20260730.0",
     "playwright": "^1.64.1",
     "prettier": "^3.9.10",
+    "typedoc": "^0.28.20",
     "typescript": "~5.9.3"
   },
   "packageManager": "pnpm@11.1.1",

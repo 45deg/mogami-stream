@@ -23,6 +23,17 @@ const results = await toArray(texts, { signal });
 
 `rateLimit` limits starts of upstream `next()` calls in this execution. It does not coordinate HTTP requests across executions or count retries inside a mapper.
 
+## API reference
+
+Generate the API reference from the TypeScript public entry point and its documentation comments with [TypeDoc](https://typedoc.org/):
+
+```sh
+pnpm install --frozen-lockfile
+pnpm run docs
+```
+
+Open `docs/api/index.html` in a browser. The generated reference includes public functions, overloads, options, callback contexts, and Stream methods. Generated HTML is ignored by Git and excluded from the npm package. Run `pnpm run docs` after changing public signatures or documentation comments. CI also runs the generator and treats warnings as errors.
+
 ## Execution and cleanup
 
 Construction, `.pipe()`, and iterator acquisition are lazy. The first `next()` starts execution. `take(0)` and an already aborted external signal never open the input. `from` preserves the input's replayability; `defer` creates a fresh input for each execution.

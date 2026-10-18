@@ -10,7 +10,11 @@ import { notifications } from "../internal/notifications.js";
 import { done, item } from "../internal/deferred.js";
 import { integer } from "../internal/errors.js";
 
+/**
+ * Bounds for concurrently owned child iterables, including their cleanup.
+ */
 export interface HigherOrderOptions {
+  /** Positive safe-integer child limit, from reservation through cleanup. Defaults to 1. */
   readonly concurrency?: number;
 }
 
@@ -157,11 +161,25 @@ function combineChildren<T>(
     });
 }
 
+/**
+ * Flatten child iterables, interleaving their values when concurrency exceeds one.
+ *
+ * Each child has one read/result slot and occupies concurrency from reservation through cleanup.
+ * @throws RangeError if concurrency is not a positive safe integer.
+ * @category Higher-order
+ */
 export function flatten<T>(
   options: HigherOrderOptions = {},
 ): Operator<Source<T>, T> {
   return combineChildren(false, options);
 }
+/**
+ * Flatten child iterables in child order, optionally reading children concurrently.
+ *
+ * Completed successors retain their slots until earlier children retire, bounding work behind a blocked head.
+ * @throws RangeError if concurrency is not a positive safe integer.
+ * @category Higher-order
+ */
 export function concat<T>(
   options: HigherOrderOptions = {},
 ): Operator<Source<T>, T> {
@@ -206,6 +224,13 @@ function project<T, U>(
     });
 }
 
+/**
+ * Map each value synchronously to a child iterable and flatten the children.
+ *
+ * Use defer inside the child for asynchronous preparation. The child concurrency defaults to one.
+ * @throws RangeError if concurrency is not a positive safe integer.
+ * @category Higher-order
+ */
 export function flatMap<T, U>(
   mapper: (value: T, context: OperatorContext) => Source<U>,
   options: HigherOrderOptions = {},
@@ -213,6 +238,13 @@ export function flatMap<T, U>(
   const combine = flatten<U>(options);
   return (source) => combine(project(mapper)(source));
 }
+/**
+ * Map each value synchronously to a child iterable and emit children in input order.
+ *
+ * Use defer inside the child for asynchronous preparation. Concurrent children retain bounded read/result slots.
+ * @throws RangeError if concurrency is not a positive safe integer.
+ * @category Higher-order
+ */
 export function concatMap<T, U>(
   mapper: (value: T, context: OperatorContext) => Source<U>,
   options: HigherOrderOptions = {},

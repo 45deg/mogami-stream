@@ -1,3 +1,6 @@
+/**
+ * An input iterator returned from cleanup without done set to true.
+ */
 export class IteratorCleanupError extends Error {
   constructor() {
     super("Iterator.return() did not finish the iterator (done was not true).");
@@ -5,6 +8,9 @@ export class IteratorCleanupError extends Error {
   }
 }
 
+/**
+ * An individual upstream read exceeded the timeoutEach duration.
+ */
 export class TimeoutError extends Error {
   constructor(readonly durationMs: number) {
     super(`The next value did not arrive within ${durationMs} ms.`);
@@ -12,6 +18,9 @@ export class TimeoutError extends Error {
   }
 }
 
+/**
+ * A stage exhausted its deadline time budget.
+ */
 export class DeadlineExceededError extends Error {
   constructor(readonly durationMs: number) {
     super(`The execution exceeded its ${durationMs} ms time budget.`);

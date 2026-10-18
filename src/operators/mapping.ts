@@ -9,24 +9,37 @@ import { duration, integer } from "../internal/errors.js";
 
 export type { MapContext } from "../internal/bounded-map.js";
 
+/**
+ * Finite retry policy for one mapper input; upstream and cleanup failures are not retried.
+ */
 export interface RetryOptions {
   /** Retries after the initial attempt. Zero disables retries. */
   readonly retries: number;
+  /** Decide whether to retry; receives the failed attempt. Defaults to true. */
   readonly shouldRetry?: (
     error: unknown,
     context: MapContext,
   ) => boolean | PromiseLike<boolean>;
+  /** Finite non-negative wait, or synchronous policy for the failed attempt. Defaults to zero. */
   readonly delayMs?: number | ((error: unknown, context: MapContext) => number);
 }
 
+/**
+ * Concurrency, output ordering, capacity, and retry policy for map and mapSettled.
+ */
 export interface MapOptions extends BoundedMapOptions {
+  /** Optional finite retry policy; omitted by default. */
   readonly retry?: RetryOptions;
 }
 
+/**
+ * The final outcome of one mapper input after any retries.
+ */
 export type SettledResult<T> =
   | { readonly status: "fulfilled"; readonly value: T }
   | { readonly status: "rejected"; readonly reason: unknown };
 
+/** @inline */
 type Mapper<T, U> = (value: T, context: MapContext) => U;
 
 function validateRetry(retry: RetryOptions | undefined): void {
@@ -84,6 +97,19 @@ function prepareMapper<T, U>(
   return { invoke, makeRecovery };
 }
 
+/**
+ * Transform values with bounded concurrency, awaiting each callback result.
+ *
+ * Defaults to ordered output and one concurrent item. An unrecovered mapper failure stops execution, including when an earlier result is unfinished. Retries apply only to the failed invocation for the same input, retaining its slot.
+ * @throws RangeError if concurrency, capacity, or retry settings are invalid.
+ * @example
+ * ```ts
+ * const values = await range(0, 3)
+ *   .pipe(map(value => value * 2, { concurrency: 2 }))
+ *   .toArray(); // [0, 2, 4]
+ * ```
+ * @category Mapping
+ */
 export function map<T, U>(
   mapper: Mapper<T, U>,
   options: MapOptions = {},
@@ -97,6 +123,13 @@ export function map<T, U>(
   );
 }
 
+/**
+ * Transform each input into a fulfilled or rejected outcome after its retry policy finishes.
+ *
+ * Mapper failures do not stop other inputs. Upstream failures, cleanup failures, and execution cancellation still stop execution. Bounds and ordering match map.
+ * @throws RangeError if concurrency, capacity, or retry settings are invalid.
+ * @category Mapping
+ */
 export function mapSettled<T, U>(
   mapper: Mapper<T, U>,
   options: MapOptions = {},

@@ -9,14 +9,20 @@ import {
 import { done, item } from "./deferred.js";
 import { integer } from "./errors.js";
 
+/**
+ * Mapper callback state, extending the operator index and signal with an attempt number.
+ */
 export interface MapContext extends OperatorContext {
   /** One-based attempt, including when retry is omitted. */
   readonly attempt: number;
 }
 
 export interface BoundedMapOptions {
+  /** Maximum reserved reads and running mapper invocations; positive safe integer. Defaults to 1. */
   readonly concurrency?: number;
+  /** Maximum reserved reads, running mappers, and completed outputs; safe integer >= concurrency. Defaults to concurrency. */
   readonly capacity?: number;
+  /** Preserve input order when true; otherwise emit in observed completion order. Defaults to true. */
   readonly ordered?: boolean;
 }
 
