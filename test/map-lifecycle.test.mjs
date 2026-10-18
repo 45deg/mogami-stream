@@ -168,3 +168,94 @@ test("cancellation across directly connected maps waits for both stages and reta
     new Set([upstreamError, downstreamError]),
   );
 });
+
+for (const options of [
+  { concurrency: 1, capacity: 1 },
+  { concurrency: 1, capacity: 3 },
+  { concurrency: 2, capacity: 2 },
+]) {
+  test(`map does not invoke its callback after a result getter aborts (${options.concurrency}/${options.capacity})`, async () => {
+    const controller = new AbortController();
+    const reason = new Error("cancel in value getter");
+    const cleanup = deferred();
+    let reads = 0;
+    let returns = 0;
+    const source = {
+      [Symbol.iterator]() {
+        return this;
+      },
+      next() {
+        reads++;
+        return {
+          done: false,
+          get value() {
+            controller.abort(reason);
+            return 7;
+          },
+        };
+      },
+      return() {
+        returns++;
+        return cleanup.promise;
+      },
+    };
+    const iterator = stream
+      .from(source)
+      .pipe(
+        stream.map(() => assert.fail("mapper started after abort"), options),
+      )
+      .iterate({ signal: controller.signal });
+    await assert.rejects(iterator.next(), (error) => error === reason);
+    let closed = false;
+    iterator.closed.then(() => {
+      closed = true;
+    });
+    await flush();
+    assert.equal(reads, 1);
+    assert.equal(returns, 1);
+    assert.equal(closed, false);
+    cleanup.resolve({ done: true });
+    const report = await iterator.closed;
+    assert.equal(report.kind, "cancelled");
+    assert.equal(report.reason, reason);
+    assert.deepEqual(report.suppressedErrors, []);
+    assert.equal((await iterator.next()).done, true);
+  });
+
+  test(`map retries the same value without rereading its result getter (${options.concurrency}/${options.capacity})`, async () => {
+    const values = [];
+    let getterReads = 0;
+    let pulled = false;
+    const source = {
+      [Symbol.iterator]() {
+        return this;
+      },
+      next() {
+        if (pulled) return { done: true };
+        pulled = true;
+        return {
+          done: false,
+          get value() {
+            return ++getterReads;
+          },
+        };
+      },
+    };
+    const output = await stream
+      .from(source)
+      .pipe(
+        stream.map(
+          (value, { attempt }) => {
+            values.push(value);
+            if (attempt === 1) throw new Error("retry");
+            return value;
+          },
+          { ...options, retry: { retries: 1 } },
+        ),
+      )
+      .toArray();
+    assert.equal(getterReads, 1);
+    assert.deepEqual(values, [1, 1]);
+    assert.deepEqual(output, [1]);
+  });
+}

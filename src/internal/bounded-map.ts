@@ -58,12 +58,15 @@ function sequentialMap<T, U>(
               signal: scope.signal,
               attempt: 1,
             };
+            const input = result.value;
+            // Iterator result getters can synchronously cancel the execution.
+            scope.check();
             let value: Awaited<U>;
             try {
-              value = await mapper(result.value, context);
+              value = await mapper(input, context);
             } catch (error) {
               if (!recover) throw error;
-              value = await recover(error, result.value, context);
+              value = await recover(error, input, context);
             }
             receive(item(value));
           } catch (error) {
@@ -193,13 +196,15 @@ export function scopedMap<T, U>(
           };
           let value: Awaited<U>;
           try {
+            const input = result.value;
+            scope.check();
             try {
-              const mapped = mapper(result.value, context);
+              const mapped = mapper(input, context);
               pump();
               value = await mapped;
             } catch (error) {
               if (!recover) throw error;
-              const recovered = recover(error, result.value, context);
+              const recovered = recover(error, input, context);
               pump();
               value = await recovered;
             }
