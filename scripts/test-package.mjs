@@ -1,3 +1,4 @@
+import assert from "node:assert/strict";
 import { mkdtemp, cp, readdir, rm, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
@@ -13,7 +14,20 @@ try {
   const archive = (await readdir(temporary)).find((name) =>
     name.endsWith(".tgz"),
   );
-  execFileSync("tar", ["-xzf", resolve(temporary, archive), "-C", temporary]);
+  const archivePath = resolve(temporary, archive);
+  const entries = execFileSync("tar", ["-tzf", archivePath], {
+    encoding: "utf8",
+  })
+    .trim()
+    .split("\n");
+  for (const entry of entries)
+    assert.ok(
+      ["package/package.json", "package/README.md", "package/LICENSE"].includes(
+        entry,
+      ) || entry.startsWith("package/dist/"),
+      `Unexpected package file: ${entry}`,
+    );
+  execFileSync("tar", ["-xzf", archivePath, "-C", temporary]);
   const packed = resolve(temporary, "package");
   const manifest = JSON.parse(
     await readFile(resolve(packed, "package.json"), "utf8"),
@@ -32,7 +46,10 @@ try {
   execFileSync("bun", ["-e", publicImport], { cwd: packed, stdio: "inherit" });
   await cp(resolve(root, "test"), resolve(packed, "test"), { recursive: true });
   const tests = (await readdir(resolve(packed, "test")))
-    .filter((name) => name.endsWith(".test.mjs"))
+    // Benchmark harness tests depend on repository tooling, not the distribution.
+    .filter(
+      (name) => name.endsWith(".test.mjs") && name !== "benchmarks.test.mjs",
+    )
     .map((name) => resolve(packed, "test", name));
   execFileSync(process.execPath, ["--test", "--test-timeout=10000", ...tests], {
     cwd: packed,
