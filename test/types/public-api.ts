@@ -1,5 +1,7 @@
 import {
   from,
+  fromCallback,
+  fromEvent,
   of,
   filter,
   filterMap,
@@ -490,3 +492,18 @@ export type ThenableReduced = Expect<
 export type FailureReport = Expect<
   Equal<Extract<CloseReport, { kind: "failed" }>["reason"], unknown>
 >;
+
+const callbackValues = fromCallback<number>(
+  (observer) => {
+    observer.next(1);
+    // @ts-expect-error Producer values must match the stream element type.
+    observer.next("wrong");
+    observer.complete();
+  },
+  { capacity: 4 },
+);
+export type CallbackValues = Expect<
+  Equal<Value<typeof callbackValues>, number>
+>;
+const eventValues = fromEvent(new EventTarget(), "change", { capacity: 4 });
+export type EventValues = Expect<Equal<Value<typeof eventValues>, Event>>;

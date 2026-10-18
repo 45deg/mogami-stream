@@ -94,7 +94,7 @@ Both `.pipe(...operators)` and the standalone `pipe(source, ...operators)` infer
 | ------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `from(source)`, `defer(({ signal }) => source)`                           | Wrap an existing iterable, or create a fresh source per execution (the factory may be async).                                                             |
 | `of(...values)`, `empty()`, `range(start, end, step = 1)`                 | Create streams from values or an integer range (`end` is exclusive; bounds and nonzero `step` must be safe integers).                                     |
-| `fromTimeline(events)`                                                    | Replay a pull-driven schedule of values and optional terminal completion/error events.                                                                    |
+| `fromTimeline(events)`                                                    | Replay a scheduled sequence of values, completion, or errors for testing and mocking.                                                                     |
 | `map(mapper, options?)`, `mapSettled(mapper, options?)`                   | Transform values with bounded concurrency and optional per-item retries; `mapSettled` wraps outcomes in `{ status, value \| reason }`.                    |
 | `filter(predicate)`                                                       | Keep values matching a sequential sync/async predicate; synchronous type guards narrow the output type.                                                   |
 | `filterMap(mapper)`                                                       | Map values sequentially and drop only `null` and `undefined` results.                                                                                     |
@@ -135,6 +135,51 @@ const values = from(primary).pipe(
 
 - **Higher-order and combination bounds**: In `flatten`, `concat`, `flatMap`, and `concatMap`, a child source occupies its concurrency slot from reservation until its cleanup finishes, and holds at most one pending read or buffered item. In `concat` and `concatMap`, children that finish early retain their slots until earlier children finish, preventing unbounded buffering behind a slow leading child. In `zip`, detecting that the shortest input has ended may consume one extra item from a sibling input. In `zipLatest`, multiple updates arriving before all sources have initialized may coalesce into the latest value; after initialization, reads are paced by downstream demand.
 - **Promise-valued items**: If an input yields values that are themselves Promises, `from`, selection operators, and combination operators pass those Promise objects through without unwrapping them (unlike native `for await (... of syncIterable)`, which awaits each item). Only callbacks whose return values are awaited by contract (such as `map`) unwrap returned promises.
+
+## Push event sources
+
+`fromCallback(subscribe, { capacity, overflow? })` bridges callback APIs to a
+bounded stream. Each execution subscribes lazily on its first read and owns its
+queue. `capacity` is a required positive safe integer. The default overflow policy
+is `"error"`; `"drop-oldest"` retains recent values and `"drop-newest"` preserves
+already buffered values. Event producers cannot be blocked by this adapter.
+
+```ts
+import { fromCallback, fromEvent, take } from "mogami-stream";
+
+// EventTarget, including browser WebSocket message events.
+const messages = fromEvent<MessageEvent>(socket, "message", {
+  capacity: 64,
+  overflow: "drop-oldest",
+}).pipe(take(10));
+
+// Node EventEmitter or another callback API; no Node dependency in the library.
+const updates = fromCallback<string>(
+  (observer) => {
+    const onData = (value: string) => observer.next(value);
+    const onError = (error: unknown) => observer.error(error);
+    const onEnd = () => observer.complete();
+    emitter.on("data", onData);
+    emitter.on("error", onError);
+    emitter.on("end", onEnd);
+    return () => {
+      emitter.off("data", onData);
+      emitter.off("error", onError);
+      emitter.off("end", onEnd);
+    };
+  },
+  { capacity: 64 },
+);
+```
+
+`observer.next(value)` preserves Promise-valued items and returns `false` when
+that value is dropped or the subscription has ended. `complete()` drains buffered
+values; `error(reason)` fails immediately and discards them. The synchronous
+subscribe function may return an asynchronous cleanup function, which runs once
+and is awaited before the execution closes. Use `observer.signal` for cancellation.
+Synchronous setup emissions also count toward capacity; events before subscription
+are not captured. `fromEvent` does not infer completion from other event names
+(such as WebSocket `close`); use `fromCallback` to wire those explicitly.
 
 ## Retry and settled mapping
 
@@ -198,9 +243,9 @@ const totals = from([1, 2, 3]).pipe(scan((sum, value) => sum + value, 0));
 const first = await from([1, 2, 3]).find((value) => value > 1); // 2
 ```
 
-## Timeline sources
+## Timeline sources (testing and mocking)
 
-`fromTimeline(events)` creates a replayable, demand-driven stream from an array of `TimelineEvent<T>` records:
+`fromTimeline(events)` is a helper for tests and mocks that creates a replayable, pull-driven stream from a scripted array of `TimelineEvent<T>` records—useful for simulating delayed arrivals, timeouts, or upstream failures at specific points in time:
 
 ```ts
 const source = fromTimeline([
@@ -208,14 +253,14 @@ const source = fromTimeline([
   { at: 100, kind: "value", value: "B" },
   { at: 150, kind: "complete" },
 ]);
-// Or terminate with an error: { at: 150, kind: "error", error }
+// Or simulate an upstream failure: { at: 150, kind: "error", error }
 ```
 
-Each `at` timestamp is a finite, non-negative offset in milliseconds relative to the first read of that execution, and events must be listed in non-decreasing timestamp order. Events with identical `at` times are emitted in array order. A `"complete"` or `"error"` event may only appear as the last element; if omitted, the stream completes immediately after the last `"value"` event (and an empty array completes immediately). Invalid event arrays throw `RangeError` or `TypeError` at construction time.
+Each `at` timestamp is a finite, non-negative offset in milliseconds relative to the first read of that execution, and events must be listed in non-decreasing timestamp order. Events with identical `at` times are emitted in array order. A `"complete"` or `"error"` event may only appear as the last element; if omitted, the stream completes immediately after the last `"value"` event (and an empty array completes immediately). Invalid schedules throw `RangeError` or `TypeError` at construction time.
 
-`fromTimeline` shallow-copies the event records on construction while preserving value and error references (including Promise-valued items). Because the stream is pull-driven, no background timers run while downstream is idle; if an event's timestamp has already passed when downstream requests the next item, it is delivered immediately.
+`fromTimeline` shallow-copies the event records on construction while preserving value and error references (including Promise-valued items). Because it models a pull-based source rather than an external push emitter, no background timers run while downstream is idle; if an event's scheduled time has already passed when downstream requests the next item, it is delivered immediately.
 
-For deterministic unit tests, the internal `createTestClock()` helper (`src/internal/test-clock.ts`) pairs with `iterateWithScheduler` (`src/terminal/iterate.ts`) to drive `fromTimeline` and timing operators on a virtual clock via `advanceBy(ms)`, `advanceTo(timeMs)`, and `pendingTimers`.
+For deterministic unit tests within this repository, the internal `createTestClock()` helper (`src/internal/test-clock.ts`) pairs with `iterateWithScheduler` (`src/terminal/iterate.ts`) to drive `fromTimeline` and timing operators on a virtual clock via `advanceBy(ms)`, `advanceTo(timeMs)`, and `pendingTimers`.
 
 ## Time operators
 

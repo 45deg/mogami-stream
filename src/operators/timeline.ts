@@ -11,7 +11,7 @@ export type TimelineEvent<T> =
   | { readonly at: number; readonly kind: "error"; readonly error: unknown };
 
 /**
- * Creates a replayable, pull-driven stream from a timed sequence of events.
+ * Creates a replayable, pull-driven stream from a timed sequence of events, intended for testing and mocking.
  *
  * Event timestamps (`at`) are finite, non-negative millisecond offsets relative to the first read of each execution, and must be in non-decreasing order. Events with identical `at` times preserve their array order, and a `"complete"` or `"error"` event may only appear last. Event records are shallow-copied at construction time while preserving value and error references. No timers run while downstream is idle.
  * @throws {RangeError} If timestamps are invalid, out of order, or a terminal event appears before the end.

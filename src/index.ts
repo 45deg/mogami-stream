@@ -62,3 +62,6 @@ export type {
   RetryOptions,
   SettledResult,
 } from "./operators/mapping.js";
+
+export { fromCallback, fromEvent } from "./operators/push.js";
+export type { PushOptions, PushObserver } from "./operators/push.js";
