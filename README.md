@@ -23,6 +23,25 @@ const results = await toArray(texts, { signal });
 
 In the example above, `rateLimit` paces how often upstream `next()` reads start within a single pipeline execution. It does not coordinate requests across separate executions or count retry attempts inside `map`.
 
+## Use from source
+
+Install Node.js 22 or later and pnpm 11.1.1, then clone and build the library:
+
+```sh
+git clone https://github.com/45deg/mogami-stream.git
+cd mogami-stream
+pnpm install --frozen-lockfile
+pnpm build
+```
+
+In another project, add the built checkout as a local dependency:
+
+```sh
+pnpm add /absolute/path/to/mogami-stream
+```
+
+The package exports the built ESM and TypeScript declarations in `dist/`. Rebuild the checkout after changing its source.
+
 ## API reference
 
 Generate the HTML API reference from the TypeScript entry point with [TypeDoc](https://typedoc.org/):
