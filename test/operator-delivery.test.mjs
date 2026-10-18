@@ -95,3 +95,19 @@ test("concurrent child acquisition cancellation still waits for the acquired chi
     assert.deepEqual(report.suppressedErrors, []);
   }
 });
+
+for (const name of ["flatten", "concat", "flatMap", "concatMap"]) {
+  test(`${name} drains synchronous empty children without overflowing the stack`, async () => {
+    let reads = 0;
+    const count = 4_000;
+    const operator = name.endsWith("Map")
+      ? stream[name]((value) => value)
+      : stream[name]();
+    const source = readySource(
+      Array.from({ length: count }, () => readySource([])),
+      () => reads++,
+    );
+    assert.deepEqual(await source.pipe(operator).toArray(), []);
+    assert.equal(reads, count + 1);
+  });
+}

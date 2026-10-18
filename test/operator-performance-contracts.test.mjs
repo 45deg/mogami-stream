@@ -47,7 +47,9 @@ test("skip(0) stays lazy and preserves Promise values and input cleanup", async 
   assert.equal(returned, 1);
 });
 
-for (const name of ["flatten", "concat"]) {
+for (const name of ["flatten", "concat", "flatMap", "concatMap"]) {
+  const combine = () =>
+    name.endsWith("Map") ? stream[name]((value) => value) : stream[name]();
   test(`${name} with one child preserves values and does not refill while idle`, async () => {
     let accepted = 0;
     const value = Promise.resolve(1);
@@ -59,7 +61,7 @@ for (const name of ["flatten", "concat"]) {
         yield [2];
       },
     };
-    const pipeline = stream.from(source).pipe(stream[name]());
+    const pipeline = stream.from(source).pipe(combine());
     const iterator = stream.iterate(pipeline);
     assert.equal(accepted, 0);
     assert.equal((await iterator.next()).value, value);
@@ -73,9 +75,7 @@ for (const name of ["flatten", "concat"]) {
 
   test(`${name} cancellation observes a pending child and waits for cleanup`, async () => {
     const child = controlled();
-    const iterator = stream.iterate(
-      stream.of(child.source).pipe(stream[name]()),
-    );
+    const iterator = stream.iterate(stream.of(child.source).pipe(combine()));
     const reading = assert.rejects(
       iterator.next(),
       (error) => error === "stop",
@@ -114,7 +114,7 @@ for (const name of ["flatten", "concat"]) {
       },
     };
     await assert.rejects(
-      stream.toArray(stream.from(source).pipe(stream[name]())),
+      stream.toArray(stream.from(source).pipe(combine())),
       (error) => error === failure,
     );
     assert.equal(accepted, 1);

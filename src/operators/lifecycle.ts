@@ -19,11 +19,13 @@ export function tap<T>(
       return {
         async next() {
           const result = await upstream.next();
-          if (!result.done)
+          if (!result.done) {
+            scope.check();
             await effect(result.value, {
               index: index++,
               signal: scope.signal,
             });
+          }
           return result;
         },
       };

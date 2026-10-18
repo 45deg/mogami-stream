@@ -3,6 +3,7 @@ import {
   open,
   type Operator,
   type OperatorContext,
+  type Read,
   type Source,
 } from "../core/stream.js";
 import { ChildSlot } from "../internal/child-slots.js";
@@ -19,28 +20,54 @@ export interface HigherOrderOptions {
 }
 
 /** With one child, ordering needs no slots or background input pump. */
-function combineSequentially<T>(): Operator<Source<T>, T> {
+function combineSequentially<T, U>(
+  mapper: (value: T, context: OperatorContext) => Source<U>,
+): Operator<T, U> {
   return (source) =>
     create((scope) => {
       const outer = open(source, scope);
-      let child: ReturnType<typeof open<T>> | undefined;
-      return {
-        async next() {
-          for (;;) {
-            if (!child) {
-              const result = await new Promise<IteratorResult<Source<T>>>(
-                outer.read,
-              );
-              if (result.done) return done();
-              child = open(result.value, scope);
+      let child: ReturnType<typeof open<U>> | undefined;
+      let index = 0;
+      const readNext: Read<U> = (receive, reject) => {
+        if (!child) {
+          outer.read((result) => {
+            if (result.done) {
+              receive(done());
+              return;
             }
-            const result = await new Promise<IteratorResult<T>>(child.read);
-            if (!result.done) return result;
-            // Cleanup still occupies the single child slot.
-            await child.scope.close();
-            child = undefined;
+            try {
+              scope.check();
+              child = open(
+                mapper(result.value, {
+                  index: index++,
+                  signal: scope.signal,
+                }),
+                scope,
+              );
+            } catch (error) {
+              reject(error);
+              return;
+            }
+            readNext(receive, reject);
+          }, reject);
+          return;
+        }
+        const current = child;
+        current.read((result) => {
+          if (!result.done) {
+            receive(result);
+            return;
           }
-        },
+          // Retain the slot through cleanup; this also breaks synchronous
+          // recursion when a long sequence of children is empty.
+          void current.scope.close().then(() => {
+            child = undefined;
+            readNext(receive, reject);
+          }, reject);
+        }, reject);
+      };
+      return {
+        next: () => new Promise(readNext),
       };
     });
 }
@@ -51,7 +78,8 @@ function combineChildren<T>(
 ): Operator<Source<T>, T> {
   const concurrency = options.concurrency ?? 1;
   integer(concurrency, "concurrency");
-  if (concurrency === 1) return combineSequentially();
+  if (concurrency === 1)
+    return combineSequentially((source: Source<T>) => source);
   return (source) =>
     create((scope) => {
       const outer = open(source, scope);
@@ -193,35 +221,38 @@ function project<T, U>(
     create((scope) => {
       const upstream = open(source, scope);
       let index = 0;
-      return {
-        read(receive, reject) {
-          upstream.read((result) => {
-            try {
-              receive(
-                result.done
-                  ? done()
-                  : item(
-                      mapper(result.value, {
-                        index: index++,
-                        signal: scope.signal,
-                      }),
-                    ),
-              );
-            } catch (error) {
-              reject(error);
-            }
-          }, reject);
-        },
-        async next() {
-          const result = await upstream.next();
-          return result.done
-            ? done()
-            : item(
-                mapper(result.value, { index: index++, signal: scope.signal }),
-              );
-        },
+      const read: Read<Source<U>> = (receive, reject) => {
+        upstream.read((result) => {
+          try {
+            receive(
+              result.done
+                ? done()
+                : item(
+                    mapper(result.value, {
+                      index: index++,
+                      signal: scope.signal,
+                    }),
+                  ),
+            );
+          } catch (error) {
+            reject(error);
+          }
+        }, reject);
       };
+      return { read, next: () => new Promise(read) };
     });
+}
+
+function projectChildren<T, U>(
+  mapper: (value: T, context: OperatorContext) => Source<U>,
+  ordered: boolean,
+  options: HigherOrderOptions,
+): Operator<T, U> {
+  const concurrency = options.concurrency ?? 1;
+  integer(concurrency, "concurrency");
+  if (concurrency === 1) return combineSequentially(mapper);
+  const combine = combineChildren<U>(ordered, { concurrency });
+  return (source) => combine(project(mapper)(source));
 }
 
 /**
@@ -235,58 +266,7 @@ export function flatMap<T, U>(
   mapper: (value: T, context: OperatorContext) => Source<U>,
   options: HigherOrderOptions = {},
 ): Operator<T, U> {
-  if ((options.concurrency ?? 1) === 1) {
-    return (source) =>
-      create((scope) => {
-        const outer = open(source, scope);
-        let child: ReturnType<typeof open<U>> | undefined;
-        let index = 0;
-        const readNext = (
-          receive: (result: IteratorResult<U>) => void,
-          reject: (error: unknown) => void,
-        ): void => {
-          if (!child) {
-            outer.read((result) => {
-              if (result.done) {
-                receive(done());
-                return;
-              }
-              try {
-                scope.check();
-                child = open(
-                  mapper(result.value, {
-                    index: index++,
-                    signal: scope.signal,
-                  }),
-                  scope,
-                );
-              } catch (error) {
-                reject(error);
-                return;
-              }
-              readNext(receive, reject);
-            }, reject);
-            return;
-          }
-          const current = child;
-          current.read((result) => {
-            if (!result.done) {
-              receive(result);
-              return;
-            }
-            void current.scope.close().then(() => {
-              if (child === current) child = undefined;
-              readNext(receive, reject);
-            }, reject);
-          }, reject);
-        };
-        return {
-          next: () => new Promise(readNext),
-        };
-      });
-  }
-  const combine = flatten<U>(options);
-  return (source) => combine(project(mapper)(source));
+  return projectChildren(mapper, false, options);
 }
 /**
  * Map each value synchronously to a child iterable and emit children in input order.
@@ -299,6 +279,5 @@ export function concatMap<T, U>(
   mapper: (value: T, context: OperatorContext) => Source<U>,
   options: HigherOrderOptions = {},
 ): Operator<T, U> {
-  const combine = concat<U>(options);
-  return (source) => combine(project(mapper)(source));
+  return projectChildren(mapper, true, options);
 }

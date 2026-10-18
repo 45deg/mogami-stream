@@ -1,39 +1,52 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { from, range, takeWhile } from "../dist/index.js";
+import { from, range, takeWhile, tap } from "../dist/index.js";
 
-test("takeWhile does not invoke its predicate after cancellation between read and delivery", async () => {
-  const controller = new AbortController();
-  const reason = new Error("cancel between read and predicate");
-  let calls = 0;
-  let closed = false;
-  const source = {
-    *[Symbol.iterator]() {
-      try {
-        queueMicrotask(() =>
-          queueMicrotask(() => queueMicrotask(() => controller.abort(reason))),
-        );
-        yield 1;
-      } finally {
-        closed = true;
-      }
-    },
-  };
-  const iterator = from(source)
-    .pipe(
-      takeWhile(() => {
-        calls++;
-        return true;
-      }),
-    )
-    .iterate({ signal: controller.signal });
-  await assert.rejects(iterator.next(), (error) => error === reason);
-  const report = await iterator.closed;
-  assert.equal(calls, 0);
-  assert.equal(closed, true);
-  assert.equal(report.kind, "cancelled");
-  assert.deepEqual(report.suppressedErrors, []);
-});
+for (const name of ["takeWhile", "tap", "reduce", "forEach"]) {
+  test(`${name} does not invoke its callback after cancellation between read and delivery`, async () => {
+    const controller = new AbortController();
+    const reason = new Error("cancel between read and callback");
+    let calls = 0;
+    let closed = false;
+    const source = {
+      *[Symbol.iterator]() {
+        try {
+          queueMicrotask(() =>
+            queueMicrotask(() =>
+              queueMicrotask(() => controller.abort(reason)),
+            ),
+          );
+          yield 1;
+        } finally {
+          closed = true;
+        }
+      },
+    };
+    const callback = () => {
+      calls++;
+      return true;
+    };
+    const options = { signal: controller.signal };
+    const stream = from(source);
+    if (name === "reduce" || name === "forEach") {
+      const work =
+        name === "reduce"
+          ? stream.reduce(callback, false, options)
+          : stream.forEach(callback, options);
+      await assert.rejects(work, (error) => error === reason);
+    } else {
+      const iterator = stream
+        .pipe((name === "tap" ? tap : takeWhile)(callback))
+        .iterate(options);
+      await assert.rejects(iterator.next(), (error) => error === reason);
+      const report = await iterator.closed;
+      assert.equal(report.kind, "cancelled");
+      assert.deepEqual(report.suppressedErrors, []);
+    }
+    assert.equal(calls, 0);
+    assert.equal(closed, true);
+  });
+}
 
 test("range matches exact integer arithmetic across safe-integer boundaries", async () => {
   const max = Number.MAX_SAFE_INTEGER;
