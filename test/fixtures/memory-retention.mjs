@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import {
   setImmediate as turn,
   setTimeout as sleep,
@@ -19,6 +21,21 @@ import {
   fromTimeline,
   tap,
 } from "../../dist/index.js";
+
+// JSC's concurrent compiler can keep execution values alive via JITWorkList.
+// This option is read at startup; keep JIT enabled but finish compilation inline.
+if (process.versions.bun && process.env.BUN_JSC_useConcurrentJIT !== "false") {
+  const result = spawnSync(
+    process.execPath,
+    ["--expose-gc", fileURLToPath(import.meta.url), ...process.argv.slice(2)],
+    {
+      env: { ...process.env, BUN_JSC_useConcurrentJIT: "false" },
+      stdio: "inherit",
+    },
+  );
+  if (result.error) throw result.error;
+  process.exit(result.status ?? 1);
+}
 
 function fail() {
   throw new Error("expected failure");
@@ -155,7 +172,19 @@ for (const [name, combine] of Object.entries({
 }
 
 async function closeOne(name, create, payload) {
-  const iterator = create(payload).iterate();
+  const retainedPayloads = [];
+  const retain = process.argv.includes("--retain-payloads");
+  const iterator = create(
+    retain
+      ? () => {
+          const value = payload();
+          retainedPayloads.push(value);
+          return value;
+        }
+      : payload,
+  ).iterate();
+  // Negative control: a closed iterator must not hide a real closure-held leak.
+  if (retain) iterator.retainedPayloads = () => retainedPayloads;
   if (name === "mapReturn") {
     await iterator.next();
     await turn();
@@ -194,9 +223,14 @@ async function check(name, create) {
   }
   assert.ok(references.length > 0, `${name}: must create payloads`);
   for (let i = 0; i < 5; i++) {
-    // WeakRef targets stay alive until the end of the current job.
-    await turn();
-    global.gc();
+    // Collect outside the await continuation: JSC can retain completed promise
+    // reactions while executing microtasks. Also end WeakRef's current job.
+    await new Promise((resolve) => {
+      setImmediate(() => {
+        global.gc();
+        resolve();
+      });
+    });
   }
   const retained = references.filter((reference) => reference.deref()).length;
   assert.equal(retained, 0, `${name}: payloads retained after closed`);

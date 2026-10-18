@@ -18,6 +18,25 @@ test("closed iterators release execution payloads while still retained", async (
   );
 });
 
+test("memory retention check rejects a closure-held payload leak", async () => {
+  await assert.rejects(
+    promisify(execFile)(
+      process.execPath,
+      [
+        "--expose-gc",
+        fileURLToPath(
+          new URL("./fixtures/memory-retention.mjs", import.meta.url),
+        ),
+        "--retain-payloads",
+      ],
+      { timeout: 8_000 },
+    ),
+    (error) =>
+      error.code === 1 &&
+      /mapReturn: payloads retained after closed/.test(error.stderr),
+  );
+});
+
 test("timeline input remains replayable after failed and early executions close", async () => {
   const values = [{ id: 1 }, { id: 2 }];
   const source = fromTimeline(
