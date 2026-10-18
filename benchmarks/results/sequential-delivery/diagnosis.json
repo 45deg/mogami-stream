@@ -1,0 +1,32 @@
+{
+  "runtime": {
+    "name": "node",
+    "version": "v24.22.0",
+    "forcedGcBetweenRuns": true
+  },
+  "sourceTreeSha256": {
+    "before": "460dad9ba47da4380f7fb08de506c48da6711de7f5a1a0f402bece1f0b70bb74",
+    "after": "9cf6c8d003fa24da64468cd4e90d6d1768fc2ea46e76124f5cfc912842835922"
+  },
+  "sourceTreeHashMethod": "Sorted src/**/*.ts; SHA256 over relative POSIX path, NUL, file bytes, NUL for each file.",
+  "baseline": "Workspace snapshot immediately before this optimization, including pre-existing edits; not Git HEAD.",
+  "promiseDiagnostic": {
+    "inputs": 10000,
+    "outputs": 6666,
+    "before": 196715,
+    "after": 113378,
+    "method": "Node async_hooks PROMISE initialization counts; separate pass without benchmark sink/instrumentation."
+  },
+  "largeRunSequence": [
+    "before-stream-100k",
+    "after-stream-100k",
+    "after-batch-100k",
+    "before-batch-100k"
+  ],
+  "validation": [
+    "pnpm check: 193 Node tests, type checks, distribution audit, formatting",
+    "pnpm test:bun: 193 tests",
+    "Chromium main, Dedicated Worker, Service Worker: 23 contracts each",
+    "local Cloudflare Workers/workerd: 23 contracts"
+  ]
+}

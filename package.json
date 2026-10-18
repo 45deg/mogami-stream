@@ -28,6 +28,7 @@
     "test:browser": "pnpm build && node scripts/test-browser.mjs",
     "test:cloudflare": "pnpm build && node scripts/test-cloudflare.mjs",
     "test:package": "pnpm build && node scripts/test-package.mjs",
+    "bench:compare": "pnpm build && node --expose-gc benchmarks/compare/run.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "prepack": "pnpm build && pnpm check:dist",

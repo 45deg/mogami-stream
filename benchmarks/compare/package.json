@@ -1,0 +1,17 @@
+{
+  "name": "mogami-stream-benchmark-compare",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "bench": "node --expose-gc run.mjs"
+  },
+  "dependencies": {
+    "ix": "7.0.0",
+    "iter-tools": "7.5.4",
+    "rxjs": "7.8.2",
+    "p-map": "7.1.1",
+    "p-limit": "7.3.3",
+    "p-queue": "10.0.0",
+    "p-all": "5.0.1"
+  }
+}

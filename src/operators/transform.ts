@@ -3,6 +3,7 @@ import {
   open,
   type Operator,
   type OperatorContext,
+  type Read,
 } from "../core/stream.js";
 import { done, item } from "../internal/deferred.js";
 import { integer } from "../internal/errors.js";
@@ -32,22 +33,33 @@ export function filter<T>(
     create((scope) => {
       const upstream = open(source, scope);
       let index = 0;
-      return {
-        async next() {
-          for (;;) {
-            const result = await upstream.next();
-            if (result.done) return done();
+      const read: Read<T> = (receive, reject) => {
+        const accept = async (result: IteratorResult<T>): Promise<void> => {
+          try {
+            if (result.done) {
+              receive(done());
+              return;
+            }
             if (
               await predicate(result.value, {
                 index: index++,
                 signal: scope.signal,
               })
-            )
-              return result;
-            scope.check();
+            ) {
+              receive(result);
+            } else {
+              // Keep an awaited checkpoint even for synchronous rejection:
+              // queued cancellation must stop a long run of discarded items.
+              scope.check();
+              upstream.read(accept, reject);
+            }
+          } catch (error) {
+            reject(error);
           }
-        },
+        };
+        upstream.read(accept, reject);
       };
+      return { read, next: () => new Promise(read) };
     });
 }
 

@@ -1,2 +1,5 @@
+packages:
+  - benchmarks/compare
+
 allowBuilds:
   workerd: true

@@ -43,26 +43,35 @@ function sequentialMap<T, U>(
       const recover = makeRecovery?.(scope);
       const upstream = open(source, scope);
       let index = 0;
-      return {
-        async next() {
-          const result = await upstream.next();
-          if (result.done) return done();
-          scope.check();
-          const context: MapContext = {
-            index: index++,
-            signal: scope.signal,
-            attempt: 1,
-          };
-          let value: Awaited<U>;
+      // Keep stage delivery on the internal read path. Awaiting the callback
+      // still gives cancellation a checkpoint and retains pending-work tracking.
+      const read: Read<Awaited<U>> = (receive, reject) => {
+        upstream.read(async (result) => {
           try {
-            value = await mapper(result.value, context);
+            if (result.done) {
+              receive(done());
+              return;
+            }
+            scope.check();
+            const context: MapContext = {
+              index: index++,
+              signal: scope.signal,
+              attempt: 1,
+            };
+            let value: Awaited<U>;
+            try {
+              value = await mapper(result.value, context);
+            } catch (error) {
+              if (!recover) throw error;
+              value = await recover(error, result.value, context);
+            }
+            receive(item(value));
           } catch (error) {
-            if (!recover) throw error;
-            value = await recover(error, result.value, context);
+            reject(error);
           }
-          return item(value);
-        },
+        }, reject);
       };
+      return { read, next: () => new Promise(read) };
     });
 }
 
