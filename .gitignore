@@ -4,3 +4,7 @@ dist/
 coverage/
 .pnpm-store/
 docs/api/
+.DS_Store
+*.cpuprofile
+*.heapprofile
+*.heapsnapshot

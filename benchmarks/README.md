@@ -77,8 +77,3 @@ Pass options as `--name=value`:
 | `timeout-ms`  |   30000 | Per-iteration watchdog timeout in milliseconds                               |
 | `case`        |     all | Run a single workload by name, or `all`                                      |
 | `json`        |    none | File path to write the full JSON report (the parent directory must exist)    |
-
-## Optimization notes
-
-- [Sequential map/filter delivery](results/sequential-delivery/README.md) — CPU/Promise allocation profile and before/after benchmark numbers for internal `read` delivery.
-- [Higher-order operator review](results/higher-order-review/README.md) — microbenchmark results for shared sequential flattening and cancellation checks.
