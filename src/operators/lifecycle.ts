@@ -2,6 +2,7 @@ import {
   create,
   open,
   type Stream,
+  type Read,
   type Operator,
   type OperatorContext,
 } from "../core/stream.js";
@@ -17,19 +18,26 @@ export function tap<T>(
     create((scope) => {
       const upstream = open(source, scope);
       let index = 0;
-      return {
-        async next() {
-          const result = await upstream.next();
-          if (!result.done) {
-            scope.check();
-            await effect(result.value, {
-              index: index++,
-              signal: scope.signal,
-            });
+      const read: Read<T> = (receive, reject) => {
+        upstream.read(async (result) => {
+          try {
+            if (!result.done) {
+              // Preserve the read-to-effect cancellation window of next() delivery.
+              await undefined;
+              await undefined;
+              scope.check();
+              await effect(result.value, {
+                index: index++,
+                signal: scope.signal,
+              });
+            }
+            receive(result);
+          } catch (error) {
+            reject(error);
           }
-          return result;
-        },
+        }, reject);
       };
+      return { read, next: () => new Promise(read) };
     });
 }
 

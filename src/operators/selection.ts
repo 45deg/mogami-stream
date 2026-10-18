@@ -2,6 +2,7 @@ import {
   create,
   open,
   type Stream,
+  type Read,
   type Operator,
   type OperatorContext,
 } from "../core/stream.js";
@@ -61,19 +62,22 @@ export function take(
     create((scope) => {
       let upstream: ReturnType<typeof open<T>> | undefined;
       let remaining = count;
-      return {
-        async next() {
-          if (remaining === 0) return done();
-          upstream ??= open(source, scope);
-          const result = await upstream.next();
+      const read: Read<T> = (receive, reject) => {
+        if (remaining === 0) {
+          receive(done());
+          return;
+        }
+        upstream ??= open(source, scope);
+        upstream.read((result) => {
           if (!result.done && --remaining === 0) {
             // Stop only the owned upstream, before delivering the last value.
-            upstream.scope.stop(cancellationReason());
-            void upstream.scope.close();
+            upstream!.scope.stop(cancellationReason());
+            void upstream!.scope.close();
           }
-          return result;
-        },
+          receive(result);
+        }, reject);
       };
+      return { read, next: () => new Promise(read) };
     });
 }
 
@@ -93,16 +97,25 @@ export function skip(
     create((scope) => {
       const upstream = open(source, scope);
       let remaining = count;
-      return {
-        async next() {
-          while (remaining > 0) {
-            const result = await upstream.next();
-            if (result.done) return result;
+      const read: Read<T> = (receive, reject) => {
+        const accept = async (result: IteratorResult<T>): Promise<void> => {
+          try {
+            if (result.done || remaining === 0) {
+              receive(result);
+              return;
+            }
             remaining--;
+            // Yield before another read, even for synchronous internal sources.
+            await undefined;
+            scope.check();
+            upstream.read(accept, reject);
+          } catch (error) {
+            reject(error);
           }
-          return upstream.next();
-        },
+        };
+        upstream.read(accept, reject);
       };
+      return { read, next: () => new Promise(read) };
     });
 }
 

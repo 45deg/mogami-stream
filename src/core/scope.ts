@@ -11,6 +11,7 @@ export class Scope {
   readonly controller = new AbortController();
   readonly children = new Set<Scope>();
   private pendingOperations = 0;
+  // Only finish() installs this waiter; close() memoizes its single invocation.
   private operationsDrained: (() => void) | undefined;
   readonly finalizers: Array<() => unknown> = [];
   private cleanup: (() => void | PromiseLike<void>) | undefined;
@@ -70,8 +71,9 @@ export class Scope {
 
   readonly operationFinished = (): void => {
     if (--this.pendingOperations === 0) {
-      this.operationsDrained?.();
+      const resolve = this.operationsDrained;
       this.operationsDrained = undefined;
+      resolve?.();
     }
   };
 

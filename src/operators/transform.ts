@@ -22,21 +22,28 @@ export function filterMap<T, U>(
     create((scope) => {
       const upstream = open(source, scope);
       let index = 0;
-      return {
-        async next() {
-          for (;;) {
-            const result = await upstream.next();
-            if (result.done) return done();
+      const read: Read<NonNullable<Awaited<U>>> = (receive, reject) => {
+        const accept = async (result: IteratorResult<T>): Promise<void> => {
+          try {
+            if (result.done) {
+              receive(done());
+              return;
+            }
             scope.check();
             const value = await mapper(result.value, {
               index: index++,
               signal: scope.signal,
             });
             scope.check();
-            if (value != null) return item(value);
+            if (value != null) receive(item(value));
+            else upstream.read(accept, reject);
+          } catch (error) {
+            reject(error);
           }
-        },
+        };
+        upstream.read(accept, reject);
       };
+      return { read, next: () => new Promise(read) };
     });
 }
 
@@ -58,28 +65,35 @@ export function dedupe<T, K = T>(
       scope.finalizers.push(() => {
         previous = undefined;
       });
-      return {
-        async next() {
-          for (;;) {
-            const result = await upstream.next();
-            if (result.done) return done();
+      const read: Read<T> = (receive, reject) => {
+        const accept = async (result: IteratorResult<T>): Promise<void> => {
+          try {
+            if (result.done) {
+              receive(done());
+              return;
+            }
             scope.check();
-            // Without a selector, Promise-valued items remain identity keys.
-            const key = keySelector
-              ? await keySelector(result.value, {
-                  index: index++,
-                  signal: scope.signal,
-                })
-              : result.value;
+            // Await a checkpoint without unwrapping Promise-valued identity keys.
+            let key: unknown = result.value;
+            if (keySelector)
+              key = await keySelector(result.value, {
+                index: index++,
+                signal: scope.signal,
+              });
+            else await undefined;
             scope.check();
             if (!hasPrevious || !Object.is(previous, key)) {
               hasPrevious = true;
               previous = key;
-              return result;
-            }
+              receive(result);
+            } else upstream.read(accept, reject);
+          } catch (error) {
+            reject(error);
           }
-        },
+        };
+        upstream.read(accept, reject);
       };
+      return { read, next: () => new Promise(read) };
     });
 }
 
@@ -193,22 +207,40 @@ export function scan<T, A>(
       scope.finalizers.push(() => {
         state = undefined;
       });
-      return {
-        async next() {
-          if (!state) {
-            const accumulator = await initial;
+      const read: Read<Awaited<A>> = (receive, reject) => {
+        const accept = async (result: IteratorResult<T>): Promise<void> => {
+          try {
+            if (result.done) {
+              receive(done());
+              return;
+            }
             scope.check();
-            state = { upstream: open(source, scope), accumulator };
+            state!.accumulator = await reducer(
+              state!.accumulator,
+              result.value,
+              {
+                index: index++,
+                signal: scope.signal,
+              },
+            );
+            receive(item(state!.accumulator));
+          } catch (error) {
+            reject(error);
           }
-          const result = await state.upstream.next();
-          if (result.done) return done();
-          scope.check();
-          state.accumulator = await reducer(state.accumulator, result.value, {
-            index: index++,
-            signal: scope.signal,
-          });
-          return item(state.accumulator);
-        },
+        };
+        if (state) state.upstream.read(accept, reject);
+        else
+          void (async () => {
+            try {
+              const accumulator = await initial;
+              scope.check();
+              state = { upstream: open(source, scope), accumulator };
+              state.upstream.read(accept, reject);
+            } catch (error) {
+              reject(error);
+            }
+          })();
       };
+      return { read, next: () => new Promise(read) };
     });
 }

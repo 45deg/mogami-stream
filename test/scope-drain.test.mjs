@@ -59,3 +59,33 @@ test("scope drains overlapping operations before running finalizers", async () =
   assert.equal(finalized, true);
   assert.deepEqual(errors, [failure]);
 });
+
+test("scope close shares one drain waiter across reentrant and repeated calls", async () => {
+  const operation = deferred();
+  let finalized = 0;
+  const scope = new Scope({
+    scheduler: new VirtualScheduler(),
+    fail(error) {
+      throw error;
+    },
+    suppress(error) {
+      throw error;
+    },
+  });
+  scope.observe(operation.promise);
+  scope.setCleanup(() => {
+    assert.equal(scope.close(), closing);
+  });
+  scope.finalizers.push(() => {
+    finalized++;
+  });
+  const closing = scope.close();
+  assert.equal(scope.close(), closing);
+  scope.stop("stop");
+  await flush();
+  assert.equal(finalized, 0);
+  operation.resolve();
+  await closing;
+  assert.equal(scope.close(), closing);
+  assert.equal(finalized, 1);
+});
