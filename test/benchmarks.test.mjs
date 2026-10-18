@@ -123,3 +123,23 @@ test("early exit and cancellation await the workload's asynchronous resource cle
     }
   }
 });
+
+test("CPU workloads preserve values, filtering, child order, and source cleanup across adapters", async () => {
+  const config = parseOptions(["--items=103"]);
+  const adapters = await adaptersFor("compare");
+  for (const name of ["pipeline-depth", "flatmap-sync"]) {
+    const workload = workloads.find((w) => w.name === name);
+    for (const adapter of adapters.filter((a) => a.supports(workload))) {
+      const context = prepareWorkload(workload, config)();
+      context.begin();
+      await adapter.run(workload, context);
+      context.verify();
+      // Pipeline IDs 46–48 and 94–96 cross a multiple of 97 and are rejected.
+      assert.equal(
+        context.metrics.consumed,
+        name === "pipeline-depth" ? 97 : 412,
+      );
+      assert.equal(context.metrics.sourceClosed, true);
+    }
+  }
+});

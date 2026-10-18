@@ -1,6 +1,14 @@
 import assert from "node:assert/strict";
 import * as mogami from "../../dist/index.js";
-import { poolArray, projectRecords, serialMap } from "../lib/workloads.mjs";
+import {
+  poolArray,
+  projectRecords,
+  serialMap,
+  pipelineSteps,
+  deepPipeline,
+  expandGroup,
+  expandGroups,
+} from "../lib/workloads.mjs";
 
 const project = (record) => ({ id: record.id, value: record.amount * 2 });
 const prefixValue = (id) => ({ id, value: id * 2 });
@@ -53,6 +61,8 @@ export async function adaptersFor(suite) {
       supports: (w) => !["io-stream", "slow-sink"].includes(w.name),
       async run(w, c) {
         if (w.kind === "cancel") return cancelNative(c);
+        if (w.kind === "pipeline") return c.consume(deepPipeline(c.source));
+        if (w.kind === "flatten") return c.consume(expandGroups(c.source));
         if (w.kind === "prefix")
           return c.consume(serialMap(c.source, prefixValue));
         if (w.kind === "records") {
@@ -81,7 +91,14 @@ export async function adaptersFor(suite) {
       async run(w, c) {
         if (w.kind === "cancel") return cancelMogami(c);
         let output = mogami.from(c.source);
-        if (w.kind === "records")
+        if (w.kind === "pipeline") {
+          for (const step of pipelineSteps)
+            output = output.pipe(
+              step.map ? mogami.map(step.map) : mogami.filter(step.filter),
+            );
+        } else if (w.kind === "flatten") {
+          output = output.pipe(mogami.flatMap(expandGroup));
+        } else if (w.kind === "records")
           output = output.pipe(
             mogami.map(JSON.parse),
             mogami.filter((r) => r.active),
@@ -133,7 +150,7 @@ export async function adaptersFor(suite) {
     import("p-all"),
   ]);
   const serialSupported = (w) =>
-    w.kind === "records" || w.kind === "prefix" || w.serial;
+    ["records", "prefix", "pipeline", "flatten"].includes(w.kind) || w.serial;
   adapters.push(
     {
       name: "ix",
@@ -141,6 +158,15 @@ export async function adaptersFor(suite) {
       supports: serialSupported,
       async run(w, c) {
         let output = ix.from(c.source);
+        if (w.kind === "pipeline") {
+          for (const step of pipelineSteps)
+            output = output.pipe(
+              step.map ? ixOps.map(step.map) : ixOps.filter(step.filter),
+            );
+          return c.consume(output);
+        }
+        if (w.kind === "flatten")
+          return c.consume(output.pipe(ixOps.flatMap(expandGroup, 1)));
         output =
           w.kind === "records"
             ? output.pipe(
@@ -163,6 +189,16 @@ export async function adaptersFor(suite) {
       version: await dependencyVersion("iter-tools"),
       supports: serialSupported,
       async run(w, c) {
+        if (w.kind === "pipeline") {
+          let output = c.source;
+          for (const step of pipelineSteps)
+            output = step.map
+              ? iter.asyncMap(step.map, output)
+              : iter.asyncFilter(step.filter, output);
+          return c.consume(output);
+        }
+        if (w.kind === "flatten")
+          return c.consume(iter.asyncFlatMap(expandGroup, c.source));
         const output =
           w.kind === "records"
             ? iter.asyncMap(

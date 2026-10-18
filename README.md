@@ -279,6 +279,14 @@ In `bufferTime`, a window timer starts when the first item of a batch is observe
 
 All timer waits abort cleanly on cancellation, split durations longer than $2^{31} - 1\text{ ms}$ into safe `setTimeout` chunks, and measure elapsed time with `performance.now()`. Timer precision follows the host runtime (note that Cloudflare Workers only advance `performance.now()` after I/O).
 
+## Benchmarks
+
+Compared with IxJS, Mogami achieved **3.5× throughput for a 13-stage map/filter pipeline** and **6.7× for sequential flatMap** in these workloads.
+
+![Median elapsed time in milliseconds for JSON transformation, a 13-stage map/filter pipeline, and sequential flatMap; lower is better.](benchmarks/results/readme/comparison.svg)
+
+10,000 inputs on Node.js v24.22.0 / Apple M1 Pro; median of 7 runs after 2 warmups ([details](benchmarks/README.md)).
+
 ## Development and validation
 
 ```sh

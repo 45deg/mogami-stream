@@ -14,6 +14,8 @@ pnpm bench:compare --case=slow-sink --samples=11 --seed=43 --json=/tmp/slow-sink
 
 | Case              | Workload & contract                                                                                                         | Implementations in comparison mode                              |
 | ----------------- | --------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| `pipeline-depth`  | Compose 13 synchronous stages: project IDs, then six increment/filter pairs; consume in input order                         | Fused native async generator, Mogami, IxJS, iter-tools          |
+| `flatmap-sync`    | Expand each input into four child values and flatten sequentially without collecting all outputs                            | Native async generator, Mogami, IxJS, iter-tools                |
 | `records-stream`  | Parse JSON records, filter active records, project numeric values, and consume in input order without buffering all outputs | Native async generator, Mogami, IxJS, iter-tools                |
 | `records-batch`   | Same transformation, collecting all results into an ordered array before consumption                                        | Native arrays, Mogami, IxJS, iter-tools, RxJS                   |
 | `io-serial`       | Perform simulated variable-latency I/O one item at a time and consume in order                                              | Native async generator, Mogami, IxJS, iter-tools                |
@@ -25,8 +27,12 @@ pnpm bench:compare --case=slow-sink --samples=11 --seed=43 --json=/tmp/slow-sink
 
 The native async generator and worker pool serve as minimal baseline implementations. The `cancel-inflight` case compares task-specific cancellation paths (an external `AbortController` for the native worker pool vs. `StreamIterator.cancel()` for Mogami). RxJS is included only in `records-batch`, where the output is collected into an array, to avoid comparing push-based subscription against pull-based async iteration in streaming workloads.
 
+The README graph focuses on synchronous composition and child-stream turnover, where timer waits do not hide operator costs. The original I/O, cancellation, and early-stop cases remain in the suite. No overall ranking is calculated.
+
 Inputs are pre-built before timing starts:
 
+- `pipeline-depth` starts from numeric IDs, maps to `{ id, value: id * 2 }`, then applies six pairs of increment and reject-if-divisible-by-97 stages. Library adapters compose all 13 operators; the native baseline fuses the same logic into one generator loop.
+- `flatmap-sync` maps each input ID to four objects with consecutive output IDs. All adapters preserve child order with one active child. Each run verifies all `4 * items` outputs and source closure.
 - Record inputs are JSON strings containing an ID, amount, and `active` flag.
 - I/O inputs are numeric IDs. Every fifth item waits `4 * latency-ms` while all others wait `latency-ms`, creating out-of-order completions that exercise ordered delivery.
 - `early-stop` and `cancel-inflight` sources are lazy async generators whose `finally` block waits `latency-ms` to simulate asynchronous resource cleanup.
@@ -62,18 +68,28 @@ JSON reports record the following metrics per case:
 
 Pass options as `--name=value`:
 
-| Option        | Default | Description                                                                  |
-| ------------- | ------: | ---------------------------------------------------------------------------- |
-| `items`       |   10000 | Input size for `records-*` and `early-stop`                                  |
-| `io-items`    |     128 | Input size for `io-*`, `slow-sink`, and `cancel-inflight` (`>= concurrency`) |
-| `concurrency` |       8 | Concurrent mapper limit (`io-serial` always uses `1`)                        |
-| `capacity`    |      16 | Stream read-ahead capacity (`>= concurrency`; `io-serial` uses `1`)          |
-| `latency-ms`  |       2 | Base simulated I/O and cleanup delay in milliseconds (positive integer)      |
-| `sink-ms`     |       2 | Simulated write delay per item in `slow-sink` (positive integer)             |
-| `stop-after`  |     100 | Number of items read in `early-stop` (capped at `items`)                     |
-| `warmup`      |       2 | Warmup iterations per process (`>= 0`)                                       |
-| `samples`     |       7 | Measured iterations per process (`>= 1`)                                     |
-| `seed`        |      42 | PRNG seed used to shuffle execution order                                    |
-| `timeout-ms`  |   30000 | Per-iteration watchdog timeout in milliseconds                               |
-| `case`        |     all | Run a single workload by name, or `all`                                      |
-| `json`        |    none | File path to write the full JSON report (the parent directory must exist)    |
+| Option        | Default | Description                                                                    |
+| ------------- | ------: | ------------------------------------------------------------------------------ |
+| `items`       |   10000 | Input size for `records-*`, `pipeline-depth`, `flatmap-sync`, and `early-stop` |
+| `io-items`    |     128 | Input size for `io-*`, `slow-sink`, and `cancel-inflight` (`>= concurrency`)   |
+| `concurrency` |       8 | Concurrent mapper limit (`io-serial` always uses `1`)                          |
+| `capacity`    |      16 | Stream read-ahead capacity (`>= concurrency`; `io-serial` uses `1`)            |
+| `latency-ms`  |       2 | Base simulated I/O and cleanup delay in milliseconds (positive integer)        |
+| `sink-ms`     |       2 | Simulated write delay per item in `slow-sink` (positive integer)               |
+| `stop-after`  |     100 | Number of items read in `early-stop` (capped at `items`)                       |
+| `warmup`      |       2 | Warmup iterations per process (`>= 0`)                                         |
+| `samples`     |       7 | Measured iterations per process (`>= 1`)                                       |
+| `seed`        |      42 | PRNG seed used to shuffle execution order                                      |
+| `timeout-ms`  |   30000 | Per-iteration watchdog timeout in milliseconds                                 |
+| `case`        |     all | Run a single workload by name, or `all`                                        |
+| `json`        |    none | File path to write the full JSON report (the parent directory must exist)      |
+
+## README chart
+
+Generate the README SVG directly from a fresh comparison run (no JSON file):
+
+```sh
+pnpm bench:svg
+# Optional: --svg=/tmp/mogami.svg
+# One chart: --case=pipeline-depth
+```

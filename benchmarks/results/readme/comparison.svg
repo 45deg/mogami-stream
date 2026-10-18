@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="635" viewBox="0 0 800 635" role="img" aria-labelledby="title description">
+<title id="title">Mogami stream benchmark comparison</title>
+<desc id="description">Median elapsed time in milliseconds; lower is better. Separate zero-based scale for each workload.</desc>
+<rect width="800" height="635" fill="#ffffff"/>
+<g font-family="system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" fill="#172033">
+<text x="24" y="29" font-size="17" font-weight="700">JSON transformation</text>
+<path d="M180 36V164" stroke="#e0e5ec"/>
+<text x="180" y="186" font-size="12" text-anchor="middle" fill="#526075">0</text>
+<path d="M415 36V164" stroke="#e0e5ec"/>
+<text x="415" y="186" font-size="12" text-anchor="middle" fill="#526075">15</text>
+<path d="M650 36V164" stroke="#e0e5ec"/>
+<text x="650" y="186" font-size="12" text-anchor="middle" fill="#526075">30</text>
+<text x="164" y="60" font-size="16" text-anchor="end" font-weight="750">Mogami</text>
+<rect x="180" y="44" width="163.481" height="22" fill="#1967b2"/>
+<text x="674" y="60" font-size="16" font-weight="750">10.43</text>
+<text x="164" y="92" font-size="16" text-anchor="end" font-weight="450">IxJS</text>
+<rect x="180" y="76" width="465.810" height="22" fill="#8695a8"/>
+<text x="674" y="92" font-size="16" font-weight="450">29.73</text>
+<text x="164" y="124" font-size="16" text-anchor="end" font-weight="450">iter-tools</text>
+<rect x="180" y="108" width="279.192" height="22" fill="#8695a8"/>
+<text x="674" y="124" font-size="16" font-weight="450">17.82</text>
+<text x="164" y="156" font-size="16" text-anchor="end" font-weight="450">Native JS</text>
+<rect x="180" y="140" width="57.149" height="22" fill="#8695a8"/>
+<text x="674" y="156" font-size="16" font-weight="450">3.65</text>
+<text x="24" y="230" font-size="17" font-weight="700">13-stage map/filter pipeline</text>
+<path d="M180 237V365" stroke="#e0e5ec"/>
+<text x="180" y="387" font-size="12" text-anchor="middle" fill="#526075">0</text>
+<path d="M415 237V365" stroke="#e0e5ec"/>
+<text x="415" y="387" font-size="12" text-anchor="middle" fill="#526075">40</text>
+<path d="M650 237V365" stroke="#e0e5ec"/>
+<text x="650" y="387" font-size="12" text-anchor="middle" fill="#526075">80</text>
+<text x="164" y="261" font-size="16" text-anchor="end" font-weight="750">Mogami</text>
+<rect x="180" y="245" width="124.458" height="22" fill="#1967b2"/>
+<text x="674" y="261" font-size="16" font-weight="750">21.18</text>
+<text x="164" y="293" font-size="16" text-anchor="end" font-weight="450">IxJS</text>
+<rect x="180" y="277" width="436.573" height="22" fill="#8695a8"/>
+<text x="674" y="293" font-size="16" font-weight="450">74.31</text>
+<text x="164" y="325" font-size="16" text-anchor="end" font-weight="450">iter-tools</text>
+<rect x="180" y="309" width="333.918" height="22" fill="#8695a8"/>
+<text x="674" y="325" font-size="16" font-weight="450">56.84</text>
+<text x="164" y="357" font-size="16" text-anchor="end" font-weight="450">Native JS</text>
+<rect x="180" y="341" width="16.343" height="22" fill="#8695a8"/>
+<text x="674" y="357" font-size="16" font-weight="450">2.78</text>
+<text x="24" y="431" font-size="17" font-weight="700">Sequential flatMap (4 values per child)</text>
+<path d="M180 438V566" stroke="#e0e5ec"/>
+<text x="180" y="588" font-size="12" text-anchor="middle" fill="#526075">0</text>
+<path d="M415 438V566" stroke="#e0e5ec"/>
+<text x="415" y="588" font-size="12" text-anchor="middle" fill="#526075">100</text>
+<path d="M650 438V566" stroke="#e0e5ec"/>
+<text x="650" y="588" font-size="12" text-anchor="middle" fill="#526075">200</text>
+<text x="164" y="462" font-size="16" text-anchor="end" font-weight="750">Mogami</text>
+<rect x="180" y="446" width="64.438" height="22" fill="#1967b2"/>
+<text x="674" y="462" font-size="16" font-weight="750">27.42</text>
+<text x="164" y="494" font-size="16" text-anchor="end" font-weight="450">IxJS</text>
+<rect x="180" y="478" width="433.390" height="22" fill="#8695a8"/>
+<text x="674" y="494" font-size="16" font-weight="450">184.42</text>
+<text x="164" y="526" font-size="16" text-anchor="end" font-weight="450">iter-tools</text>
+<rect x="180" y="510" width="78.568" height="22" fill="#8695a8"/>
+<text x="674" y="526" font-size="16" font-weight="450">33.43</text>
+<text x="164" y="558" font-size="16" text-anchor="end" font-weight="450">Native JS</text>
+<rect x="180" y="542" width="51.382" height="22" fill="#8695a8"/>
+<text x="674" y="558" font-size="16" font-weight="450">21.86</text>
+<text x="776" y="625" font-size="11" text-anchor="end" fill="#788392">Node.js v24.22.0 · Apple M1 Pro</text>
+</g></svg>

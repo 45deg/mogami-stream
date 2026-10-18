@@ -1,7 +1,35 @@
 import assert from "node:assert/strict";
 import { setTimeout as sleep } from "node:timers/promises";
 
+export const pipelineSteps = [
+  { map: (id) => ({ id, value: id * 2 }) },
+  ...Array.from({ length: 6 }, () => [
+    { map: ({ id, value }) => ({ id, value: value + 1 }) },
+    { filter: ({ value }) => value % 97 !== 0 },
+  ]).flat(),
+];
+
+export const expandGroup = (id) =>
+  Array.from({ length: 4 }, (_, offset) => ({
+    id: id * 4 + offset,
+    value: (id * 4 + offset) * 2,
+  }));
+
 export const workloads = [
+  {
+    name: "pipeline-depth",
+    description:
+      "13 synchronous map/filter stages with ordered incremental consumption",
+    kind: "pipeline",
+    delivery: "stream",
+  },
+  {
+    name: "flatmap-sync",
+    description:
+      "Sequentially expand each input into four synchronous child values",
+    kind: "flatten",
+    delivery: "stream",
+  },
   {
     name: "records-stream",
     description:
@@ -63,10 +91,9 @@ export const workloads = [
 ];
 
 export function prepareWorkload(workload, config) {
-  const count =
-    workload.kind === "records" || workload.kind === "prefix"
-      ? config.items
-      : config.ioItems;
+  const count = ["io", "cancel"].includes(workload.kind)
+    ? config.ioItems
+    : config.items;
   const concurrency = workload.serial ? 1 : config.concurrency;
   const capacity = workload.serial ? 1 : config.capacity;
   const inputs = Array.from({ length: count }, (_, id) =>
@@ -74,14 +101,29 @@ export function prepareWorkload(workload, config) {
       ? JSON.stringify({ id, amount: (id % 100) * 7, active: id % 3 !== 0 })
       : id,
   );
-  const expected = Array.from({ length: count }, (_, id) => ({
-    id,
-    value: workload.kind === "records" ? (id % 100) * 14 : id * 2,
-  }))
+  const expected = Array.from(
+    { length: workload.kind === "flatten" ? count * 4 : count },
+    (_, id) => ({
+      id,
+      value:
+        workload.kind === "records"
+          ? (id % 100) * 14
+          : id * 2 + (workload.kind === "pipeline" ? 6 : 0),
+    }),
+  )
     .filter(({ id }) => workload.kind !== "records" || id % 3 !== 0)
+    .filter(
+      ({ id }) =>
+        workload.kind !== "pipeline" ||
+        Array.from({ length: 6 }, (_, i) => id * 2 + i + 1).every(
+          (value) => value % 97 !== 0,
+        ),
+    )
     .slice(
       0,
-      workload.kind === "prefix" ? Math.min(count, config.stopAfter) : count,
+      workload.kind === "prefix"
+        ? Math.min(count, config.stopAfter)
+        : undefined,
     );
 
   return function execution() {
@@ -93,8 +135,12 @@ export function prepareWorkload(workload, config) {
       consumed: 0,
       active: 0,
       maxActive: 0,
-      maxAhead: workload.kind === "records" ? null : 0,
-      maxReady: workload.kind === "records" ? null : 0,
+      maxAhead: ["records", "pipeline", "flatten"].includes(workload.kind)
+        ? null
+        : 0,
+      maxReady: ["records", "pipeline", "flatten"].includes(workload.kind)
+        ? null
+        : 0,
       sourceClosed: false,
       firstItemMs: null,
       stopToClosedMs: null,
@@ -104,7 +150,7 @@ export function prepareWorkload(workload, config) {
       slotsStarted = resolve;
     });
     const update = () => {
-      if (workload.kind === "records") return;
+      if (metrics.maxAhead === null) return;
       metrics.maxAhead = Math.max(
         metrics.maxAhead,
         metrics.pulled - metrics.consumed,
@@ -276,4 +322,24 @@ export async function poolArray(source, mapper, concurrency) {
   } finally {
     await iterator.return?.();
   }
+}
+
+// Fused native baseline; library adapters compose all 13 stages separately.
+export async function* deepPipeline(source) {
+  for (const id of source) {
+    let value = id * 2;
+    let accepted = true;
+    for (let stage = 0; stage < 6; stage++) {
+      value++;
+      if (value % 97 === 0) {
+        accepted = false;
+        break;
+      }
+    }
+    if (accepted) yield { id, value };
+  }
+}
+
+export async function* expandGroups(source) {
+  for (const id of source) yield* expandGroup(id);
 }

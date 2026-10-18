@@ -129,8 +129,8 @@ function runWorker(job, suite, config) {
   });
 }
 
-export async function runBenchmarks(suite) {
-  const config = parseOptions(process.argv.slice(2));
+export async function runBenchmarks(suite, argv = process.argv.slice(2)) {
+  const config = parseOptions(argv);
   const adapters = await adaptersFor(suite);
   const selected = workloads.filter(
     (w) => !config.selectedCase || w.name === config.selectedCase,
