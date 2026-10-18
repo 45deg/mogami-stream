@@ -9,7 +9,15 @@ export interface OperatorContext {
   readonly index: number;
   readonly signal: AbortSignal;
 }
-export type Reader<T> = { next(): Promise<IteratorResult<T>> };
+/** Internal delivery path: callbacks may run synchronously and must not throw. */
+export type Read<T> = (
+  receive: (result: IteratorResult<T>) => void,
+  reject: (error: unknown) => void,
+) => void;
+export type Reader<T> = {
+  next(): Promise<IteratorResult<T>>;
+  read?: Read<T>;
+};
 export type Builder<T> = (scope: Scope) => Reader<T>;
 const openStream = Symbol("openStream");
 
@@ -18,15 +26,17 @@ export class Stream<T> implements AsyncIterable<T> {
 
   [openStream](scope: Scope): Reader<T> {
     let reader: Reader<T> | undefined;
+    const getReader = () => {
+      if (!reader) {
+        reader = this.builder(scope);
+        scope.check();
+      }
+      return reader;
+    };
     return {
-      next: () => {
-        // Acquiring an internal iterator must not start its stage yet.
-        if (!reader) {
-          reader = this.builder(scope);
-          scope.check();
-        }
-        return reader.next();
-      },
+      // Acquiring an internal iterator must not start its stage yet.
+      next: () => getReader().next(),
+      read: (receive, reject) => readInto(getReader(), receive, reject),
     };
   }
   [Symbol.asyncIterator](): StreamIterator<T> {
@@ -89,6 +99,15 @@ export function create<T>(builder: Builder<T>): Stream<T> {
   return new Stream(builder);
 }
 
+function readInto<T>(
+  reader: Reader<T>,
+  receive: Parameters<Read<T>>[0],
+  reject: Parameters<Read<T>>[1],
+): void {
+  if (reader.read) reader.read(receive, reject);
+  else void reader.next().then(receive, reject);
+}
+
 /** Opens only when an operator has demand; preserves Promise values in sync inputs. */
 export function open<T>(source: Source<T>, parent: Scope): OwnedReader<T> {
   const scope = new Scope(parent.host, parent);
@@ -104,35 +123,71 @@ export function open<T>(source: Source<T>, parent: Scope): OwnedReader<T> {
     throw error;
   }
   let ended = false;
+  const accept = (result: IteratorResult<T>) => {
+    scope.check();
+    if (result.done) {
+      ended = true;
+      scope.markDone();
+      // Expose exhaustion before cleanup finishes so siblings can stop promptly.
+      void scope.close();
+    }
+    return result;
+  };
   return {
     scope,
+    read(receive, reject) {
+      if (ended) {
+        receive(done());
+        return;
+      }
+      scope.operationStarted();
+      const failed = (error: unknown) => {
+        try {
+          scope.reportError(error);
+          reject(error);
+        } finally {
+          scope.operationFinished();
+        }
+      };
+      try {
+        scope.check();
+        readInto(
+          reader,
+          (result) => {
+            try {
+              const accepted = accept(result);
+              receive(accepted);
+            } catch (error) {
+              scope.reportError(error);
+              reject(error);
+            } finally {
+              scope.operationFinished();
+            }
+          },
+          failed,
+        );
+      } catch (error) {
+        failed(error);
+      }
+    },
     async next() {
       if (ended) return done();
       scope.check();
-      const pause = scope.checkpoint();
-      if (pause) await scope.observe(pause);
-      scope.check();
-      let operation: Promise<IteratorResult<T>>;
+      scope.operationStarted();
       try {
-        operation = scope.observe(reader.next());
+        const result = await reader.next();
+        return accept(result);
       } catch (error) {
-        parent.host.fail(error);
+        scope.reportError(error);
         throw error;
+      } finally {
+        scope.operationFinished();
       }
-      const result = await operation;
-      scope.check();
-      if (result.done) {
-        ended = true;
-        scope.markDone();
-        // Expose exhaustion before cleanup finishes so combinators can stop
-        // siblings promptly. The owning scope still waits for this cleanup.
-        void scope.close();
-      }
-      return result;
     },
   };
 }
 
 export interface OwnedReader<T> extends Reader<T> {
   readonly scope: Scope;
+  read: Read<T>;
 }

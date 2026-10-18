@@ -53,13 +53,13 @@ test("one-slot mapping awaits thenables and reserves input only on demand", asyn
   );
 });
 
-test("synchronous filtering yields to host timer cancellation and closes its input", async () => {
+test("synchronous filtering observes callback cancellation and closes its input", async () => {
   const controller = new AbortController();
-  const reason = new Error("host timer cancellation");
+  const reason = new Error("callback cancellation");
+  let reads = 0;
   let closed = false;
   const source = {
     *[Symbol.iterator]() {
-      setTimeout(() => controller.abort(reason), 0);
       try {
         for (;;) yield 1;
       } finally {
@@ -68,18 +68,33 @@ test("synchronous filtering yields to host timer cancellation and closes its inp
     },
   };
   await assert.rejects(
-    toArray(from(source).pipe(filter(() => false)), {
-      signal: controller.signal,
-    }),
+    toArray(
+      from(source).pipe(
+        filter(() => {
+          if (++reads === 1_000) controller.abort(reason);
+          return false;
+        }),
+      ),
+      {
+        signal: controller.signal,
+      },
+    ),
     (error) => error === reason,
   );
   assert.equal(closed, true);
+  assert.equal(reads, 1_000);
 });
 
-test("elapsed callback work prompts a yield within a finite input", async () => {
+test("plain pipelines do not consult the scheduler even across many reads and elapsed callback work", async () => {
   const scheduler = new VirtualScheduler();
+  scheduler.now = () => {
+    throw new Error("Plain pipelines must not read the scheduler clock.");
+  };
+  scheduler.sleep = () => {
+    throw new Error("Plain pipelines must not schedule a wait.");
+  };
   const iterator = iterateWithScheduler(
-    range(0, 100).pipe(
+    range(0, 2_000).pipe(
       map((value) => {
         scheduler.time += 1;
         return value;
@@ -90,7 +105,6 @@ test("elapsed callback work prompts a yield within a finite input", async () => 
   );
   let sum = 0;
   for await (const value of iterator) sum += value;
-  assert.equal(sum, 4_950);
-  assert.ok(scheduler.yields > 0);
+  assert.equal(sum, 1_999_000);
   assert.equal((await iterator.closed).kind, "completed");
 });

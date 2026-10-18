@@ -19,10 +19,6 @@ export interface StreamIterator<T> extends AsyncIterableIterator<T> {
   readonly closed: Promise<CloseReport>;
 }
 
-const READS_PER_CLOCK_CHECK = 32;
-const MAX_READS_PER_YIELD = 512;
-const YIELD_INTERVAL_MS = 8;
-
 /** Internal test seam: Scheduler is deliberately absent from the package entry point. */
 export function iterateWithScheduler<T>(
   source: Source<T>,
@@ -38,8 +34,6 @@ export function iterateWithScheduler<T>(
   let pending = false;
   let cleanupFinished = false;
   let closing: Promise<void> | undefined;
-  let steps = 0;
-  let lastYieldAtMs: number | undefined;
   let reader: ReturnType<typeof open<T>> | undefined;
 
   const host: ExecutionHost = {
@@ -57,18 +51,6 @@ export function iterateWithScheduler<T>(
         wakePending?.();
         void close();
       }
-    },
-    checkpoint(signal) {
-      lastYieldAtMs ??= scheduler.now();
-      if (++steps % READS_PER_CLOCK_CHECK !== 0) return undefined;
-      const elapsedMs = scheduler.now() - lastYieldAtMs;
-      // Time limits longer CPU bursts; the read cap also works on frozen clocks.
-      if (steps < MAX_READS_PER_YIELD && elapsedMs < YIELD_INTERVAL_MS)
-        return undefined;
-      steps = 0;
-      return scheduler.yield(signal).then(() => {
-        lastYieldAtMs = scheduler.now();
-      });
     },
   };
   const root = new Scope(host);
@@ -115,22 +97,6 @@ export function iterateWithScheduler<T>(
     return done();
   }
 
-  async function readNext(
-    stopNotification: Promise<void>,
-  ): Promise<IteratorResult<T>> {
-    try {
-      reader ??= open(source, root);
-      return await Promise.race([
-        reader.next(),
-        stopNotification.then(() => done()),
-      ]);
-    } catch (error) {
-      // Record the failure here; next() delivers the first execution cause.
-      if (kind === undefined) stop("failed", error);
-      return done();
-    }
-  }
-
   const iterator: StreamIterator<T> = {
     closed: completion.promise,
     [Symbol.asyncIterator]() {
@@ -139,28 +105,58 @@ export function iterateWithScheduler<T>(
     cancel(error = cancellationReason()) {
       stop("cancelled", error);
     },
-    async next() {
+    next() {
       if (pending)
-        throw new TypeError("Only one next() may be pending at a time.");
+        return Promise.reject(
+          new TypeError("Only one next() may be pending at a time."),
+        );
       if (options.signal?.aborted && kind === undefined) abort();
-      if (kind !== undefined) return stoppedResult();
-      pending = true;
-      const stopNotification = deferred<void>();
-      wakePending = () => stopNotification.resolve();
-      try {
-        const result = await readNext(stopNotification.promise);
-        if (kind !== undefined) return stoppedResult();
-        if (result.done) {
-          // Exhaustion still waits for cleanup, but a stop must remain able
-          // to reject this public read while finalizers are pending.
-          await Promise.race([close(), stopNotification.promise]);
-          if (kind === "failed" || kind === "cancelled") return stoppedResult();
+      if (kind !== undefined) {
+        try {
+          return Promise.resolve(stoppedResult());
+        } catch (error) {
+          return Promise.reject(error);
         }
-        return result;
-      } finally {
-        pending = false;
-        wakePending = undefined;
       }
+      pending = true;
+      return new Promise<IteratorResult<T>>((resolve, reject) => {
+        let settled = false;
+        const settle = (result: IteratorResult<T>) => {
+          // A cancelled read may finish after a later public next().
+          if (settled) return;
+          settled = true;
+          pending = false;
+          wakePending = undefined;
+          try {
+            resolve(kind === undefined ? result : stoppedResult());
+          } catch (error) {
+            reject(error);
+          }
+        };
+        const failed = (error: unknown) => {
+          if (kind === undefined) stop("failed", error);
+          settle(done());
+        };
+        // Register before opening: source acquisition may synchronously stop us.
+        wakePending = () => settle(done());
+        try {
+          reader ??= open(source, root);
+          if (settled) return;
+          reader.read((result) => {
+            if (settled) return;
+            try {
+              if (kind === undefined && result.done) {
+                // Keep wakePending active while normal exhaustion awaits cleanup.
+                void close().then(() => settle(result));
+              } else settle(result);
+            } catch (error) {
+              failed(error);
+            }
+          }, failed);
+        } catch (error) {
+          failed(error);
+        }
+      });
     },
     async return() {
       if (kind === undefined) {

@@ -3,8 +3,8 @@ import assert from "node:assert/strict";
 import * as stream from "../dist/index.js";
 import { iterateWithScheduler } from "../dist/terminal/iterate.js";
 import { controlled, flush, turn, VirtualScheduler } from "./helpers.mjs";
+import { forSeeds } from "./fuzz-helpers.mjs";
 
-const RUNS = 128;
 const values = [
   undefined,
   null,
@@ -16,26 +16,6 @@ const values = [
   { id: 1 },
   Promise.resolve(2),
 ];
-
-function random(seed) {
-  let state = seed;
-  return (limit) => {
-    state ^= state << 13;
-    state ^= state >>> 17;
-    state ^= state << 5;
-    return (state >>> 0) % limit;
-  };
-}
-
-async function forSeeds(run) {
-  for (let seed = 1; seed <= RUNS; seed++) {
-    try {
-      await run(random(seed));
-    } catch (error) {
-      throw new Error(`Fuzz seed ${seed} failed.`, { cause: error });
-    }
-  }
-}
 
 // Use the async protocol without awaiting Promise-valued elements.
 function asyncSource(items, delay) {

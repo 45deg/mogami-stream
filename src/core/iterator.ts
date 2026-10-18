@@ -52,5 +52,14 @@ export function acquireIterator<T>(source: Source<T>, scope: Scope): Reader<T> {
   });
   return {
     next: () => Promise.resolve(iterator.next()).then(validateResult),
+    read(receive, reject) {
+      void Promise.resolve(iterator.next()).then((result) => {
+        try {
+          receive(validateResult(result));
+        } catch (error) {
+          reject(error);
+        }
+      }, reject);
+    },
   };
 }

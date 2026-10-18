@@ -31,6 +31,9 @@ export function finalize<T>(effect: () => unknown): Operator<T, T> {
     create((scope) => {
       scope.finalizers.push(effect);
       const upstream = open(source, scope);
-      return { next: () => upstream.next() };
+      return {
+        next: () => upstream.next(),
+        read: (receive, reject) => upstream.read(receive, reject),
+      };
     });
 }

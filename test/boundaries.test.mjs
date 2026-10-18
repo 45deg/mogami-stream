@@ -175,7 +175,6 @@ test("scope cleanup remains once-only when a cleanup failure reenters close", as
   const errors = [];
   const host = {
     scheduler: new VirtualScheduler(),
-    checkpoint: async () => {},
     fail(error) {
       throw error;
     },

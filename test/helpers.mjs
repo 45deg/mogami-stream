@@ -16,7 +16,6 @@ export const turn = () => setImmediate();
 export class VirtualScheduler {
   time = 0;
   timers = new Set();
-  yields = 0;
   now() {
     return this.time;
   }
@@ -42,11 +41,6 @@ export class VirtualScheduler {
       signal.addEventListener("abort", abort, { once: true });
       this.timers.add(timer);
     });
-  }
-  async yield(signal) {
-    this.yields++;
-    if (signal.aborted) throw signal.reason;
-    await setImmediate();
   }
   async advance(ms) {
     this.time += ms;

@@ -261,12 +261,15 @@ test("concat retains completed successors behind a blocked head within the child
   await iterator.return();
 });
 
-test("empty children and synchronous filtering yield control to the scheduler", async () => {
+test("empty children observe source cancellation and finite filtering completes", async () => {
   const scheduler = new VirtualScheduler();
   let iterator;
   const source = {
     *[Symbol.iterator]() {
-      for (;;) yield [];
+      for (let i = 0; ; i++) {
+        if (i === 1_000) iterator.cancel("done");
+        yield [];
+      }
     },
   };
   iterator = iterateWithScheduler(
@@ -276,16 +279,12 @@ test("empty children and synchronous filtering yield control to the scheduler", 
   );
   const read = iterator.next();
   const rejected = assert.rejects(read, (e) => e === "done");
-  await turn();
-  iterator.cancel("done");
   await rejected;
   await iterator.closed;
-  assert.ok(scheduler.yields > 0);
   const filtered = iterateWithScheduler(
     s.range(0, 1000).pipe(s.filter(() => false)),
     {},
     scheduler,
   );
   assert.equal((await filtered.next()).done, true);
-  assert.ok(scheduler.yields > 1);
 });

@@ -24,11 +24,13 @@ function combineSequentially<T>(): Operator<Source<T>, T> {
         async next() {
           for (;;) {
             if (!child) {
-              const result = await outer.next();
+              const result = await new Promise<IteratorResult<Source<T>>>(
+                outer.read,
+              );
               if (result.done) return done();
               child = open(result.value, scope);
             }
-            const result = await child.next();
+            const result = await new Promise<IteratorResult<T>>(child.read);
             if (!result.done) return result;
             // Cleanup still occupies the single child slot.
             await child.scope.close();
@@ -52,48 +54,60 @@ function combineChildren<T>(
       const changed = notifications(scope);
       const slots: ChildSlot<T>[] = [];
       let pulling = false;
+      let filling = false;
       let outerDone = false;
       let demand = false;
       let cursor = 0;
       let failure: { error: unknown } | undefined;
       let refill: ChildSlot<T> | undefined;
 
+      function fail(error: unknown): void {
+        pulling = false;
+        failure = { error };
+        scope.reportError(error);
+        changed.notify();
+      }
+
       function fill(): void {
-        if (
-          !demand ||
-          pulling ||
-          outerDone ||
-          scope.signal.aborted ||
-          slots.length >= concurrency
-        )
-          return;
-        pulling = true;
-        void scope
-          .observe(
-            (async () => {
-              const result = await outer.next();
+        if (filling) return;
+        filling = true;
+        try {
+          // Owned reads track completion through child setup. A synchronous
+          // source refills in this loop instead of recursively calling fill.
+          while (
+            demand &&
+            !pulling &&
+            !outerDone &&
+            !failure &&
+            !scope.signal.aborted &&
+            slots.length < concurrency
+          ) {
+            pulling = true;
+            outer.read((result) => {
               pulling = false;
-              scope.check();
-              if (result.done) {
-                outerDone = true;
-                changed.notify();
-              } else {
-                const child = new ChildSlot(
-                  result.value,
-                  scope,
-                  changed.notify,
-                );
-                slots.push(child);
-                child.start();
+              try {
+                scope.check();
+                if (result.done) {
+                  outerDone = true;
+                  changed.notify();
+                } else {
+                  const child = new ChildSlot(
+                    result.value,
+                    scope,
+                    changed.notify,
+                  );
+                  slots.push(child);
+                  child.start();
+                }
+                fill();
+              } catch (error) {
+                fail(error);
               }
-              fill();
-            })(),
-          )
-          .catch((error) => {
-            pulling = false;
-            failure = { error };
-            changed.notify();
-          });
+            }, fail);
+          }
+        } finally {
+          filling = false;
+        }
       }
 
       return {
@@ -102,7 +116,7 @@ function combineChildren<T>(
           try {
             for (;;) {
               scope.check();
-              const notification = changed.promise;
+              const version = changed.version;
               if (failure) throw failure.error;
               refill?.start();
               refill = undefined;
@@ -131,7 +145,9 @@ function combineChildren<T>(
               }
               if (retired) continue;
               if (outerDone && slots.length === 0) return done();
-              await notification;
+              // A synchronous refill may have notified while we inspected slots.
+              if (changed.version !== version) continue;
+              await changed.promise;
             }
           } finally {
             demand = false;
@@ -160,6 +176,24 @@ function project<T, U>(
       const upstream = open(source, scope);
       let index = 0;
       return {
+        read(receive, reject) {
+          upstream.read((result) => {
+            try {
+              receive(
+                result.done
+                  ? done()
+                  : item(
+                      mapper(result.value, {
+                        index: index++,
+                        signal: scope.signal,
+                      }),
+                    ),
+              );
+            } catch (error) {
+              reject(error);
+            }
+          }, reject);
+        },
         async next() {
           const result = await upstream.next();
           return result.done

@@ -108,6 +108,54 @@ export async function runContracts() {
     );
     equal(await stream.toArray(stream.zip([1, 2], ["a"])), [[1, "a"]]);
   });
+  await check(
+    "zip completion recognizes a deferred sibling's abort response",
+    async () => {
+      let finishShortest;
+      let startSibling;
+      let returned = 0;
+      const started = new Promise((resolve) => {
+        startSibling = resolve;
+      });
+      const shortest = {
+        [Symbol.asyncIterator]() {
+          return this;
+        },
+        next() {
+          return new Promise((resolve) => {
+            finishShortest = resolve;
+          });
+        },
+      };
+      const sibling = stream.defer(({ signal }) => ({
+        [Symbol.asyncIterator]() {
+          return this;
+        },
+        next() {
+          const pending = new Promise((resolve, reject) =>
+            signal.addEventListener("abort", () => reject(signal.reason), {
+              once: true,
+            }),
+          );
+          startSibling();
+          return pending;
+        },
+        return() {
+          returned++;
+          return { done: true };
+        },
+      }));
+      const iterator = stream.iterate(stream.zip(shortest, sibling));
+      const reading = iterator.next();
+      await started;
+      finishShortest({ done: true });
+      equal((await reading).done, true);
+      const report = await iterator.closed;
+      equal(report.kind, "completed");
+      equal(report.suppressedErrors, []);
+      equal(returned, 1);
+    },
+  );
   await check("zipLatest", async () => {
     equal(
       await stream.toArray(stream.zipLatest([stream.of(1), stream.of("a")])),
@@ -288,15 +336,14 @@ export async function runContracts() {
     equal((await iterator.closed).kind, "failed");
   });
   await check(
-    "host timers can cancel a synchronous infinite filter",
+    "callback cancellation closes a synchronous infinite filter",
     async () => {
       const controller = new AbortController();
-      const reason = new Error("timer cancellation");
-      let timer;
+      const reason = new Error("callback cancellation");
+      let reads = 0;
       let closed = false;
       const source = {
         *[Symbol.iterator]() {
-          timer = setTimeout(() => controller.abort(reason), 0);
           try {
             for (;;) yield 1;
           } finally {
@@ -306,16 +353,20 @@ export async function runContracts() {
       };
       try {
         await stream.toArray(
-          stream.from(source).pipe(stream.filter(() => false)),
+          stream.from(source).pipe(
+            stream.filter(() => {
+              if (++reads === 1_000) controller.abort(reason);
+              return false;
+            }),
+          ),
           { signal: controller.signal },
         );
         throw new Error("Expected timer cancellation.");
       } catch (error) {
         if (error !== reason) throw error;
-      } finally {
-        clearTimeout(timer);
       }
       equal(closed, true);
+      equal(reads, 1_000);
     },
   );
   return passed;

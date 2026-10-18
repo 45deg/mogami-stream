@@ -51,6 +51,8 @@ Only one public `next()` may be pending. A second overlapping request rejects wi
 
 Non-cooperative promises and input reads can keep `closed`, `return()`, and terminal consumers pending indefinitely. Async generators cannot forcibly interrupt an arbitrary `await`. Pass the supplied signal to external I/O through `defer` or callbacks. Signal propagation through arbitrary third-party wrappers is limited to that boundary.
 
+Pipelines do not automatically yield to host tasks. Continuously ready inputs and callbacks can delay timers, I/O, and cancellation initiated by those tasks. Sources, callbacks, or consumers that need host-task responsiveness must yield explicitly.
+
 `take(n)` starts closing its owned upstream before returning the nth value. It leaves downstream callbacks' signals active. Already started effects may still complete. `finalize` runs once for a started stage, after its children and outstanding work finish. Nested finalizers run from the inner stage outward.
 
 ## Concurrency and demand

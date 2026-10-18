@@ -1,7 +1,6 @@
 export interface Scheduler {
   now(): number;
   sleep(ms: number, signal: AbortSignal): Promise<void>;
-  yield(signal: AbortSignal): Promise<void>;
 }
 
 const MAX_TIMER_MS = 2_147_483_647;
@@ -36,8 +35,5 @@ export const defaultScheduler: Scheduler = {
     do {
       await wait(Math.min(MAX_TIMER_MS, Math.max(0, end - this.now())), signal);
     } while (this.now() < end);
-  },
-  yield(signal) {
-    return wait(0, signal);
   },
 };

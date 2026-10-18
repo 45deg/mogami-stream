@@ -3,9 +3,9 @@ import {
   open,
   type Operator,
   type OperatorContext,
+  type Read,
 } from "../core/stream.js";
 import { done, item } from "./deferred.js";
-import { notifications } from "./notifications.js";
 import { integer } from "./errors.js";
 
 export interface MapOptions {
@@ -56,9 +56,19 @@ export function boundedMap<T, U>(
       const upstream = open(source, scope);
       const results = new Map<number, Awaited<U>>();
       const completionOrder: number[] = [];
-      const changed = notifications(scope);
+      let waiter:
+        | {
+            receive: Parameters<Read<Awaited<U>>>[0];
+            reject: Parameters<Read<Awaited<U>>>[1];
+          }
+        | undefined;
+      scope.signal.addEventListener("abort", deliver, { once: true });
+      scope.finalizers.push(() =>
+        scope.signal.removeEventListener("abort", deliver),
+      );
       let demand = false;
       let pulling = false;
+      let pumping = false;
       let inputDone = false;
       let running = 0;
       let nextInputIndex = 0;
@@ -76,82 +86,121 @@ export function boundedMap<T, U>(
       };
 
       function pump(): void {
-        if (!demand || inputDone || pulling || failure || scope.signal.aborted)
-          return;
-        if (running >= concurrency || running + results.size >= capacity)
-          return;
-        pulling = true;
-        checkBounds();
-        const pull = (async () => {
-          const result = await upstream.next();
-          pulling = false;
+        if (pumping) return;
+        pumping = true;
+        try {
+          // A ready upstream stage may deliver synchronously. Refill iteratively
+          // so a large capacity never turns those callbacks into recursion.
+          while (
+            demand &&
+            !inputDone &&
+            !pulling &&
+            !failure &&
+            !scope.signal.aborted &&
+            running < concurrency &&
+            running + results.size < capacity
+          ) {
+            pulling = true;
+            checkBounds();
+            scope.operationStarted();
+            upstream.read(
+              (result) => {
+                void run(result);
+              },
+              (error) => {
+                pulling = false;
+                try {
+                  fail(error);
+                } finally {
+                  scope.operationFinished();
+                }
+              },
+            );
+          }
+        } finally {
+          pumping = false;
+        }
+      }
+
+      function fail(error: unknown): void {
+        failure = { error };
+        scope.reportError(error);
+        deliver();
+      }
+
+      // One tracked operation owns the reservation through mapper completion.
+      async function run(result: IteratorResult<T>): Promise<void> {
+        pulling = false;
+        try {
           if (scope.signal.aborted) return;
           if (result.done) {
             inputDone = true;
-            changed.notify();
+            deliver();
             return;
           }
           const index = nextInputIndex++;
           running++;
           checkBounds();
-          const work = scope.observe(
-            Promise.resolve().then(() => {
-              scope.check();
-              return mapper(result.value, { index, signal: scope.signal });
-            }),
-          );
-          scope.observe(
-            work.then(
-              (value) => {
-                running--;
-                results.set(index, value);
-                if (!ordered) completionOrder.push(index);
-                checkBounds();
-                changed.notify();
-                pump();
-              },
-              (error) => {
-                running--;
-                failure = { error };
-                changed.notify();
-              },
-            ),
-          );
+          let value: Awaited<U>;
+          try {
+            const mapped = mapper(result.value, {
+              index,
+              signal: scope.signal,
+            });
+            pump();
+            value = await mapped;
+          } finally {
+            running--;
+          }
+          results.set(index, value);
+          if (!ordered) completionOrder.push(index);
+          checkBounds();
+          deliver();
           pump();
-        })();
-        void scope.observe(pull).catch((error) => {
-          pulling = false;
-          failure = { error };
-          changed.notify();
-        });
+        } catch (error) {
+          fail(error);
+        } finally {
+          scope.operationFinished();
+        }
       }
 
+      function deliver(): void {
+        if (!waiter) return;
+        let result: IteratorResult<Awaited<U>>;
+        try {
+          scope.check();
+          if (failure) throw failure.error;
+          const index = ordered ? nextOutputIndex : completionOrder[0];
+          if (index !== undefined && results.has(index)) {
+            result = item(results.get(index)!);
+            results.delete(index);
+            if (ordered) nextOutputIndex++;
+            else completionOrder.shift();
+            checkBounds();
+          } else if (inputDone && running === 0) result = done();
+          else return;
+        } catch (error) {
+          const pending = waiter;
+          waiter = undefined;
+          demand = false;
+          pending.reject(error);
+          return;
+        }
+        const pending = waiter;
+        waiter = undefined;
+        demand = false;
+        pending.receive(result);
+      }
+
+      const read: Read<Awaited<U>> = (receive, reject) => {
+        waiter = { receive, reject };
+        demand = true;
+        pump();
+        deliver();
+      };
       return {
-        async next() {
-          demand = true;
-          try {
-            for (;;) {
-              scope.check();
-              const notification = changed.promise;
-              pump();
-              if (failure) throw failure.error;
-              const index = ordered ? nextOutputIndex : completionOrder[0];
-              if (index !== undefined && results.has(index)) {
-                const value = results.get(index)!;
-                results.delete(index);
-                if (ordered) {
-                  nextOutputIndex++;
-                } else completionOrder.shift();
-                checkBounds();
-                return item(value);
-              }
-              if (inputDone && running === 0) return done();
-              await notification;
-            }
-          } finally {
-            demand = false;
-          }
-        },
+        read,
+        next: () => new Promise<IteratorResult<Awaited<U>>>(read),
       };
     });
 }

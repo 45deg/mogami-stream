@@ -17,7 +17,7 @@ export class ChildSlot<T> {
   start(): void {
     if (this.pending || this.result || this.failure) return;
     this.pending = true;
-    void this.reader.next().then(
+    this.reader.read(
       (result) => {
         this.pending = false;
         this.result = result;

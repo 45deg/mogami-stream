@@ -40,7 +40,7 @@ export function merge<T>(...sources: Source<T>[]): Stream<T> {
       async next() {
         for (;;) {
           scope.check();
-          const notification = changed.promise;
+          const version = changed.version;
           if (!started) {
             started = true;
             slots.forEach((slot) => slot.start());
@@ -66,7 +66,9 @@ export function merge<T>(...sources: Source<T>[]): Stream<T> {
             return result;
           }
           if (!slots.length) return done();
-          await notification;
+          // A synchronous refill may have notified while we inspected slots.
+          if (changed.version !== version) continue;
+          await changed.promise;
         }
       },
     };
@@ -87,7 +89,7 @@ export function zip<const S extends readonly Source<unknown>[]>(
         slots.forEach((slot) => slot.start());
         for (;;) {
           scope.check();
-          const notification = changed.promise;
+          const version = changed.version;
           for (const slot of slots) {
             if (slot.failure) throw slot.failure.error;
             if (slot.result?.done) return done();
@@ -97,7 +99,9 @@ export function zip<const S extends readonly Source<unknown>[]>(
               slots.map((slot) => slot.consume().value) as SourceValues<S>,
             );
           }
-          await notification;
+          // A synchronous refill may have notified while we inspected slots.
+          if (changed.version !== version) continue;
+          await changed.promise;
         }
       },
     };
@@ -143,7 +147,7 @@ export function zipLatest(
       async next() {
         for (;;) {
           scope.check();
-          const notification = changed.promise;
+          const version = changed.version;
           if (!started) {
             started = true;
             slots.forEach((slot) => slot.start());
@@ -173,7 +177,9 @@ export function zipLatest(
             }
           }
           if (ended.size === slots.length) return done();
-          await notification;
+          // A synchronous refill may have notified while we inspected slots.
+          if (changed.version !== version) continue;
+          await changed.promise;
         }
       },
     };
