@@ -235,6 +235,56 @@ export function flatMap<T, U>(
   mapper: (value: T, context: OperatorContext) => Source<U>,
   options: HigherOrderOptions = {},
 ): Operator<T, U> {
+  if ((options.concurrency ?? 1) === 1) {
+    return (source) =>
+      create((scope) => {
+        const outer = open(source, scope);
+        let child: ReturnType<typeof open<U>> | undefined;
+        let index = 0;
+        const readNext = (
+          receive: (result: IteratorResult<U>) => void,
+          reject: (error: unknown) => void,
+        ): void => {
+          if (!child) {
+            outer.read((result) => {
+              if (result.done) {
+                receive(done());
+                return;
+              }
+              try {
+                scope.check();
+                child = open(
+                  mapper(result.value, {
+                    index: index++,
+                    signal: scope.signal,
+                  }),
+                  scope,
+                );
+              } catch (error) {
+                reject(error);
+                return;
+              }
+              readNext(receive, reject);
+            }, reject);
+            return;
+          }
+          const current = child;
+          current.read((result) => {
+            if (!result.done) {
+              receive(result);
+              return;
+            }
+            void current.scope.close().then(() => {
+              if (child === current) child = undefined;
+              readNext(receive, reject);
+            }, reject);
+          }, reject);
+        };
+        return {
+          next: () => new Promise(readNext),
+        };
+      });
+  }
   const combine = flatten<U>(options);
   return (source) => combine(project(mapper)(source));
 }

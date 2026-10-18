@@ -34,10 +34,14 @@ export function acquireIterator<T>(source: Source<T>, scope: Scope): Reader<T> {
     throw new TypeError("The source must be iterable or async iterable.");
   }
   const iterator = getIterator.call(source);
-  let claimed = owners.get(scope.host);
+  // Recovery boundaries have their own host but share execution ownership.
+  let executionScope = scope;
+  while (executionScope.parent) executionScope = executionScope.parent;
+  const executionHost = executionScope.host;
+  let claimed = owners.get(executionHost);
   if (!claimed) {
     claimed = new WeakSet();
-    owners.set(scope.host, claimed);
+    owners.set(executionHost, claimed);
   }
   if (claimed.has(iterator)) {
     throw new TypeError("An iterator cannot be shared within one execution.");

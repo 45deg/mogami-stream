@@ -28,6 +28,30 @@ export async function runContracts() {
       [0, 4, 8],
     );
   });
+  await check("recovery and sequential selection", async () => {
+    const failure = new Error("upstream");
+    let finalized = false;
+    const source = stream
+      .defer(() => {
+        throw failure;
+      })
+      .pipe(
+        stream.finalize(() => {
+          finalized = true;
+        }),
+        stream.catchError(async (error, { signal }) => {
+          if (error !== failure || signal.aborted || !finalized)
+            throw new Error(
+              "Recovery ran before cleanup or lost failure context.",
+            );
+          return [null, 0, 0, 1, 1, 2, 1, undefined];
+        }),
+        stream.filterMap(async (value) => value),
+        stream.dedupe(async (value) => value),
+        stream.skipWhile(async (value) => value < 1),
+      );
+    equal(await source.toArray(), [1, 2, 1]);
+  });
   await check("bounded ordered map", async () => {
     equal(
       await stream.toArray(

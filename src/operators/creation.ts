@@ -88,11 +88,11 @@ export function range(start: number, end: number, step = 1): Stream<number> {
         if (exhausted || (step > 0 ? current >= end : current <= end))
           return done();
         const value = current;
-        // Test the next bound without overflowing a safe integer.
-        const remaining = BigInt(end) - BigInt(current);
-        if (step > 0 ? BigInt(step) >= remaining : BigInt(step) <= remaining)
-          exhausted = true;
-        else current += step;
+        const next = current + step;
+        // An unsafe sum is already beyond every valid bound in this direction.
+        // Safe integer sums are exact, including steps that cross zero.
+        if (!Number.isSafeInteger(next)) exhausted = true;
+        else current = next;
         return item(value);
       },
     };

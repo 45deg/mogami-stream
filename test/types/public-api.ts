@@ -2,6 +2,10 @@ import {
   from,
   of,
   filter,
+  filterMap,
+  dedupe,
+  skipWhile,
+  catchError,
   map,
   take,
   skip,
@@ -35,6 +39,41 @@ type Equal<A, B> =
     : false;
 type Expect<T extends true> = T;
 type Value<T> = T extends Stream<infer U> ? U : never;
+
+const nonNullish = of(1).pipe(
+  filterMap(async (value) => (value > 0 ? `${value}` : null)),
+);
+export type FilterMapped = Expect<Equal<Value<typeof nonNullish>, string>>;
+const falsy = of(1).pipe(filterMap((): 0 | false | "" | undefined => false));
+export type FalsyFilterMap = Expect<Equal<Value<typeof falsy>, 0 | false | "">>;
+const deduped = of({ id: 1 }).pipe(
+  dedupe(async (value, { index, signal }) => {
+    const typedIndex: number = index;
+    const typedSignal: AbortSignal = signal;
+    return value.id + typedIndex + Number(typedSignal.aborted);
+  }),
+);
+export type Deduped = Expect<Equal<Value<typeof deduped>, { id: number }>>;
+const defaultDedupe = of(1).pipe(dedupe());
+export type DefaultDedupe = Expect<Equal<Value<typeof defaultDedupe>, number>>;
+const skippedPrefix = of(1).pipe(skipWhile(async (value) => value < 2));
+export type SkippedPrefix = Expect<Equal<Value<typeof skippedPrefix>, number>>;
+const recovered = of(1).pipe(
+  catchError(async (error, { signal }) => {
+    const typedError: unknown = error;
+    const typedSignal: AbortSignal = signal;
+    return [String(typedError) + typedSignal.aborted];
+  }),
+);
+export type Recovered = Expect<Equal<Value<typeof recovered>, number | string>>;
+const recoveredEmpty = of(1).pipe(catchError(() => []));
+export type RecoveredEmpty = Expect<
+  Equal<Value<typeof recoveredEmpty>, number>
+>;
+const recoveredPromise = of(1).pipe(catchError(() => [Promise.resolve("a")]));
+export type RecoveredPromise = Expect<
+  Equal<Value<typeof recoveredPromise>, number | Promise<string>>
+>;
 
 const mapped = of(1).pipe(map(async (value) => `${value}`));
 export type AwaitedMap = Expect<Equal<Value<typeof mapped>, string>>;

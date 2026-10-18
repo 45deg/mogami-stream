@@ -9,6 +9,41 @@ import { cancellationReason, integer } from "../internal/errors.js";
 import { from } from "./creation.js";
 
 /**
+ * Discard a prefix while the sequential, awaited predicate returns true.
+ *
+ * Emit the first failing value and all remaining values without testing again.
+ * @category Selection
+ */
+export function skipWhile<T>(
+  predicate: (
+    value: T,
+    context: OperatorContext,
+  ) => boolean | PromiseLike<boolean>,
+): Operator<T, T> {
+  return (source) =>
+    create((scope) => {
+      const upstream = open(source, scope);
+      let index = 0;
+      let skipping = true;
+      return {
+        async next() {
+          for (;;) {
+            const result = await upstream.next();
+            if (result.done || !skipping) return result;
+            scope.check();
+            skipping = await predicate(result.value, {
+              index: index++,
+              signal: scope.signal,
+            });
+            scope.check();
+            if (!skipping) return result;
+          }
+        },
+      };
+    });
+}
+
+/**
  * Emit at most `count` values and start closing upstream before delivering the last one.
  *
  * A count of zero never opens upstream. Downstream callback signals remain active.
@@ -84,6 +119,7 @@ export function takeWhile<T>(
           if (ended) return done();
           const result = await upstream.next();
           if (result.done) return result;
+          scope.check();
           if (
             await predicate(result.value, {
               index: index++,

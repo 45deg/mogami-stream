@@ -85,7 +85,10 @@ All stream factories and operators return a `Stream<T>`, which implements `Async
 | `from(source)`, `defer(({ signal }) => source)`                 | Wrap an existing input or create one per execution; deferred factories may return a promise of an input.                                                |
 | `of(...values)`, `empty()`, `range(start, end, step = 1)`       | Create inputs; range excludes `end` and requires safe integers and nonzero step.                                                                        |
 | `map(mapper, options?)`, `filter(predicate)`                    | Transform values or select them; synchronous type predicates retain narrowing.                                                                          |
+| `filterMap(mapper)`                                             | Sequentially await mapped results and omit only `null` and `undefined`; output types exclude both.                                                      |
+| `dedupe(keySelector?)`                                          | Omit consecutive equal keys using `Object.is`; defaults to the value itself and retains only the last emitted key.                                      |
 | `take(n)`, `skip(n)`, `takeWhile(predicate)`                    | Select a prefix, skip values, or stop when a predicate becomes false.                                                                                   |
+| `skipWhile(predicate)`                                          | Skip while the awaited predicate is true, then emit the first false value and the remainder without testing again.                                      |
 | `chunks(size)`                                                  | Emit arrays of at most `size` values, including a final partial array on normal completion.                                                             |
 | `chain(...sources)`                                             | Open and drain inputs in sequence.                                                                                                                      |
 | `merge(...sources)`                                             | Read inputs concurrently with one slot per input and rotating selection among ready inputs.                                                             |
@@ -94,13 +97,27 @@ All stream factories and operators return a `Stream<T>`, which implements `Async
 | `flatten({ concurrency = 1 }?)`, `concat({ concurrency = 1 }?)` | Flatten a stream of inputs, concurrently or in child order.                                                                                             |
 | `flatMap(mapper, options?)`, `concatMap(mapper, options?)`      | Map to child inputs and flatten. Child factories synchronously return an iterable; asynchronous preparation belongs inside a deferred child.            |
 | `tap(effect)`, `finalize(effect)`                               | Await a per-value effect or an execution cleanup effect.                                                                                                |
+| `catchError(handler)`                                           | After a failed upstream closes, replace it once with the handler's synchronous or asynchronous iterable.                                                |
 | `iterate(source, { signal }?)`                                  | Return a controlled iterator with `cancel()` and `closed`.                                                                                              |
 | `toArray(source, options?)`                                     | Collect all values in memory.                                                                                                                           |
 | `reduce(source, reducer, initial, options?)`                    | Sequential reduction with a required initial accumulator; reducer receives `(accumulator, value, context)`.                                             |
 
 Compared with the aiostream API described in the supplied design, this library requires finite concurrency (default 1), defaults `zipLatest` to `partial: false`, and names its timing operators `delayStart` and `timeoutEach`.
 
-`filter`, `takeWhile`, `tap`, `reduce`, `scan`, `forEach`, `find`, `some`, and `every` callbacks run sequentially. `take` and `skip` require non-negative safe integers. `chunks` requires a positive safe integer. Invalid numeric options throw `RangeError` when the operator is constructed.
+`filter`, `filterMap`, `dedupe`, `takeWhile`, `skipWhile`, `tap`, `reduce`, `scan`, `forEach`, `find`, `some`, and `every` callbacks run sequentially. `take` and `skip` require non-negative safe integers. `chunks` requires a positive safe integer. Invalid numeric options throw `RangeError` when the operator is constructed.
+
+`filterMap`, `dedupe`, and `skipWhile` callbacks receive `{ index, signal }` and may return promises. Indexes count tested input values and restart with each execution. `filterMap` retains `0`, `false`, and `""`. Without a key selector, `dedupe` preserves Promise-valued items and compares their identities; with a selector, it awaits each key. `Object.is` treats consecutive `NaN` keys as equal and distinguishes `0` from `-0`. Keys are compared only with the last emitted key, so `1, 1, 2, 1` emits `1, 2, 1`.
+
+`catchError((error, { signal }) => replacement)` handles upstream processing and acquisition failures. The handler may return a promise of an input. Recovery waits for all failed upstream work and cleanup; non-cooperative work can delay it indefinitely. Cancellation, cleanup failures, handler failures, replacement failures, and downstream failures propagate without recovery. A successful recovery produces a normal completed close report. Place another `catchError` downstream to handle a replacement failure.
+
+```ts
+const values = from(primary).pipe(
+  catchError((_error, { signal }) => openFallback(signal)),
+  filterMap((value) => value.parsed),
+  dedupe((value) => value.id),
+  skipWhile((value) => !value.ready),
+);
+```
 
 Higher-order concurrency counts children from reservation through retirement, including cleanup. Each child has one read/result slot. `concat` retains completed successors until earlier children retire, so a blocked head cannot accumulate unlimited empty successors. `zip` may consume one extra value from another input before discovering the shortest input has ended. `zipLatest` coalesces updates before initialization; afterward it retains each accepted update until demand consumes it.
 

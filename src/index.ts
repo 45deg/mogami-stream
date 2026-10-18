@@ -1,8 +1,15 @@
 export type { Stream } from "./core/stream.js";
 export type { Source, Operator, OperatorContext } from "./core/stream.js";
 export { from, defer, of, empty, range } from "./operators/creation.js";
-export { filter, chunks, scan } from "./operators/transform.js";
-export { take, skip, takeWhile } from "./operators/selection.js";
+export {
+  filter,
+  filterMap,
+  dedupe,
+  chunks,
+  scan,
+} from "./operators/transform.js";
+export { take, skip, takeWhile, skipWhile } from "./operators/selection.js";
+export { catchError } from "./operators/recovery.js";
 export { chain, merge, zip, zipLatest } from "./operators/combine.js";
 export type {
   ZipLatestOptions,
