@@ -108,10 +108,12 @@ for (const panel of panels) {
   }
   top = bottomY + 37;
 }
+const runtimeName =
+  { node: "Node.js", bun: "Bun" }[report.runtime.name] ?? report.runtime.name;
 text(
   776,
   height - 10,
-  `${process.release.name === "node" ? "Node.js" : process.release.name} ${process.version} · ${cpus()[0].model}`,
+  `${runtimeName} ${report.runtime.version} · ${cpus()[0].model}`,
   'font-size="11" text-anchor="end" fill="#788392"',
 );
 svg.push("</g></svg>");

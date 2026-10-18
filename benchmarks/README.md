@@ -10,6 +10,17 @@ pnpm bench:compare --case=slow-sink --samples=11 --seed=43 --json=/tmp/slow-sink
 
 `pnpm bench` compares `mogami-stream` against small native JavaScript reference implementations that satisfy the same behavioral contract. `pnpm bench:compare` adds third-party libraries from the `benchmarks/compare` workspace where an equivalent API exists. Libraries that cannot express a workload's contract (such as bounded read-ahead or ordered streaming) are omitted for that workload rather than emulated with unbounded buffers or out-of-order output.
 
+To run the same suite under Bun instead of Node.js, build once and invoke the scripts directly:
+
+```sh
+pnpm build
+bun --expose-gc benchmarks/run.mjs --json=/tmp/mogami-bun.json
+bun --expose-gc benchmarks/compare/run.mjs --json=/tmp/mogami-bun-compare.json
+bun --expose-gc benchmarks/render-svg.mjs --svg=/tmp/mogami-bun.svg
+```
+
+Child processes use the same runtime as the parent. Reports and SVG captions record the actual Bun version. Keep inputs, warmups, sample counts, and machine conditions the same when comparing runtimes.
+
 ## Workloads and contracts
 
 | Case              | Workload & contract                                                                                                         | Implementations in comparison mode                              |
@@ -50,7 +61,7 @@ Every warmup and measured sample verifies exact output IDs, ordering, values, an
 
 ## Timing and metrics
 
-Each `(workload, library)` pair runs in a dedicated child process, executed sequentially in a seeded random order (`--seed`). Module imports and input data generation happen before timing. Each child process runs `--warmup` unrecorded iterations followed by `--samples` measured iterations. When Node runs with `--expose-gc` (enabled by default in the npm scripts), a manual GC runs before each iteration outside the timed window.
+Each `(workload, library)` pair runs in a dedicated child process, executed sequentially in a seeded random order (`--seed`). Module imports and input data generation happen before timing. Each child process runs `--warmup` unrecorded iterations followed by `--samples` measured iterations. When Node.js or Bun runs with `--expose-gc` (enabled by default in the npm scripts), a manual GC runs before each iteration outside the timed window.
 
 Each timed sample covers pipeline creation, iteration, mapper execution, result collection (for batch cases), sink consumption, per-item verification counters, and source cleanup. Process startup and final summary assertions happen outside the timed window.
 

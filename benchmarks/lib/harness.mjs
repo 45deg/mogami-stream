@@ -131,6 +131,13 @@ function runWorker(job, suite, config) {
 
 export async function runBenchmarks(suite, argv = process.argv.slice(2)) {
   const config = parseOptions(argv);
+  const runtime = {
+    name: process.versions.bun ? "bun" : process.release.name,
+    version: process.versions.bun
+      ? `v${process.versions.bun}`
+      : process.version,
+    forcedGcBetweenRuns: typeof globalThis.gc === "function",
+  };
   const adapters = await adaptersFor(suite);
   const selected = workloads.filter(
     (w) => !config.selectedCase || w.name === config.selectedCase,
@@ -143,7 +150,7 @@ export async function runBenchmarks(suite, argv = process.argv.slice(2)) {
   const order = shuffle(jobs, config.seed);
   const results = [];
   console.log(
-    `${process.release.name} ${process.version}; ${suite}; ${config.warmup} warmups + ${config.samples} samples; isolated processes; seed ${config.seed}`,
+    `${runtime.name} ${runtime.version}; ${suite}; ${config.warmup} warmups + ${config.samples} samples; isolated processes; seed ${config.seed}`,
   );
   for (const job of order) {
     const result = await runWorker(job, suite, config);
@@ -161,11 +168,7 @@ export async function runBenchmarks(suite, argv = process.argv.slice(2)) {
     schemaVersion: 2,
     suite,
     createdAt: new Date().toISOString(),
-    runtime: {
-      name: process.release.name,
-      version: process.version,
-      forcedGcBetweenRuns: typeof globalThis.gc === "function",
-    },
+    runtime,
     configuration: Object.fromEntries(
       Object.entries(config).filter(([name]) => name !== "json"),
     ),
