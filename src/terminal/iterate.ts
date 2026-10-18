@@ -5,34 +5,46 @@ import { cancellationReason } from "../internal/errors.js";
 import { deferred, done } from "../internal/deferred.js";
 
 /**
- * Options for one execution, including an optional external cancellation signal.
+ * Options for executing a stream pipeline.
  */
 export interface ExecutionOptions {
-  /** External cancellation signal; an already aborted signal prevents input acquisition. */
+  /** External `AbortSignal` to cancel the execution. If already aborted, the source is never opened. */
   readonly signal?: AbortSignal | undefined;
 }
 /**
- * Cleanup outcome, preserving the primary stop reason and additional failures.
+ * Summary of how a stream execution terminated and whether any secondary errors occurred during teardown.
  */
-export interface CloseReport {
-  /** Completed, explicitly cancelled, or failed, including cleanup failure. */
-  readonly kind: "completed" | "cancelled" | "failed";
-  /** Primary failure or cancellation reason; absent for normal completion. */
-  readonly reason?: unknown;
-  /** Additional processing and cleanup failures observed after the primary reason. */
+export type CloseReport = {
+  /** Additional processing or cleanup errors observed after the primary termination reason was recorded. */
   readonly suppressedErrors: readonly unknown[];
-}
+} & (
+  | { readonly kind: "completed" }
+  | {
+      readonly kind: "cancelled";
+      /** Cancellation reason passed to `cancel()` or `signal.abort()` (may be `undefined`). */
+      readonly reason: unknown;
+    }
+  | {
+      readonly kind: "failed";
+      /** Primary error that caused the execution or its cleanup to fail (may be `undefined`). */
+      readonly reason: unknown;
+    }
+);
 /**
- * Controlled iterator whose closed promise resolves after all owned cleanup finishes.
+ * An `AsyncIterableIterator` with explicit cancellation control and a `closed` lifecycle promise.
  */
-export interface StreamIterator<T> extends AsyncIterableIterator<T> {
-  /** Request a stop immediately; cleanup continues through closed. */
+export interface StreamIterator<T> extends AsyncIterableIterator<
+  T,
+  unknown,
+  undefined
+> {
+  /** Immediately requests cancellation without waiting for cleanup. Track teardown completion via {@link closed}. */
   cancel(reason?: unknown): void;
-  /** Request a stop and await cleanup; may reject on failure. */
-  return(value?: unknown): Promise<IteratorResult<T>>;
-  /** Stop with an error without injecting it upstream or waiting for cleanup. */
-  throw(error?: unknown): Promise<IteratorResult<T>>;
-  /** Always resolves after cleanup, including when cleanup fails. Observing it does not stop execution. */
+  /** Stops the execution and waits for cleanup before resolving `{ done: true, value: undefined }`. Rejects if cleanup fails. */
+  return(value?: unknown): Promise<IteratorResult<T, unknown>>;
+  /** Terminates the execution with `error` without forwarding the throw into the upstream iterator. */
+  throw(error?: unknown): Promise<IteratorResult<T, unknown>>;
+  /** Resolves with a {@link CloseReport} once all upstream iterators and finalizers have finished. Never rejects, and awaiting it does not trigger cancellation. */
   readonly closed: Promise<CloseReport>;
 }
 
@@ -77,14 +89,16 @@ export function iterateWithScheduler<T>(
   function close(): Promise<void> {
     closing ??= (async () => {
       await root.close();
+      // Closed iterators no longer need stage buffers or acquired inputs.
+      reader = undefined;
       options.signal?.removeEventListener("abort", abort);
       kind ??= "completed";
       cleanupFinished = true;
-      completion.resolve({
-        kind,
-        ...(kind === "failed" || kind === "cancelled" ? { reason } : {}),
-        suppressedErrors: [...suppressedErrors],
-      });
+      completion.resolve(
+        kind === "completed"
+          ? { kind, suppressedErrors: [...suppressedErrors] }
+          : { kind, reason, suppressedErrors: [...suppressedErrors] },
+      );
     })();
     return closing;
   }
@@ -106,7 +120,7 @@ export function iterateWithScheduler<T>(
     void close();
   }
 
-  function stoppedResult(): IteratorResult<T> {
+  function stoppedResult(): IteratorResult<T, unknown> {
     if (!notified && (kind === "failed" || kind === "cancelled")) {
       notified = true;
       throw reason;
@@ -136,9 +150,9 @@ export function iterateWithScheduler<T>(
         }
       }
       pending = true;
-      return new Promise<IteratorResult<T>>((resolve, reject) => {
+      return new Promise<IteratorResult<T, unknown>>((resolve, reject) => {
         let settled = false;
-        const settle = (result: IteratorResult<T>) => {
+        const settle = (result: IteratorResult<T, unknown>) => {
           // A cancelled read may finish after a later public next().
           if (settled) return;
           settled = true;
@@ -197,9 +211,9 @@ export function iterateWithScheduler<T>(
 }
 
 /**
- * Acquire a controlled, lazy iterator with cancellation and a cleanup report.
+ * Creates a controlled iterator for `source` with explicit cancellation and a `closed` completion report.
  *
- * Only one next() may be pending. Failure or cancellation rejects one read; later reads return done. Request return() or cancel() when abandoning manual iteration; awaiting closed alone does not request a stop.
+ * Execution is lazy and starts on the first `next()` call. Only one `next()` call may be pending at a time. If the execution fails or is cancelled, `next()` rejects once with the reason, and subsequent `next()` calls resolve to `{ done: true, value: undefined }`. Call `return()` or `cancel()` when stopping manual iteration early; awaiting `closed` by itself does not stop the stream.
  * @category Consumption
  */
 export function iterate<T>(

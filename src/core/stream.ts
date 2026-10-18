@@ -11,20 +11,20 @@ import { reduce } from "../terminal/reduce.js";
 import { forEach, find, some, every } from "../terminal/consume.js";
 
 /**
- * A synchronous or asynchronous input iterable.
+ * A synchronous or asynchronous iterable accepted as a stream input.
  */
 export type Source<T> = Iterable<T> | AsyncIterable<T>;
 /**
- * A lazy transformation from an async iterable to a Stream.
+ * A function that transforms an `AsyncIterable` into a {@link Stream}.
  */
 export type Operator<T, U> = (source: AsyncIterable<T>) => Stream<U>;
 /**
- * Per-operator callback state; indexes restart at zero for each execution.
+ * Per-item context passed to operator callbacks.
  */
 export interface OperatorContext {
-  /** Zero-based index within this operator execution. */
+  /** Zero-based item index for the current operator execution. */
   readonly index: number;
-  /** Aborted when the owning stage stops; pass it to external I/O. */
+  /** Abort signal that triggers when the owning stage stops. Pass this to cancellable I/O. */
   readonly signal: AbortSignal;
 }
 /** Internal delivery path: callbacks may run synchronously and must not throw. */
@@ -40,9 +40,9 @@ export type Builder<T> = (scope: Scope) => Reader<T>;
 const openStream = Symbol("openStream");
 
 /**
- * A lazy async iterable with typed operator composition and terminal consumers.
+ * A lazy `AsyncIterable` pipeline with composable operators and terminal methods.
  *
- * Create streams with from, defer, or another public source factory. Each iteration is a separate execution; replayability depends on the wrapped input.
+ * Create streams with {@link from}, {@link defer}, or another source factory. Each iteration runs an independent execution; whether a stream can be iterated more than once depends on its underlying source.
  */
 export class Stream<T> implements AsyncIterable<T> {
   /** @internal */
@@ -64,59 +64,59 @@ export class Stream<T> implements AsyncIterable<T> {
       read: (receive, reject) => readInto(getReader(), receive, reject),
     };
   }
-  /** Create a new execution; the first next() starts reading. */
+  /** Creates a new execution that starts reading on the first `next()` call. */
   [Symbol.asyncIterator](): StreamIterator<T> {
     return iterate(this);
   }
-  /** Acquire a controlled iterator; equivalent to the standalone iterate function. */
+  /** Returns a controlled iterator for this stream. Equivalent to {@link iterate | `iterate(this, options)`}. */
   iterate(options: ExecutionOptions = {}): StreamIterator<T> {
     return iterate(this, options);
   }
-  /** Collect this execution in memory and wait for cleanup. */
+  /** Collects all emitted values into an array and waits for cleanup before resolving. */
   toArray(options: ExecutionOptions = {}): Promise<T[]> {
     return toArray(this, options);
   }
-  /** Sequentially reduce this execution from the required initial accumulator. */
+  /** Reduces values sequentially from `initial` and returns the final accumulator after cleanup. */
   reduce<A>(
     reducer: (
-      accumulator: A,
+      accumulator: Awaited<A>,
       value: T,
       context: OperatorContext,
-    ) => A | PromiseLike<A>,
+    ) => Awaited<A> | PromiseLike<Awaited<A>>,
     initial: A,
     options: ExecutionOptions = {},
-  ): Promise<A> {
+  ): Promise<Awaited<A>> {
     return reduce(this, reducer, initial, options);
   }
-  /** Await sequential effects and cleanup without retaining results. */
+  /** Runs `effect` sequentially for each value and waits for cleanup without collecting results. */
   forEach(
     effect: (value: T, context: OperatorContext) => unknown,
     options: ExecutionOptions = {},
   ): Promise<void> {
     return forEach(this, effect, options);
   }
-  /** Return the first match and close upstream; undefined also represents no match. */
+  /** Returns the first value matching `predicate` (or `undefined` if none match) and closes upstream. */
   find<S extends T>(
     predicate: (value: T, context: OperatorContext) => value is S,
     options?: ExecutionOptions,
-  ): Promise<S | undefined>;
+  ): Promise<Awaited<S> | undefined>;
   find(
     predicate: (
       value: T,
       context: OperatorContext,
     ) => boolean | PromiseLike<boolean>,
     options?: ExecutionOptions,
-  ): Promise<T | undefined>;
+  ): Promise<Awaited<T> | undefined>;
   find(
     predicate: (
       value: T,
       context: OperatorContext,
     ) => boolean | PromiseLike<boolean>,
     options: ExecutionOptions = {},
-  ): Promise<T | undefined> {
+  ): Promise<Awaited<T> | undefined> {
     return find(this, predicate, options);
   }
-  /** Test for any match, closing upstream early; empty inputs return false. */
+  /** Returns `true` on the first matching value and closes upstream early, or `false` if no values match. */
   some(
     predicate: (
       value: T,
@@ -126,7 +126,7 @@ export class Stream<T> implements AsyncIterable<T> {
   ): Promise<boolean> {
     return some(this, predicate, options);
   }
-  /** Test that every value matches, closing upstream early; empty inputs return true. */
+  /** Returns `false` on the first non-matching value and closes upstream early, or `true` if all values match. */
   every(
     predicate: (
       value: T,
@@ -136,7 +136,7 @@ export class Stream<T> implements AsyncIterable<T> {
   ): Promise<boolean> {
     return every(this, predicate, options);
   }
-  /** Compose up to eight typed operators without starting execution. */
+  /** Composes up to eight operators from left to right without starting execution. */
   pipe(): Stream<T>;
   pipe<A>(op1: Operator<T, A>): Stream<A>;
   pipe<A, B>(op1: Operator<T, A>, op2: Operator<A, B>): Stream<B>;
@@ -206,7 +206,11 @@ function readInto<T>(
 /** Opens only when an operator has demand; preserves Promise values in sync inputs. */
 export function open<T>(source: Source<T>, parent: Scope): OwnedReader<T> {
   const scope = new Scope(parent.host, parent);
-  let reader: Reader<T>;
+  let reader: Reader<T> | undefined;
+  scope.finalizers.push(() => {
+    // Error stacks can retain this wrapper after the stage has closed.
+    reader = undefined;
+  });
   try {
     if (source instanceof Stream) {
       reader = source[openStream](scope);
@@ -247,7 +251,7 @@ export function open<T>(source: Source<T>, parent: Scope): OwnedReader<T> {
       try {
         scope.check();
         readInto(
-          reader,
+          reader!,
           (result) => {
             try {
               const accepted = accept(result);
@@ -270,7 +274,7 @@ export function open<T>(source: Source<T>, parent: Scope): OwnedReader<T> {
       scope.check();
       scope.operationStarted();
       try {
-        const result = await reader.next();
+        const result = await reader!.next();
         return accept(result);
       } catch (error) {
         scope.reportError(error);

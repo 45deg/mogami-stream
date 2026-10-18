@@ -1,5 +1,5 @@
 /**
- * An input iterator returned from cleanup without done set to true.
+ * Thrown when an underlying iterator's `return()` method resolves with `done !== true`.
  */
 export class IteratorCleanupError extends Error {
   constructor() {
@@ -9,7 +9,7 @@ export class IteratorCleanupError extends Error {
 }
 
 /**
- * An individual upstream read exceeded the timeoutEach duration.
+ * Thrown by {@link timeoutEach} when a single upstream read takes longer than `durationMs` milliseconds.
  */
 export class TimeoutError extends Error {
   constructor(readonly durationMs: number) {
@@ -19,7 +19,7 @@ export class TimeoutError extends Error {
 }
 
 /**
- * A stage exhausted its deadline time budget.
+ * Thrown by {@link deadline} when a stage's total elapsed time exceeds `durationMs` milliseconds.
  */
 export class DeadlineExceededError extends Error {
   constructor(readonly durationMs: number) {

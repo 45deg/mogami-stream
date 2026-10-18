@@ -10,19 +10,19 @@ import { done, item } from "./deferred.js";
 import { integer } from "./errors.js";
 
 /**
- * Mapper callback state, extending the operator index and signal with an attempt number.
+ * Context passed to {@link map} and {@link mapSettled} callbacks.
  */
 export interface MapContext extends OperatorContext {
-  /** One-based attempt, including when retry is omitted. */
+  /** One-based attempt number for the current item (starts at `1` on the initial call). */
   readonly attempt: number;
 }
 
 export interface BoundedMapOptions {
-  /** Maximum reserved reads and running mapper invocations; positive safe integer. Defaults to 1. */
+  /** Maximum number of items being read or mapped at the same time. Must be a positive safe integer. Defaults to `1`. */
   readonly concurrency?: number;
-  /** Maximum reserved reads, running mappers, and completed outputs; safe integer >= concurrency. Defaults to concurrency. */
+  /** Maximum number of items held in the stage at once (pending reads, active mappers, and buffered outputs). Must be a safe integer `>= concurrency`. Defaults to `concurrency`. */
   readonly capacity?: number;
-  /** Preserve input order when true; otherwise emit in observed completion order. Defaults to true. */
+  /** When `true`, emits results in input order; when `false`, emits results as they complete. Defaults to `true`. */
   readonly ordered?: boolean;
 }
 
@@ -105,9 +105,12 @@ export function scopedMap<T, U>(
           }
         | undefined;
       scope.signal.addEventListener("abort", deliver, { once: true });
-      scope.finalizers.push(() =>
-        scope.signal.removeEventListener("abort", deliver),
-      );
+      scope.finalizers.push(() => {
+        scope.signal.removeEventListener("abort", deliver);
+        // Late mapper results may arrive after stop; release them after work drains.
+        results.clear();
+        completionOrder.length = 0;
+      });
       let demand = false;
       let pulling = false;
       let pumping = false;

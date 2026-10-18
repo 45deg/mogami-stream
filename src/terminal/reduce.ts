@@ -1,32 +1,35 @@
 import type { OperatorContext, Source } from "../core/stream.js";
-import { from } from "../operators/creation.js";
+import { defer, from } from "../operators/creation.js";
 import { tap } from "../operators/lifecycle.js";
 import { iterate, type ExecutionOptions } from "./iterate.js";
 
 /**
- * Sequentially await a reducer and return the final accumulator after cleanup.
+ * Reduces values from `source` sequentially using `reducer` and returns the final accumulator after cleanup.
  *
- * The initial accumulator is required and used by reference. Empty inputs return it unchanged; callback indexes restart for each execution.
+ * `initial` is awaited before opening `source`. If `source` is empty, the resolved initial value is returned. Object accumulators are passed by reference.
  * @category Consumption
  */
 export async function reduce<T, A>(
   source: Source<T>,
   reducer: (
-    accumulator: A,
+    accumulator: Awaited<A>,
     value: T,
     context: OperatorContext,
-  ) => A | PromiseLike<A>,
+  ) => Awaited<A> | PromiseLike<Awaited<A>>,
   initial: A,
   options: ExecutionOptions = {},
-): Promise<A> {
-  let accumulator = initial;
+): Promise<Awaited<A>> {
+  let accumulator!: Awaited<A>;
   // Keep reducer work inside the execution so cancellation reaches its signal
   // and cleanup waits for the returned promise, just like any other callback.
-  const steps = from(source).pipe(
-    tap(async (value, context) => {
-      accumulator = await reducer(accumulator, value, context);
-    }),
-  );
+  const steps = defer(async () => {
+    accumulator = await initial;
+    return from(source).pipe(
+      tap(async (value, context) => {
+        accumulator = await reducer(accumulator, value, context);
+      }),
+    );
+  });
   const iterator = iterate(steps, options);
   try {
     while (!(await iterator.next()).done) {

@@ -1,6 +1,7 @@
 import {
   create,
   open,
+  type Stream,
   type Operator,
   type OperatorContext,
   type Read,
@@ -9,9 +10,9 @@ import { done, item } from "../internal/deferred.js";
 import { integer } from "../internal/errors.js";
 
 /**
- * Sequentially await a mapper and emit only its non-nullish results.
+ * Maps each value sequentially and emits only results that are neither `null` nor `undefined`.
  *
- * Null and undefined are omitted; false, zero, and empty strings are retained.
+ * Other falsy values (`0`, `false`, `""`, `NaN`) are kept.
  * @category Transformation
  */
 export function filterMap<T, U>(
@@ -40,10 +41,9 @@ export function filterMap<T, U>(
 }
 
 /**
- * Omit consecutive values with the same key, comparing with Object.is.
+ * Drops consecutive values that produce the same key according to `Object.is`.
  *
- * Defaults to the value itself. A supplied key selector is awaited sequentially
- * for every input; only the last emitted key is retained per execution.
+ * When `keySelector` is omitted, values are compared directly (preserving Promise identity). When provided, `keySelector` is called and awaited sequentially for each item, and only the last emitted key is retained in memory.
  * @category Transformation
  */
 export function dedupe<T, K = T>(
@@ -55,6 +55,9 @@ export function dedupe<T, K = T>(
       let index = 0;
       let hasPrevious = false;
       let previous: unknown;
+      scope.finalizers.push(() => {
+        previous = undefined;
+      });
       return {
         async next() {
           for (;;) {
@@ -80,6 +83,12 @@ export function dedupe<T, K = T>(
     });
 }
 
+/**
+ * Emits only values for which `predicate` returns `true`.
+ *
+ * Predicates run sequentially and may be asynchronous. Synchronous type guard predicates narrow the output stream type.
+ * @category Transformation
+ */
 export function filter<T, S extends T>(
   predicate: (value: T, context: OperatorContext) => value is S,
 ): Operator<T, S>;
@@ -89,12 +98,6 @@ export function filter<T>(
     context: OperatorContext,
   ) => boolean | PromiseLike<boolean>,
 ): Operator<T, T>;
-/**
- * Keep values whose sequential, awaited predicate returns true.
- *
- * Synchronous type predicates narrow the output type.
- * @category Transformation
- */
 export function filter<T>(
   predicate: (
     value: T,
@@ -136,15 +139,21 @@ export function filter<T>(
 }
 
 /**
- * Group values into arrays of at most `size` items.
+ * Groups consecutive values into arrays of up to `size` items.
  *
- * Emit a final partial array only on normal completion.
- * @throws RangeError if size is not a positive safe integer.
+ * If the stream completes normally with fewer than `size` buffered items, the remaining items are emitted as a final smaller array.
+ * @throws {RangeError} If `size` is not a positive safe integer.
  * @category Transformation
  */
-export function chunks<T>(size: number): Operator<T, T[]> {
+export function chunks(
+  size: number,
+): <T>(source: AsyncIterable<T>) => Stream<T[]>;
+export function chunks<T>(size: number): Operator<T, T[]>;
+export function chunks(
+  size: number,
+): <T>(source: AsyncIterable<T>) => Stream<T[]> {
   integer(size, "size");
-  return (source) =>
+  return <T>(source: AsyncIterable<T>) =>
     create((scope) => {
       const upstream = open(source, scope);
       return {
@@ -162,34 +171,43 @@ export function chunks<T>(size: number): Operator<T, T[]> {
 }
 
 /**
- * Emit the updated accumulator after each sequential, awaited reduction.
+ * Reduces values sequentially and emits the updated accumulator after each item.
  *
- * The initial value is not emitted and is used by reference. Empty inputs emit nothing; callback indexes restart for each execution.
+ * `initial` is awaited before opening the upstream source and is not emitted on its own (an empty source emits nothing). Objects resolved from `initial` are used by reference.
  * @category Transformation
  */
 export function scan<T, A>(
   reducer: (
-    accumulator: A,
+    accumulator: Awaited<A>,
     value: T,
     context: OperatorContext,
-  ) => A | PromiseLike<A>,
+  ) => Awaited<A> | PromiseLike<Awaited<A>>,
   initial: A,
-): Operator<T, A> {
+): Operator<T, Awaited<A>> {
   return (source) =>
     create((scope) => {
-      const upstream = open(source, scope);
-      let accumulator = initial;
+      let state:
+        | { upstream: ReturnType<typeof open<T>>; accumulator: Awaited<A> }
+        | undefined;
       let index = 0;
+      scope.finalizers.push(() => {
+        state = undefined;
+      });
       return {
         async next() {
-          const result = await upstream.next();
+          if (!state) {
+            const accumulator = await initial;
+            scope.check();
+            state = { upstream: open(source, scope), accumulator };
+          }
+          const result = await state.upstream.next();
           if (result.done) return done();
           scope.check();
-          accumulator = await reducer(accumulator, result.value, {
+          state.accumulator = await reducer(state.accumulator, result.value, {
             index: index++,
             signal: scope.signal,
           });
-          return item(accumulator);
+          return item(state.accumulator);
         },
       };
     });

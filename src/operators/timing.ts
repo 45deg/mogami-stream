@@ -1,4 +1,4 @@
-import { create, open, type Operator } from "../core/stream.js";
+import { create, open, type Operator, type Stream } from "../core/stream.js";
 import { alarm } from "../internal/alarm.js";
 import { done, item } from "../internal/deferred.js";
 import {
@@ -9,13 +9,19 @@ import {
 } from "../internal/errors.js";
 
 /**
- * Wait once before opening upstream, starting the wait on the first read.
- * @throws RangeError if ms is not finite and non-negative.
+ * Waits `ms` milliseconds on the first read before opening upstream.
+ * @throws {RangeError} If `ms` is not finite and non-negative.
  * @category Timing
  */
-export function delayStart<T>(ms: number): Operator<T, T> {
+export function delayStart(
+  ms: number,
+): <T>(source: AsyncIterable<T>) => Stream<T>;
+export function delayStart<T>(ms: number): Operator<T, T>;
+export function delayStart(
+  ms: number,
+): <T>(source: AsyncIterable<T>) => Stream<T> {
   duration(ms, "ms");
-  return (source) =>
+  return <T>(source: AsyncIterable<T>) =>
     create((scope) => {
       let upstream: ReturnType<typeof open<T>> | undefined;
       return {
@@ -32,15 +38,21 @@ export function delayStart<T>(ms: number): Operator<T, T> {
 }
 
 /**
- * Emit the first value without an added delay, then space outputs at least intervalMs apart.
+ * Emits the first value without added delay, then ensures at least `intervalMs` milliseconds between subsequent emissions.
  *
- * Upstream read time and downstream idle time count toward the gap.
- * @throws RangeError if intervalMs is not finite and non-negative.
+ * Time spent waiting for upstream reads or downstream demand counts toward the interval.
+ * @throws {RangeError} If `intervalMs` is not finite and non-negative.
  * @category Timing
  */
-export function spaceout<T>(intervalMs: number): Operator<T, T> {
+export function spaceout(
+  intervalMs: number,
+): <T>(source: AsyncIterable<T>) => Stream<T>;
+export function spaceout<T>(intervalMs: number): Operator<T, T>;
+export function spaceout(
+  intervalMs: number,
+): <T>(source: AsyncIterable<T>) => Stream<T> {
   duration(intervalMs, "intervalMs");
-  return (source) =>
+  return <T>(source: AsyncIterable<T>) =>
     create((scope) => {
       const upstream = open(source, scope);
       let previous: number | undefined;
@@ -62,28 +74,32 @@ export function spaceout<T>(intervalMs: number): Operator<T, T> {
 }
 
 /**
- * Sliding-window limits for upstream read starts.
+ * Sliding-window parameters for {@link rateLimit}.
  */
 export interface RateLimitOptions {
-  /** Maximum read starts per sliding window; a positive safe integer. */
+  /** Maximum number of upstream reads that may start within any `perMs` window. Must be a positive safe integer. */
   readonly count: number;
-  /** Sliding window in finite, positive milliseconds. */
+  /** Sliding window duration in milliseconds. Must be finite and positive. */
   readonly perMs: number;
 }
 /**
- * Limit upstream read starts within a sliding window for this execution.
+ * Limits how many upstream reads can start within a sliding window of `perMs` milliseconds.
  *
- * Reads that fail or complete the input still count. Starts exactly perMs apart belong to different windows. Mapper retries do not count as additional upstream reads.
- * @throws RangeError if count is not a positive safe integer or perMs is not finite and positive.
+ * Every upstream `next()` call counts toward the limit, including reads that fail or complete the stream. Reads separated by `perMs` or more do not share a window. Retries inside {@link map} do not trigger new upstream reads and are not counted here.
+ * @throws {RangeError} If `count` is not a positive safe integer or `perMs` is not finite and positive.
  * @category Timing
  */
-export function rateLimit<T>({
+export function rateLimit(
+  options: RateLimitOptions,
+): <T>(source: AsyncIterable<T>) => Stream<T>;
+export function rateLimit<T>(options: RateLimitOptions): Operator<T, T>;
+export function rateLimit({
   count,
   perMs,
-}: RateLimitOptions): Operator<T, T> {
+}: RateLimitOptions): <T>(source: AsyncIterable<T>) => Stream<T> {
   integer(count, "count");
   duration(perMs, "perMs", true);
-  return (source) =>
+  return <T>(source: AsyncIterable<T>) =>
     create((scope) => {
       const upstream = open(source, scope);
       const starts: number[] = [];
@@ -104,15 +120,21 @@ export function rateLimit<T>({
 }
 
 /**
- * Fail with TimeoutError if an individual upstream read exceeds ms.
+ * Fails with {@link TimeoutError} if any individual upstream read takes longer than `ms` milliseconds.
  *
- * Downstream idle time does not count. Zero establishes an immediate deadline without guaranteeing a successful read. Cleanup still waits for non-cooperative work.
- * @throws RangeError if ms is not finite and non-negative.
+ * The timer runs only while waiting for an upstream read; idle time between downstream reads does not count. `timeoutEach(0)` sets an immediate 0 ms deadline for each read.
+ * @throws {RangeError} If `ms` is not finite and non-negative.
  * @category Timing
  */
-export function timeoutEach<T>(ms: number): Operator<T, T> {
+export function timeoutEach(
+  ms: number,
+): <T>(source: AsyncIterable<T>) => Stream<T>;
+export function timeoutEach<T>(ms: number): Operator<T, T>;
+export function timeoutEach(
+  ms: number,
+): <T>(source: AsyncIterable<T>) => Stream<T> {
   duration(ms, "ms");
-  return (source) =>
+  return <T>(source: AsyncIterable<T>) =>
     create((scope) => {
       const upstream = open(source, scope);
       return {
@@ -136,15 +158,21 @@ export function timeoutEach<T>(ms: number): Operator<T, T> {
 }
 
 /**
- * Fail with DeadlineExceededError when a started stage exhausts its elapsed time budget.
+ * Fails with {@link DeadlineExceededError} if the stage remains open longer than `durationMs` milliseconds after its first read.
  *
- * Downstream idle time counts. Zero expires without opening upstream; cleanup still waits for non-cooperative work.
- * @throws RangeError if durationMs is not finite and non-negative.
+ * Elapsed time includes both upstream reads and downstream idle time. `deadline(0)` fails immediately without opening upstream.
+ * @throws {RangeError} If `durationMs` is not finite and non-negative.
  * @category Timing
  */
-export function deadline<T>(durationMs: number): Operator<T, T> {
+export function deadline(
+  durationMs: number,
+): <T>(source: AsyncIterable<T>) => Stream<T>;
+export function deadline<T>(durationMs: number): Operator<T, T>;
+export function deadline(
+  durationMs: number,
+): <T>(source: AsyncIterable<T>) => Stream<T> {
   duration(durationMs, "durationMs");
-  return (source) =>
+  return <T>(source: AsyncIterable<T>) =>
     create((scope) => {
       if (durationMs === 0) throw new DeadlineExceededError(durationMs);
       const expiresAtMs = scope.scheduler.now() + durationMs;
@@ -175,26 +203,34 @@ export function deadline<T>(durationMs: number): Operator<T, T> {
 }
 
 /**
- * The item limit for a time buffer.
+ * Options for {@link bufferTime}.
  */
 export interface BufferTimeOptions {
-  /** Maximum values per emitted array; a positive safe integer. */
+  /** Maximum number of items per emitted batch. Must be a positive safe integer. */
   readonly maxItems: number;
 }
 /**
- * Emit a nonempty array on window expiry or when maxItems is reached.
+ * Collects values into non-empty arrays, flushing when `maxItems` is reached or `windowMs` milliseconds have elapsed since the batch's first item arrived.
  *
- * The window starts when its first value is observed. Flush a partial array only on normal completion. One reserved read may finish while downstream is idle; no background queue of windows accumulates.
- * @throws RangeError if windowMs is not finite and positive or maxItems is not a positive safe integer.
+ * On normal completion, any remaining buffered items are emitted as a final batch. At most one upstream read remains pending when a window flushes, so batches do not accumulate in the background while downstream is idle.
+ * @throws {RangeError} If `windowMs` is not finite and positive, or `maxItems` is not a positive safe integer.
  * @category Timing
  */
+export function bufferTime(
+  windowMs: number,
+  options: BufferTimeOptions,
+): <T>(source: AsyncIterable<T>) => Stream<T[]>;
 export function bufferTime<T>(
   windowMs: number,
+  options: BufferTimeOptions,
+): Operator<T, T[]>;
+export function bufferTime(
+  windowMs: number,
   { maxItems }: BufferTimeOptions,
-): Operator<T, T[]> {
+): <T>(source: AsyncIterable<T>) => Stream<T[]> {
   duration(windowMs, "windowMs", true);
   integer(maxItems, "maxItems");
-  return (source) =>
+  return <T>(source: AsyncIterable<T>) =>
     create((scope) => {
       const upstream = open(source, scope);
       type Arrival = { result: IteratorResult<T>; at: number };

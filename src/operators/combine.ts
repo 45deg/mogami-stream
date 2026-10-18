@@ -4,20 +4,24 @@ import { notifications } from "../internal/notifications.js";
 import { done, item } from "../internal/deferred.js";
 
 /**
- * Tuple of value types corresponding to the supplied source tuple.
+ * Tuple of element types extracted from a tuple of {@link Source} inputs.
  */
 export type SourceValues<S extends readonly Source<unknown>[]> = {
   -readonly [K in keyof S]: S[K] extends Source<infer T> ? T : never;
 };
 
 /**
- * Open and drain inputs in sequence, waiting for each input to close before opening the next.
+ * Concatenates multiple sources sequentially, waiting for each source to close before opening the next.
  * @category Combination
  */
-export function chain<T>(...sources: Source<T>[]): Stream<T> {
+export function chain<const S extends readonly Source<unknown>[]>(
+  ...sources: S
+): Stream<SourceValues<S>[number]>;
+export function chain<T>(...sources: Source<T>[]): Stream<T>;
+export function chain(...sources: Source<unknown>[]): Stream<unknown> {
   return create((scope) => {
     let index = 0;
-    let upstream: ReturnType<typeof open<T>> | undefined;
+    let upstream: ReturnType<typeof open<unknown>> | undefined;
     return {
       async next() {
         while (index < sources.length) {
@@ -35,19 +39,23 @@ export function chain<T>(...sources: Source<T>[]): Stream<T> {
 }
 
 /**
- * Read inputs concurrently with one read/result slot per input.
+ * Merges multiple sources concurrently, holding at most one pending read or buffered result per source.
  *
- * Ready inputs are selected in rotating order. No new read starts while downstream is idle.
+ * Ready sources are polled in round-robin order, and no new reads start while downstream is idle.
  * @category Combination
  */
-export function merge<T>(...sources: Source<T>[]): Stream<T> {
+export function merge<const S extends readonly Source<unknown>[]>(
+  ...sources: S
+): Stream<SourceValues<S>[number]>;
+export function merge<T>(...sources: Source<T>[]): Stream<T>;
+export function merge(...sources: Source<unknown>[]): Stream<unknown> {
   return create((scope) => {
     const changed = notifications(scope);
     const slots = sources.map(
       (source) => new ChildSlot(source, scope, changed.notify),
     );
     let started = false;
-    let refill: ChildSlot<T> | undefined;
+    let refill: ChildSlot<unknown> | undefined;
     let cursor = 0;
     return {
       async next() {
@@ -89,9 +97,9 @@ export function merge<T>(...sources: Source<T>[]): Stream<T> {
 }
 
 /**
- * Emit typed tuples of corresponding values, stopping at the shortest input.
+ * Combines corresponding values from each source into typed tuples, stopping as soon as any source completes.
  *
- * Other inputs are closed; discovering the shortest input can consume one extra value from another input.
+ * Remaining sources are closed when the shortest source finishes. Detecting that a source has ended may require reading one extra value from sibling sources.
  * @category Combination
  */
 export function zip<const S extends readonly Source<unknown>[]>(
@@ -128,20 +136,26 @@ export function zip<const S extends readonly Source<unknown>[]>(
 }
 
 /**
- * Controls whether latest-value tuples may include unseen inputs.
+ * Options for {@link zipLatest}.
  */
 export interface ZipLatestOptions {
-  /** Emit before every input has a value, using undefined for unseen inputs. Defaults to false. */
+  /** When `true`, emits tuples before all sources have produced their first value, filling unseen positions with `undefined`. Defaults to `false`. */
   readonly partial?: boolean;
 }
 /**
- * Tuple of source value types, including undefined for inputs that have not emitted.
+ * Tuple of element types for {@link zipLatest} in partial mode, where each position may also be `undefined`.
  */
 export type PartialSourceValues<S extends readonly Source<unknown>[]> = {
   -readonly [K in keyof S]: S[K] extends Source<infer T>
     ? T | undefined
     : never;
 };
+/**
+ * Emits tuples containing the latest value observed from each source.
+ *
+ * By default (`partial: false`), waits until every source has emitted at least once before producing a tuple. With `partial: true`, emits immediately and fills unseen positions with `undefined`. Updates arriving before the first tuple is ready may coalesce; afterward, reads are driven by downstream demand.
+ * @category Combination
+ */
 export function zipLatest<const S extends readonly Source<unknown>[]>(
   sources: S,
   options: { readonly partial: true },
@@ -154,12 +168,6 @@ export function zipLatest<const S extends readonly Source<unknown>[]>(
   sources: S,
   options: ZipLatestOptions,
 ): Stream<PartialSourceValues<S>>;
-/**
- * Emit tuples of the latest observed values from each input.
- *
- * By default, wait for every input to emit before producing a tuple. Partial mode emits earlier and uses undefined for unseen inputs. Updates may coalesce before initialization; accepted updates are retained afterward until consumed.
- * @category Combination
- */
 export function zipLatest(
   sources: readonly Source<unknown>[],
   { partial = false }: ZipLatestOptions = {},

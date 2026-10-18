@@ -1,12 +1,13 @@
 import {
   create,
   open,
+  type Stream,
   type Operator,
   type OperatorContext,
 } from "../core/stream.js";
 
 /**
- * Await a sequential effect for each value and emit the original value unchanged.
+ * Runs `effect` sequentially for each value and emits the original value unchanged.
  * @category Lifecycle
  */
 export function tap<T>(
@@ -33,14 +34,20 @@ export function tap<T>(
 }
 
 /**
- * Run and await an effect once when a started stage closes.
+ * Registers a cleanup callback that runs once when the stage closes, if the stage was started.
  *
- * Children and outstanding work finish first. Nested finalizers run from the inner stage outward; an unstarted stage does not run its finalizer.
+ * The callback runs after upstream stages and in-flight operations in the stage have finished. Nested `finalize` callbacks run from inner stages outward.
  * @category Lifecycle
  */
-export function finalize<T>(effect: () => unknown): Operator<T, T> {
-  return (source) =>
-    create((scope) => {
+export function finalize(
+  effect: () => unknown,
+): <T>(source: AsyncIterable<T>) => Stream<T>;
+export function finalize<T>(effect: () => unknown): Operator<T, T>;
+export function finalize(
+  effect: () => unknown,
+): <T>(source: AsyncIterable<T>) => Stream<T> {
+  return <T>(source: AsyncIterable<T>) =>
+    create<T>((scope) => {
       scope.finalizers.push(effect);
       const upstream = open(source, scope);
       return {

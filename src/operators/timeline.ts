@@ -3,7 +3,7 @@ import { done, item } from "../internal/deferred.js";
 import { duration } from "../internal/errors.js";
 
 /**
- * A scheduled value or terminal event; at is milliseconds from the first read.
+ * An event in a {@link fromTimeline} schedule, where `at` is the offset in milliseconds from the first read.
  */
 export type TimelineEvent<T> =
   | { readonly at: number; readonly kind: "value"; readonly value: T }
@@ -11,11 +11,11 @@ export type TimelineEvent<T> =
   | { readonly at: number; readonly kind: "error"; readonly error: unknown };
 
 /**
- * Replay a demand-driven schedule relative to the first read of each execution.
+ * Creates a replayable, pull-driven stream from a timed sequence of events.
  *
- * Times are finite, non-negative milliseconds in non-decreasing order. Equal-time events retain array order; a completion or error event may only appear last. Construction snapshots event records while preserving value and error identity. No timers run while downstream is idle.
- * @throws RangeError for invalid times or terminator placement.
- * @throws TypeError for an unknown event kind.
+ * Event timestamps (`at`) are finite, non-negative millisecond offsets relative to the first read of each execution, and must be in non-decreasing order. Events with identical `at` times preserve their array order, and a `"complete"` or `"error"` event may only appear last. Event records are shallow-copied at construction time while preserving value and error references. No timers run while downstream is idle.
+ * @throws {RangeError} If timestamps are invalid, out of order, or a terminal event appears before the end.
+ * @throws {TypeError} If an event has an unknown `kind`.
  * @category Sources
  */
 export function fromTimeline<T>(

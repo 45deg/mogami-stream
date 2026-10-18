@@ -1,6 +1,6 @@
 # mogami-stream
 
-TypeScript operators for standard `AsyncIterable` pipelines, with bounded concurrency, explicit cancellation, and zero runtime dependencies. The working package name comes from this repository. The implementation follows the supplied v0.3 design.
+TypeScript operators for standard `AsyncIterable` pipelines, with bounded concurrency, explicit cancellation, and zero runtime dependencies.
 
 ```ts
 import { from, map, rateLimit, take, toArray } from "mogami-stream";
@@ -21,22 +21,22 @@ const texts = from(urls).pipe(
 const results = await toArray(texts, { signal });
 ```
 
-`rateLimit` limits starts of upstream `next()` calls in this execution. It does not coordinate HTTP requests across executions or count retries inside a mapper.
+In the example above, `rateLimit` paces how often upstream `next()` reads start within a single pipeline execution. It does not coordinate requests across separate executions or count retry attempts inside `map`.
 
 ## API reference
 
-Generate the API reference from the TypeScript public entry point and its documentation comments with [TypeDoc](https://typedoc.org/):
+Generate the HTML API reference from the TypeScript entry point with [TypeDoc](https://typedoc.org/):
 
 ```sh
 pnpm install --frozen-lockfile
 pnpm run docs
 ```
 
-Open `docs/api/index.html` in a browser. The generated reference includes public functions, overloads, options, callback contexts, and Stream methods. Generated HTML is ignored by Git and excluded from the npm package. Run `pnpm run docs` after changing public signatures or documentation comments. CI also runs the generator and treats warnings as errors.
+Then open `docs/api/index.html` in a browser. The generated reference covers all exported functions, overloads, option types, callback contexts, and `Stream` methods. Generated HTML under `docs/` is ignored by Git and excluded from the npm package.
 
 ## Execution and cleanup
 
-Construction, `.pipe()`, and iterator acquisition are lazy. The first `next()` starts execution. `take(0)` and an already aborted external signal never open the input. `from` preserves the input's replayability; `defer` creates a fresh input for each execution.
+Stream construction, `.pipe()`, and iterator acquisition are all lazy; execution begins on the first `next()` call. `take(0)` and already-aborted external signals finish without opening the upstream input. `from` preserves the input's replayability, whereas `defer` creates a fresh input for each execution.
 
 ```ts
 import { defer, iterate } from "mogami-stream";
@@ -51,64 +51,78 @@ try {
 } finally {
   const report = await iterator.closed;
   // report.kind: "completed" | "cancelled" | "failed"
-  // report.reason: the primary error or cancellation reason
-  // report.suppressedErrors: additional processing and cleanup failures
+  // When kind is "failed" or "cancelled", report.reason holds the primary
+  // error or cancellation reason.
+  // report.suppressedErrors collects any additional processing or cleanup errors.
 }
 ```
 
-`cancel(reason)` immediately requests a stop. Pending `next()` rejects without waiting for cleanup. `return()` sends the stop request before awaiting cleanup. `closed` always resolves with a report, including when cleanup fails. `throw(error)` stops execution with that error instead of injecting it into the upstream generator.
+- `cancel(reason)` requests an immediate stop. Any pending `next()` call rejects right away without waiting for cleanup to finish.
+- `return()` requests a stop and awaits cleanup before resolving.
+- `throw(error)` stops the execution with `error` rather than forwarding it into an upstream generator's `.throw()`.
+- `closed` always resolves with a `CloseReport` once teardown finishes, even if cleanup throws.
 
-Only one public `next()` may be pending. A second overlapping request rejects with `TypeError`. A failure or cancellation is reported once through `next()`; later reads return `done: true`. `toArray`, `reduce`, `forEach`, `find`, `some`, and `every` wait for cleanup before settling and preserve a primary processing error.
+Only one `next()` call may be pending on a `StreamIterator` at a time; a concurrent call rejects with `TypeError`. A failure or cancellation rejects `next()` once, after which subsequent reads resolve to `{ done: true, value: undefined }`. Terminal consumers (`toArray`, `reduce`, `forEach`, `find`, `some`, and `every`) always wait for cleanup before settling and prioritize the primary processing error over subsequent cleanup errors.
 
-Non-cooperative promises and input reads can keep `closed`, `return()`, and terminal consumers pending indefinitely. Async generators cannot forcibly interrupt an arbitrary `await`. Pass the supplied signal to external I/O through `defer` or callbacks. Signal propagation through arbitrary third-party wrappers is limited to that boundary.
+Because JavaScript async iterators cannot forcibly preempt an arbitrary `await`, non-cooperative promises or blocked upstream reads will keep `closed`, `return()`, and terminal consumers pending until they settle. Pass the `signal` provided by `defer` and operator callbacks into external I/O APIs so cancellation can abort underlying work.
 
-Pipelines do not automatically yield to host tasks. Continuously ready inputs and callbacks can delay timers, I/O, and cancellation initiated by those tasks. Sources, callbacks, or consumers that need host-task responsiveness must yield explicitly.
+Pipelines do not insert artificial timer ticks or macrotask yields. If a synchronous source and synchronous callbacks run continuously, they can starve timers and I/O on the host event loop unless the source, callback, or consumer yields explicitly.
 
-`take(n)` starts closing its owned upstream before returning the nth value. It leaves downstream callbacks' signals active. Already started effects may still complete. `finalize` runs once for a started stage, after its children and outstanding work finish. Nested finalizers run from the inner stage outward.
+`take(n)` begins closing its upstream stage before delivering the `n`th value, while keeping downstream callback signals active. `finalize(effect)` runs once when a started stage closes, after its child stages and in-flight operations complete. Nested finalizers run from inner stages outward.
 
 ## Concurrency and demand
 
-`map(mapper, { concurrency = 1, capacity = concurrency, ordered = true })` awaits synchronous or asynchronous callback results. Its context contains `{ index, signal, attempt }`; attempts start at one and indexes start at zero for each operator execution.
+`map(mapper, { concurrency = 1, capacity = concurrency, ordered = true })` transforms items with bounded concurrency and awaits synchronous or asynchronous callback results. Each call receives `{ index, signal, attempt }`, where `index` is zero-based and `attempt` is one-based per operator execution.
 
-Both limits must be positive safe integers, and `capacity >= concurrency`. The total number of reserved input reads, running mappers, and completed outputs stays within `capacity`. A reservation also occupies a concurrency slot. At most one upstream read is pending per input.
+Both `concurrency` and `capacity` must be positive safe integers with `capacity >= concurrency`. At any point, the sum of reserved upstream reads, running mapper calls, and completed outputs waiting for downstream delivery is at most `capacity`. A reserved upstream read also counts toward `concurrency`, and at most one upstream read is in flight at a time.
 
-Ordered map preserves input order, including when the first mapper is slow. Unordered map emits in observed completion order. Any observed mapper failure stops the execution immediately, even behind an unfinished earlier result.
+With `ordered: true` (the default), results are emitted in input order even when earlier items take longer than later ones. With `ordered: false`, results are emitted as they complete. Any unhandled mapper error stops the execution immediately, even if an earlier item is still running.
 
-Work advances while a downstream read is pending. Once a value is delivered, no new input reservations are made until the next request. An already reserved read and its associated work may finish. Each concurrent stage has its own bounds; these limits do not include external source buffers or a terminal `toArray` result.
+Work is driven by downstream demand: the stage pulls new inputs only while a downstream read is pending. Once a result is delivered to downstream, no further upstream reads are started until the next `next()` request (though reads and mapper calls already in flight may finish up to `capacity`). Each concurrent stage manages its own bounds independently of external source buffers or terminal collectors like `toArray`.
 
 ## Public API
 
-All stream factories and operators return a `Stream<T>`, which implements `AsyncIterable<T>` and adds `.pipe()`, `.iterate(options?)`, `.toArray(options?)`, `.reduce(reducer, initial, options?)`, `.forEach(effect, options?)`, `.find(predicate, options?)`, `.some(predicate, options?)`, and `.every(predicate, options?)`. Calling `stream.toArray({ signal })` is equivalent to `toArray(stream, { signal })`; `stream.reduce(reducer, initial, options)` is equivalent to `reduce(stream, reducer, initial, options)`. `stream.iterate(options)` is equivalent to `iterate(stream, options)`. The corresponding standalone terminal functions also accept arbitrary synchronous and asynchronous iterables. Operators also work with arbitrary `AsyncIterable` inputs. Creation and combination functions accept synchronous `Iterable` inputs too. The standalone `pipe(source, ...operators)` and `.pipe(...operators)` both infer types for zero through eight operators. Split longer pipelines into multiple `.pipe()` calls.
+All source factories and operators return a `Stream<T>`, which implements `AsyncIterable<T>` and provides `.pipe()`, `.iterate(options?)`, `.toArray(options?)`, `.reduce(reducer, initial, options?)`, `.forEach(effect, options?)`, `.find(predicate, options?)`, `.some(predicate, options?)`, and `.every(predicate, options?)`.
 
-| API                                                             | Behavior                                                                                                                                                |
-| --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `from(source)`, `defer(({ signal }) => source)`                 | Wrap an existing input or create one per execution; deferred factories may return a promise of an input.                                                |
-| `of(...values)`, `empty()`, `range(start, end, step = 1)`       | Create inputs; range excludes `end` and requires safe integers and nonzero step.                                                                        |
-| `map(mapper, options?)`, `filter(predicate)`                    | Transform values or select them; synchronous type predicates retain narrowing.                                                                          |
-| `filterMap(mapper)`                                             | Sequentially await mapped results and omit only `null` and `undefined`; output types exclude both.                                                      |
-| `dedupe(keySelector?)`                                          | Omit consecutive equal keys using `Object.is`; defaults to the value itself and retains only the last emitted key.                                      |
-| `take(n)`, `skip(n)`, `takeWhile(predicate)`                    | Select a prefix, skip values, or stop when a predicate becomes false.                                                                                   |
-| `skipWhile(predicate)`                                          | Skip while the awaited predicate is true, then emit the first false value and the remainder without testing again.                                      |
-| `chunks(size)`                                                  | Emit arrays of at most `size` values, including a final partial array on normal completion.                                                             |
-| `chain(...sources)`                                             | Open and drain inputs in sequence.                                                                                                                      |
-| `merge(...sources)`                                             | Read inputs concurrently with one slot per input and rotating selection among ready inputs.                                                             |
-| `zip(...sources)`                                               | Emit typed tuples; stop at the shortest input and close the others.                                                                                     |
-| `zipLatest(sources, { partial = false }?)`                      | Emit tuples of latest values; by default wait for all first values. Partial mode includes `undefined` for unseen inputs and reflects that in its types. |
-| `flatten({ concurrency = 1 }?)`, `concat({ concurrency = 1 }?)` | Flatten a stream of inputs, concurrently or in child order.                                                                                             |
-| `flatMap(mapper, options?)`, `concatMap(mapper, options?)`      | Map to child inputs and flatten. Child factories synchronously return an iterable; asynchronous preparation belongs inside a deferred child.            |
-| `tap(effect)`, `finalize(effect)`                               | Await a per-value effect or an execution cleanup effect.                                                                                                |
-| `catchError(handler)`                                           | After a failed upstream closes, replace it once with the handler's synchronous or asynchronous iterable.                                                |
-| `iterate(source, { signal }?)`                                  | Return a controlled iterator with `cancel()` and `closed`.                                                                                              |
-| `toArray(source, options?)`                                     | Collect all values in memory.                                                                                                                           |
-| `reduce(source, reducer, initial, options?)`                    | Sequential reduction with a required initial accumulator; reducer receives `(accumulator, value, context)`.                                             |
+Every `Stream` terminal method has a standalone counterpart (`iterate`, `toArray`, `reduce`, `forEach`, `find`, `some`, `every`) that accepts any synchronous `Iterable` or `AsyncIterable`. Operators also accept arbitrary `AsyncIterable` inputs, and source/combination functions (`from`, `chain`, `merge`, `zip`, `zipLatest`) accept both `Iterable` and `AsyncIterable` inputs.
 
-Compared with the aiostream API described in the supplied design, this library requires finite concurrency (default 1), defaults `zipLatest` to `partial: false`, and names its timing operators `delayStart` and `timeoutEach`.
+Both `.pipe(...operators)` and the standalone `pipe(source, ...operators)` infer types for up to eight operators; chain multiple `.pipe()` calls for longer pipelines. Parameterless or value-independent operators (`take`, `skip`, `chunks`, timing operators, and `finalize`) remain generic when stored in a variable, so `const first = take(1)` can be reused across streams of different element types. `chain` and `merge` infer the union of their input element types when given heterogeneous sources.
 
-`filter`, `filterMap`, `dedupe`, `takeWhile`, `skipWhile`, `tap`, `reduce`, `scan`, `forEach`, `find`, `some`, and `every` callbacks run sequentially. `take` and `skip` require non-negative safe integers. `chunks` requires a positive safe integer. Invalid numeric options throw `RangeError` when the operator is constructed.
+### Sources, operators, and consumers
 
-`filterMap`, `dedupe`, and `skipWhile` callbacks receive `{ index, signal }` and may return promises. Indexes count tested input values and restart with each execution. `filterMap` retains `0`, `false`, and `""`. Without a key selector, `dedupe` preserves Promise-valued items and compares their identities; with a selector, it awaits each key. `Object.is` treats consecutive `NaN` keys as equal and distinguishes `0` from `-0`. Keys are compared only with the last emitted key, so `1, 1, 2, 1` emits `1, 2, 1`.
+| API                                                                       | Description                                                                                                                                               |
+| ------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `from(source)`, `defer(({ signal }) => source)`                           | Wrap an existing iterable, or create a fresh source per execution (the factory may be async).                                                             |
+| `of(...values)`, `empty()`, `range(start, end, step = 1)`                 | Create streams from values or an integer range (`end` is exclusive; bounds and nonzero `step` must be safe integers).                                     |
+| `fromTimeline(events)`                                                    | Replay a pull-driven schedule of values and optional terminal completion/error events.                                                                    |
+| `map(mapper, options?)`, `mapSettled(mapper, options?)`                   | Transform values with bounded concurrency and optional per-item retries; `mapSettled` wraps outcomes in `{ status, value \| reason }`.                    |
+| `filter(predicate)`                                                       | Keep values matching a sequential sync/async predicate; synchronous type guards narrow the output type.                                                   |
+| `filterMap(mapper)`                                                       | Map values sequentially and drop only `null` and `undefined` results.                                                                                     |
+| `dedupe(keySelector?)`                                                    | Drop consecutive items whose keys match via `Object.is` (defaults to the item itself).                                                                    |
+| `take(n)`, `skip(n)`, `takeWhile(predicate)`                              | Take a prefix, skip leading items, or take items while a predicate holds.                                                                                 |
+| `skipWhile(predicate)`                                                    | Drop leading items while the predicate returns `true`, then emit the first non-matching item and all remaining items without testing again.               |
+| `chunks(size)`                                                            | Group items into arrays of up to `size` elements, emitting a final smaller array on normal completion.                                                    |
+| `scan(reducer, initial)`                                                  | Sequentially fold items and emit each updated accumulator value.                                                                                          |
+| `chain(...sources)`                                                       | Read sources one after another, waiting for each source to close before opening the next.                                                                 |
+| `merge(...sources)`                                                       | Read sources concurrently with one slot per source and round-robin selection among ready sources.                                                         |
+| `zip(...sources)`                                                         | Emit tuples of corresponding items, stopping as soon as the shortest source ends and closing the rest.                                                    |
+| `zipLatest(sources, { partial = false }?)`                                | Emit tuples of the latest values from each source. Waits for all sources to emit once unless `partial: true` (which fills unseen slots with `undefined`). |
+| `flatten({ concurrency = 1 }?)`, `concat({ concurrency = 1 }?)`           | Flatten a stream of child sources concurrently (`flatten`) or strictly in child order (`concat`).                                                         |
+| `flatMap(mapper, options?)`, `concatMap(mapper, options?)`                | Map items synchronously to child sources and flatten them; use `defer` inside the child for async setup.                                                  |
+| `tap(effect)`, `finalize(effect)`                                         | Run a sequential per-item side effect, or a stage teardown callback.                                                                                      |
+| `catchError(handler)`                                                     | If upstream fails, wait for its cleanup and switch once to the fallback source returned by `handler`.                                                     |
+| `iterate(source, { signal }?)`                                            | Acquire a `StreamIterator` with `cancel(reason?)` and `closed`.                                                                                           |
+| `toArray(source, options?)`                                               | Collect all values into an array.                                                                                                                         |
+| `reduce(source, reducer, initial, options?)`                              | Sequentially fold all values into a single result, starting from `initial`.                                                                               |
+| `forEach(source, effect, options?)`                                       | Run a sequential async/sync side effect for each item without collecting results.                                                                         |
+| `find(source, predicate, options?)`                                       | Return the first matching item (or `undefined`), closing upstream early. Supports synchronous type guards.                                                |
+| `some(source, predicate, options?)`, `every(source, predicate, options?)` | Short-circuit boolean checks that close upstream as soon as the result is determined.                                                                     |
 
-`catchError((error, { signal }) => replacement)` handles upstream processing and acquisition failures. The handler may return a promise of an input. Recovery waits for all failed upstream work and cleanup; non-cooperative work can delay it indefinitely. Cancellation, cleanup failures, handler failures, replacement failures, and downstream failures propagate without recovery. A successful recovery produces a normal completed close report. Place another `catchError` downstream to handle a replacement failure.
+### Behavioral notes
+
+- **Sequential callbacks & validation**: `filter`, `filterMap`, `dedupe`, `takeWhile`, `skipWhile`, `tap`, `reduce`, `scan`, `forEach`, `find`, `some`, and `every` run their callbacks one item at a time. `take` and `skip` require non-negative safe integers, and `chunks` requires a positive safe integer; invalid counts throw `RangeError` when the operator is called.
+- **`filterMap`, `dedupe`, and `skipWhile`**: Callbacks receive `{ index, signal }` (where `index` resets to `0` for each execution) and may return promises. `filterMap` drops only `null` and `undefined`, preserving `0`, `false`, and `""`. Without a `keySelector`, `dedupe` compares items directly (preserving Promise identity); with a `keySelector`, it awaits the selector result. Comparisons use `Object.is` (so `NaN` equals `NaN`, and `+0` differs from `-0`) and only check against the immediately preceding emitted key (`1, 1, 2, 1` emits `1, 2, 1`).
+- **`catchError`**: Handles upstream acquisition and processing errors. The handler `(error, { signal }) => fallback` is called only after all in-flight upstream work and cleanup have finished, and may return a source or a promise of one. Execution cancellation, cleanup errors, handler errors, errors from the replacement source, and downstream errors are not caught. Place another `catchError` downstream if the fallback source itself needs recovery.
 
 ```ts
 const values = from(primary).pipe(
@@ -119,23 +133,12 @@ const values = from(primary).pipe(
 );
 ```
 
-Higher-order concurrency counts children from reservation through retirement, including cleanup. Each child has one read/result slot. `concat` retains completed successors until earlier children retire, so a blocked head cannot accumulate unlimited empty successors. `zip` may consume one extra value from another input before discovering the shortest input has ended. `zipLatest` coalesces updates before initialization; afterward it retains each accepted update until demand consumes it.
-
-Values that happen to be promises retain their identity in `from`, selection, and combination operators. Only callback results that explicitly require awaiting, such as `map` results, are resolved. Native `for await` over a synchronous iterable has its own adaptation rules; use this library's `from` when promise identity matters.
-
-Additional APIs:
-
-| API                                                                       | Behavior                                                                      |
-| ------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| `forEach(source, effect, options?)`                                       | Await sequential effects without retaining results.                           |
-| `find(source, predicate, options?)`                                       | Return the first match or `undefined`, with synchronous type-guard narrowing. |
-| `some(source, predicate, options?)`, `every(source, predicate, options?)` | Short-circuit boolean tests.                                                  |
-| `scan(reducer, initial)`                                                  | Emit each updated accumulator.                                                |
-| `fromTimeline(events)`                                                    | Replay a demand-driven schedule of values, completion, or failure.            |
+- **Higher-order and combination bounds**: In `flatten`, `concat`, `flatMap`, and `concatMap`, a child source occupies its concurrency slot from reservation until its cleanup finishes, and holds at most one pending read or buffered item. In `concat` and `concatMap`, children that finish early retain their slots until earlier children finish, preventing unbounded buffering behind a slow leading child. In `zip`, detecting that the shortest input has ended may consume one extra item from a sibling input. In `zipLatest`, multiple updates arriving before all sources have initialized may coalesce into the latest value; after initialization, reads are paced by downstream demand.
+- **Promise-valued items**: If an input yields values that are themselves Promises, `from`, selection operators, and combination operators pass those Promise objects through without unwrapping them (unlike native `for await (... of syncIterable)`, which awaits each item). Only callbacks whose return values are awaited by contract (such as `map`) unwrap returned promises.
 
 ## Retry and settled mapping
 
-`map(mapper, { retry, ...options })` retries only a failed mapper invocation for the same input. The optional `retry` object has type `RetryOptions` and requires an explicit finite non-negative safe-integer `retries` budget. Omit `retry` to disable retries. `retries: 2` allows at most three attempts. Context is `{ index, signal, attempt }`: `index` stays fixed for that input and `attempt` starts at one. Each execution starts fresh.
+`map(mapper, { retry, ...options })` can retry failed mapper calls for individual items. Pass a `RetryOptions` object with a non-negative safe integer `retries` count (for example, `retries: 2` allows up to 3 total attempts: the initial call plus up to 2 retries). The mapper context `{ index, signal, attempt }` keeps the item's `index` fixed across retries while incrementing `attempt` from `1`.
 
 ```ts
 const results = from(jobs).pipe(
@@ -152,13 +155,15 @@ const results = from(jobs).pipe(
 );
 ```
 
-`shouldRetry(error, context)` may return a boolean or PromiseLike<boolean>; by default every mapper failure is eligible. `delayMs` is a finite non-negative number or a synchronous callback returning one; its default is zero. Both hooks receive the attempt that just failed and run only when retry budget remains. A false decision propagates the mapper error. A hook failure or invalid computed delay fails `map`; in `mapSettled`, it becomes the item's rejected outcome. Exhaustion propagates the final mapper error.
+- `shouldRetry(error, context)` may return a `boolean` or `PromiseLike<boolean>`. By default, all mapper errors are retried while retry budget remains. Returning `false` stops retrying and propagates the mapper error.
+- `delayMs` can be a finite non-negative number or a synchronous function `(error, context) => number` (default `0`).
+- Both hooks receive the context of the attempt that just failed and are called only when retries remain. If a hook throws or returns an invalid delay, `map` fails immediately (and `mapSettled` records a rejected outcome for that item). When all retries are exhausted, the final mapper error is propagated.
 
-All attempts, retry decisions, and retry waits for one item occupy the same concurrency and capacity slot. Waits use the execution scheduler and are abortable. Cancellation prevents further attempts; outstanding non-cooperative mapper or policy work still delays cleanup. Already reserved items can finish retrying while downstream is idle, but no new input is reserved. Upstream and cleanup failures are not retried. Retry hooks cannot recover execution cancellation.
+All attempts, `shouldRetry` checks, and backoff waits for a single item share the same concurrency and capacity slot. Backoff sleeps use the execution scheduler and abort immediately on cancellation. While downstream is idle, items already in flight may finish their retry loop, but no new inputs are pulled. Upstream read errors, cleanup errors, and execution cancellation are never retried.
 
-An upstream `rateLimit` counts input reads, not individual attempts inside `map`. Apply request limiting inside the mapper when retries must share that limit. Retrying an effect can repeat a successful operation whose response was lost; use an appropriate retry predicate and idempotency mechanism for that operation.
+Note that an upstream `rateLimit` stage only counts upstream reads, not retry attempts inside `map`; if retries must share a rate limit, enforce the limit inside the mapper callback.
 
-`mapSettled(mapper, options?)` accepts the same mapper context and options as `map`. It emits `SettledResult<Awaited<U>>` for each input:
+`mapSettled(mapper, options?)` accepts the same `MapOptions` (including `retry`) and `MapContext` as `map`, and emits a `SettledResult<Awaited<U>>` for each item:
 
 ```ts
 type SettledResult<T> =
@@ -174,15 +179,17 @@ const outcomes = from(jobs).pipe(
 );
 ```
 
-With `retry`, each item is retried before producing its outcome: eventual success produces a fulfilled outcome, while retry exhaustion or a false retry decision produces a rejected outcome with the final mapper error. Synchronous throws, rejected promises, and rejected thenables from the mapper are handled alike without stopping other items. Upstream failures, cleanup failures, and execution cancellation still fail or cancel the execution normally. Late mapper failures after cancellation remain in the close report rather than becoming output values. Both operators share the same `MapOptions`, including `retry`, and preserve the bounds, ordering defaults, laziness, and cleanup behavior of `map`. Their mapper context is `MapContext`; even without retries, it includes `attempt: 1`.
+Synchronous throws and rejected promises from the mapper (after any configured retries) are emitted as `{ status: "rejected", reason }` without stopping other items. Upstream errors, cleanup failures, and execution cancellation still terminate the stream as usual, and mapper errors that occur after cancellation are recorded in `closed` (`suppressedErrors`) rather than emitted as values.
 
 ## Consumption and running aggregates
 
-`forEach(source, effect, options?)` awaits each effect without collecting values. Effects receive `{ index, signal }`; their return values are discarded. `find(source, predicate, options?)` returns the first matching value, `some` tests whether any value matches, and `every` tests whether all values match. Each also has an equivalent Stream method. Synchronous type predicates narrow the result of `find`.
+Terminal consumers accept `{ signal }`, wait for cleanup before settling, and preserve the primary processing error:
 
-These terminal operations accept `{ signal }`, wait for cleanup, and preserve the primary processing error. A decisive predicate result closes upstream without reading the remainder. Empty inputs produce `undefined` for `find`, `false` for `some`, and `true` for `every`. A successful match whose value is `undefined` also returns `undefined` from `find`.
+- `forEach(source, effect, options?)` awaits `effect(value, { index, signal })` sequentially for each item without accumulating results.
+- `find(source, predicate, options?)` returns the first matching item (or `undefined` if none match) and closes upstream immediately. Synchronous type guards narrow the return type. If the matched item is a Promise, `find` awaits it before resolving (`Promise<Awaited<T> | undefined>`), though `predicate` receives the original item.
+- `some(source, predicate, options?)` and `every(source, predicate, options?)` short-circuit and close upstream as soon as the boolean outcome is decided. Empty sources return `false` for `some` and `true` for `every`.
 
-`scan(reducer, initial)` is an operator that emits the updated accumulator after each input, whereas `reduce` returns only the final accumulator. It awaits the reducer and supplies `{ index, signal }`. The initial value itself is not emitted; an empty input emits nothing. Accumulation and callback indexes restart for each execution. As with `reduce`, the initial accumulator is used by reference; use immutable updates or `defer` when each execution needs a fresh mutable accumulator.
+`scan(reducer, initial)` is a streaming counterpart to `reduce`: it awaits `reducer(accumulator, value, { index, signal })` for each item and emits the updated accumulator after every step. Both `reduce` and `scan` await `initial` on execution start before opening the upstream input, passing the resolved `Awaited<A>` value to `reducer`. If the input is empty, `reduce` resolves to the awaited `initial` value, while `scan` completes without emitting. Because object accumulators are passed by reference, use immutable updates or wrap the pipeline in `defer` if you plan to run the same stream multiple times with a mutable accumulator.
 
 ```ts
 await from(jobs).forEach(async (job, { signal }) => save(job, signal));
@@ -193,7 +200,7 @@ const first = await from([1, 2, 3]).find((value) => value > 1); // 2
 
 ## Timeline sources
 
-`fromTimeline(events)` creates a replayable, demand-driven source from a readonly array of `TimelineEvent<T>` values:
+`fromTimeline(events)` creates a replayable, demand-driven stream from an array of `TimelineEvent<T>` records:
 
 ```ts
 const source = fromTimeline([
@@ -201,31 +208,31 @@ const source = fromTimeline([
   { at: 100, kind: "value", value: "B" },
   { at: 150, kind: "complete" },
 ]);
-// An error terminator is { at: 150, kind: "error", error }.
+// Or terminate with an error: { at: 150, kind: "error", error }
 ```
 
-Times are finite, non-negative milliseconds from the first read of this source stage in each execution, in non-decreasing order. Equal-time events retain array order. A completion or error event may appear only as the final event. Without a terminator, the source completes after the last value; an empty timeline completes immediately. Invalid schedules throw at construction.
+Each `at` timestamp is a finite, non-negative offset in milliseconds relative to the first read of that execution, and events must be listed in non-decreasing timestamp order. Events with identical `at` times are emitted in array order. A `"complete"` or `"error"` event may only appear as the last element; if omitted, the stream completes immediately after the last `"value"` event (and an empty array completes immediately). Invalid event arrays throw `RangeError` or `TypeError` at construction time.
 
-Construction snapshots the event records, retaining the identity of values and errors, including Promise values. No background queue or timers run while downstream is idle. An overdue event is delivered on the next request. Waits use the execution scheduler and are abortable. This models a pull source; it does not simulate loss or buffering of external push events.
+`fromTimeline` shallow-copies the event records on construction while preserving value and error references (including Promise-valued items). Because the stream is pull-driven, no background timers run while downstream is idle; if an event's timestamp has already passed when downstream requests the next item, it is delivered immediately.
 
-The internal `createTestClock()` utility supports `advanceBy(ms)`, `advanceTo(timeMs)`, and `pendingTimers`. It plugs into `iterateWithScheduler` so timelines and time operators share one clock. Advances process chained timers chronologically, preserve registration order for equal deadlines, and drain promise continuations between deadlines using a host turn. Time cannot move backwards, and advances cannot overlap. These testing seams are internal and are not exported from the package entry point.
+For deterministic unit tests, the internal `createTestClock()` helper (`src/internal/test-clock.ts`) pairs with `iterateWithScheduler` (`src/terminal/iterate.ts`) to drive `fromTimeline` and timing operators on a virtual clock via `advanceBy(ms)`, `advanceTo(timeMs)`, and `pendingTimers`.
 
 ## Time operators
 
-| API                                  | Contract                                                                                                                                                            |
-| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `spaceout(intervalMs)`               | First output is immediate; later outputs are at least `intervalMs` apart on the scheduler clock. Slow upstream reads and downstream idle time count toward the gap. |
-| `rateLimit({ count, perMs })`        | Limit upstream read starts within a sliding window. Starts exactly `perMs` apart belong to different windows; reads that fail or finish the input still count.      |
-| `delayStart(ms)`                     | Wait once before opening upstream.                                                                                                                                  |
-| `timeoutEach(ms)`                    | Fail with `TimeoutError` if an individual upstream read times out. Downstream idle time does not count.                                                             |
-| `deadline(durationMs)`               | Fail with `DeadlineExceededError` after the stage's elapsed time budget, including downstream idle. Zero expires without opening upstream.                          |
-| `bufferTime(windowMs, { maxItems })` | Emit a nonempty array when its first value's window expires or its item limit is reached. Flush a final partial array only on normal completion.                    |
+| API                                  | Description                                                                                                                                                               |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `spaceout(intervalMs)`               | Emit the first item without added delay, then space subsequent emissions at least `intervalMs` apart. Upstream read time and downstream idle time count toward the gap.   |
+| `rateLimit({ count, perMs })`        | Allow at most `count` upstream read starts per `perMs` sliding window. Failed and terminal (`done: true`) reads still count.                                              |
+| `delayStart(ms)`                     | Wait `ms` milliseconds on the first read before opening upstream.                                                                                                         |
+| `timeoutEach(ms)`                    | Fail with `TimeoutError` if a single upstream read takes longer than `ms` milliseconds (excluding downstream idle time).                                                  |
+| `deadline(durationMs)`               | Fail with `DeadlineExceededError` once the stage's total elapsed time reaches `durationMs` (including downstream idle time). `deadline(0)` fails before opening upstream. |
+| `bufferTime(windowMs, { maxItems })` | Collect items into non-empty arrays, flushing when the first item's `windowMs` window expires or `maxItems` is reached. Partial batches flush only on normal completion.  |
 
-Durations are finite, non-negative milliseconds; `perMs` and `windowMs` must be positive. `count` and `maxItems` must be positive safe integers. `timeoutEach(0)` establishes an immediate deadline and does not guarantee a successful read.
+All durations are in milliseconds and must be finite and non-negative (`perMs` and `windowMs` must be strictly positive, and `count` and `maxItems` must be positive safe integers). `timeoutEach(0)` sets an immediate 0 ms deadline for each read.
 
-`bufferTime` can flush while one upstream read is pending. After delivery, that reservation may produce one value retained for the next request. No further reads start during downstream idle, and no queue of completed windows grows in the background. Window timestamps describe when this library observes values, rather than when external push events occurred.
+In `bufferTime`, a window timer starts when the first item of a batch is observed. While waiting for a window to fill, at most one upstream read is in flight. If the window expires while that read is pending, the read's result (if it arrives later) is held for the next downstream read rather than starting a background queue of windows.
 
-All waits are abortable. Timers and listeners are released on completion or stop. Long waits are split into host-safe timer intervals. Time uses `performance.now()` and has no wall-clock fallback. A private per-execution scheduler supports deterministic tests. Host clock behavior and timer scheduling determine precision, particularly in Cloudflare Workers.
+All timer waits abort cleanly on cancellation, split durations longer than $2^{31} - 1\text{ ms}$ into safe `setTimeout` chunks, and measure elapsed time with `performance.now()`. Timer precision follows the host runtime (note that Cloudflare Workers only advance `performance.now()` after I/O).
 
 ## Development and validation
 
@@ -239,10 +246,8 @@ pnpm test:browser
 pnpm test:cloudflare
 ```
 
-Run `pnpm bench --json=/tmp/mogami-bench.json` for workload benchmarks against native JavaScript, or `pnpm bench:compare --json=/tmp/mogami-compare.json` for comparisons with applicable third-party APIs. The suite separates ordered batch results from incremental consumption and covers JSON record processing, variable-latency simulated I/O, a slow sink, early termination, and in-flight cancellation. Every run verifies exact output order and values, concurrency limits, and source cleanup. Reports include time to first item, total time, observed read-ahead, raw samples, runtime, and installed package versions. See [benchmark methodology and options](benchmarks/README.md) for conditions and limitations.
+Run `pnpm bench --json=/tmp/mogami-bench.json` to benchmark workloads against baseline native JavaScript implementations, or `pnpm bench:compare --json=/tmp/mogami-compare.json` to compare against third-party libraries. See [`benchmarks/README.md`](benchmarks/README.md) for workload definitions, metrics, and CLI flags.
 
-The browser runner uses installed Google Chrome on macOS when available; otherwise it uses Playwright Chromium. Set `PLAYWRIGHT_EXECUTABLE_PATH` to select another compatible executable. The Workers test uses local Miniflare/workerd, requires no account, and never deploys. Only the `workerd` dependency is allowed an install-time build script.
+`pnpm test:browser` uses a local Google Chrome installation on macOS when available and falls back to Playwright Chromium (override with `PLAYWRIGHT_EXECUTABLE_PATH`). `pnpm test:cloudflare` runs locally in Miniflare/`workerd` without requiring a Cloudflare account.
 
-Node.js, Bun, browser main threads, Dedicated Workers, Service Workers, and Cloudflare Workers are targets. Deno, CommonJS, stream/event adapters, Worker creation, and the `switch`, `debounce`, `throttle`, `sample`, and `interval` families are outside the initial scope.
-
-ESM JavaScript and declarations are emitted to `dist`. The runtime imports only its own distribution modules. No timers or background work start during import.
+Supported runtimes include Node.js (>= 22), Bun, browser main threads, Dedicated Workers, Service Workers, and Cloudflare Workers. `pnpm build` compiles self-contained ESM JavaScript and TypeScript declarations to `dist/` with no side effects on import.

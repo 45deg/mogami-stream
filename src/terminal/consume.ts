@@ -6,9 +6,9 @@ import type { ExecutionOptions } from "./iterate.js";
 import { reduce } from "./reduce.js";
 
 /**
- * Await sequential effects without retaining values, then wait for cleanup.
+ * Calls `effect` sequentially for each value in `source` and waits for cleanup before resolving.
  *
- * Callback return values are discarded.
+ * Return values from `effect` are awaited and then ignored.
  * @category Consumption
  */
 export async function forEach<T>(
@@ -26,11 +26,17 @@ export async function forEach<T>(
   );
 }
 
+/**
+ * Returns the first value in `source` that satisfies `predicate`, or `undefined` if no value matches.
+ *
+ * Predicates are evaluated sequentially. As soon as a match is found, upstream is closed and the matched value is awaited before returning (while `predicate` itself receives the unawaited item). Synchronous type guard predicates narrow the return type.
+ * @category Consumption
+ */
 export function find<T, S extends T>(
   source: Source<T>,
   predicate: (value: T, context: OperatorContext) => value is S,
   options?: ExecutionOptions,
-): Promise<S | undefined>;
+): Promise<Awaited<S> | undefined>;
 export function find<T>(
   source: Source<T>,
   predicate: (
@@ -38,13 +44,7 @@ export function find<T>(
     context: OperatorContext,
   ) => boolean | PromiseLike<boolean>,
   options?: ExecutionOptions,
-): Promise<T | undefined>;
-/**
- * Return the first matching value, or undefined if no value matches.
- *
- * Await predicates sequentially and close upstream on a match. Synchronous type predicates narrow the result. A matching undefined value is indistinguishable from no match.
- * @category Consumption
- */
+): Promise<Awaited<T> | undefined>;
 export function find<T>(
   source: Source<T>,
   predicate: (
@@ -52,19 +52,19 @@ export function find<T>(
     context: OperatorContext,
   ) => boolean | PromiseLike<boolean>,
   options: ExecutionOptions = {},
-): Promise<T | undefined> {
+): Promise<Awaited<T> | undefined> {
   return reduce<T, T | undefined>(
     from(source).pipe(filter(predicate), take(1)),
-    (_accumulator, value) => value,
+    async (_accumulator, value): Promise<Awaited<T>> => await value,
     undefined,
     options,
   );
 }
 
 /**
- * Return whether any value matches, closing upstream on the first match.
+ * Returns `true` as soon as `predicate` returns `true` for any value in `source`, closing upstream early.
  *
- * Predicates are awaited sequentially. Empty inputs return false; cleanup completes before settlement.
+ * Predicates are evaluated sequentially. Returns `false` for empty sources, and waits for cleanup before resolving.
  * @category Consumption
  */
 export function some<T>(
@@ -84,9 +84,9 @@ export function some<T>(
 }
 
 /**
- * Return whether all values match, closing upstream on the first nonmatch.
+ * Returns `false` as soon as `predicate` returns `false` for any value in `source`, closing upstream early.
  *
- * Predicates are awaited sequentially. Empty inputs return true; cleanup completes before settlement.
+ * Predicates are evaluated sequentially. Returns `true` for empty sources, and waits for cleanup before resolving.
  * @category Consumption
  */
 export async function every<T>(

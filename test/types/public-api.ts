@@ -312,3 +312,181 @@ export type SettledRetry = Expect<
 
 // @ts-expect-error mapRetry was removed in favor of map's retry option.
 import { mapRetry } from "../../dist/index.js";
+
+// Promise initializers are resolved before every accumulator callback.
+const promiseReduced = reduce(
+  of(1),
+  (sum, value) => {
+    const resolved: number = sum;
+    // @ts-expect-error Accumulators are resolved, not promises.
+    sum.then();
+    return resolved + value;
+  },
+  Promise.resolve(0),
+);
+export type PromiseReduced = Expect<
+  Equal<typeof promiseReduced, Promise<number>>
+>;
+const promiseMethodReduced = of(1).reduce(
+  async (sum, value) => sum + value,
+  Promise.resolve(0),
+);
+export type PromiseMethodReduced = Expect<
+  Equal<typeof promiseMethodReduced, Promise<number>>
+>;
+const promiseScanned = of(1).pipe(
+  scan((sum, value) => sum + value, Promise.resolve(0)),
+);
+export type PromiseScanned = Expect<
+  Equal<Value<typeof promiseScanned>, number>
+>;
+const promiseFound = of(Promise.resolve(1)).find(() => true);
+export type PromiseFound = Expect<
+  Equal<typeof promiseFound, Promise<number | undefined>>
+>;
+const promiseGuardFound = find(
+  from<number | Promise<string>>([1, Promise.resolve("a")]),
+  (value): value is Promise<string> => typeof value !== "number",
+);
+export type PromiseGuardFound = Expect<
+  Equal<typeof promiseGuardFound, Promise<string | undefined>>
+>;
+
+import {
+  chain,
+  merge,
+  takeWhile,
+  delayStart,
+  spaceout,
+  rateLimit,
+  timeoutEach,
+  deadline,
+  bufferTime,
+  finalize,
+  type CloseReport,
+} from "../../dist/index.js";
+const combinedMixed = merge(of(1), of("a"));
+const chainedMixed = chain(of(1), of("a"));
+export type CombinedMixed = Expect<
+  Equal<Value<typeof combinedMixed>, number | string>
+>;
+export type ChainedMixed = Expect<
+  Equal<Value<typeof chainedMixed>, number | string>
+>;
+const combinedEmpty = merge();
+export type CombinedEmpty = Expect<Equal<Value<typeof combinedEmpty>, never>>;
+const combinedExplicit = merge<number | string>(of(1), of("a"));
+export type CombinedExplicit = Expect<
+  Equal<Value<typeof combinedExplicit>, number | string>
+>;
+// @ts-expect-error Explicit element types still constrain the inputs.
+chain<number>(of("a"));
+const promisedCombined = chain(of(Promise.resolve(1)), of("a"));
+export type PromisedCombined = Expect<
+  Equal<Value<typeof promisedCombined>, Promise<number> | string>
+>;
+
+const savedTake = take(1);
+const savedSkip = skip(0);
+const savedDelay = delayStart(1);
+const savedSpace = spaceout(1);
+const savedRate = rateLimit({ count: 1, perMs: 1 });
+const savedTimeout = timeoutEach(1);
+const savedDeadline = deadline(1);
+const savedFinalize = finalize(() => {});
+const reusedNumber = of(1).pipe(
+  savedTake,
+  savedSkip,
+  savedDelay,
+  savedSpace,
+  savedRate,
+  savedTimeout,
+  savedDeadline,
+  savedFinalize,
+);
+const reusedString = of("a").pipe(
+  savedTake,
+  savedSkip,
+  savedDelay,
+  savedSpace,
+  savedRate,
+  savedTimeout,
+  savedDeadline,
+  savedFinalize,
+);
+export type ReusedNumber = Expect<Equal<Value<typeof reusedNumber>, number>>;
+export type ReusedString = Expect<Equal<Value<typeof reusedString>, string>>;
+const savedChunks = chunks(2);
+const savedBuffer = bufferTime(1, { maxItems: 2 });
+const reusedChunks = of(1).pipe(savedChunks);
+const reusedBuffer = of("a").pipe(savedBuffer);
+export type ReusedChunks = Expect<Equal<Value<typeof reusedChunks>, number[]>>;
+export type ReusedBuffer = Expect<Equal<Value<typeof reusedBuffer>, string[]>>;
+const explicitTake = of(1).pipe(take<number>(1));
+export type ExplicitTake = Expect<Equal<Value<typeof explicitTake>, number>>;
+// @ts-expect-error Explicit element types still constrain the input.
+of("a").pipe(take<number>(1));
+const narrowPrefix = from<number | string>([1, "a"]).pipe(
+  takeWhile((value): value is number => typeof value === "number"),
+);
+const inferredPrefix = from<number | string>([1, "a"]).pipe(
+  takeWhile((value) => typeof value === "number"),
+);
+const asyncPrefix = from<number | string>([1, "a"]).pipe(
+  takeWhile(async (value) => typeof value === "number"),
+);
+export type NarrowPrefix = Expect<Equal<Value<typeof narrowPrefix>, number>>;
+export type InferredPrefix = Expect<
+  Equal<Value<typeof inferredPrefix>, number>
+>;
+export type AsyncPrefix = Expect<
+  Equal<Value<typeof asyncPrefix>, number | string>
+>;
+
+async function checkIteratorAndReport() {
+  const iterator = of(1).iterate();
+  // @ts-expect-error The stream protocol does not accept sent values.
+  iterator.next("input");
+  const result = await iterator.next();
+  // @ts-expect-error Must check done before using the value.
+  result.value.toFixed();
+  if (!result.done) {
+    const value: number = result.value;
+    value.toFixed();
+  } else {
+    const value: unknown = result.value;
+    void value;
+  }
+  const report = await iterator.closed;
+  if (report.kind === "completed") {
+    // @ts-expect-error Normal completion does not carry a stop reason.
+    report.reason;
+  } else {
+    const reason: unknown = report.reason;
+    void reason;
+  }
+}
+void checkIteratorAndReport;
+// @ts-expect-error Failure reports must explicitly carry a reason, even undefined.
+const missingReason: CloseReport = { kind: "failed", suppressedErrors: [] };
+void missingReason;
+const unexpectedReason: CloseReport = {
+  kind: "completed",
+  // @ts-expect-error Normal completion does not carry a stop reason.
+  reason: "x",
+  suppressedErrors: [],
+};
+void unexpectedReason;
+
+const thenableInitial: PromiseLike<number> = Promise.resolve(0);
+const thenableReduced = reduce(
+  of(1),
+  (sum, value) => sum + value,
+  thenableInitial,
+);
+export type ThenableReduced = Expect<
+  Equal<typeof thenableReduced, Promise<number>>
+>;
+export type FailureReport = Expect<
+  Equal<Extract<CloseReport, { kind: "failed" }>["reason"], unknown>
+>;

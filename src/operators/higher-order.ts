@@ -12,10 +12,10 @@ import { done, item } from "../internal/deferred.js";
 import { integer } from "../internal/errors.js";
 
 /**
- * Bounds for concurrently owned child iterables, including their cleanup.
+ * Concurrency options for higher-order stream operators.
  */
 export interface HigherOrderOptions {
-  /** Positive safe-integer child limit, from reservation through cleanup. Defaults to 1. */
+  /** Maximum number of active child sources at once (counted from slot reservation through child cleanup). Must be a positive safe integer. Defaults to `1`. */
   readonly concurrency?: number;
 }
 
@@ -190,10 +190,10 @@ function combineChildren<T>(
 }
 
 /**
- * Flatten child iterables, interleaving their values when concurrency exceeds one.
+ * Flattens a stream of child sources, interleaving values when `concurrency > 1`.
  *
- * Each child has one read/result slot and occupies concurrency from reservation through cleanup.
- * @throws RangeError if concurrency is not a positive safe integer.
+ * Each active child holds a single read/result slot and occupies a concurrency slot until its cleanup finishes.
+ * @throws {RangeError} If `concurrency` is not a positive safe integer.
  * @category Higher-order
  */
 export function flatten<T>(
@@ -202,10 +202,10 @@ export function flatten<T>(
   return combineChildren(false, options);
 }
 /**
- * Flatten child iterables in child order, optionally reading children concurrently.
+ * Flattens a stream of child sources strictly in child order, while optionally opening up to `concurrency` children ahead.
  *
- * Completed successors retain their slots until earlier children retire, bounding work behind a blocked head.
- * @throws RangeError if concurrency is not a positive safe integer.
+ * Later children that complete early retain their concurrency slots until earlier children finish, keeping buffered work bounded behind a slow leading child.
+ * @throws {RangeError} If `concurrency` is not a positive safe integer.
  * @category Higher-order
  */
 export function concat<T>(
@@ -256,10 +256,10 @@ function projectChildren<T, U>(
 }
 
 /**
- * Map each value synchronously to a child iterable and flatten the children.
+ * Maps each value synchronously to a child source and flattens the children concurrently.
  *
- * Use defer inside the child for asynchronous preparation. The child concurrency defaults to one.
- * @throws RangeError if concurrency is not a positive safe integer.
+ * Wrap asynchronous setup inside {@link defer} within the returned child source. Defaults to `concurrency: 1`.
+ * @throws {RangeError} If `concurrency` is not a positive safe integer.
  * @category Higher-order
  */
 export function flatMap<T, U>(
@@ -269,10 +269,10 @@ export function flatMap<T, U>(
   return projectChildren(mapper, false, options);
 }
 /**
- * Map each value synchronously to a child iterable and emit children in input order.
+ * Maps each value synchronously to a child source and emits values in child order.
  *
- * Use defer inside the child for asynchronous preparation. Concurrent children retain bounded read/result slots.
- * @throws RangeError if concurrency is not a positive safe integer.
+ * Wrap asynchronous setup inside {@link defer} within the returned child source. Defaults to `concurrency: 1`.
+ * @throws {RangeError} If `concurrency` is not a positive safe integer.
  * @category Higher-order
  */
 export function concatMap<T, U>(

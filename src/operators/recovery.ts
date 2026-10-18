@@ -2,12 +2,9 @@ import { Scope, type ExecutionHost } from "../core/scope.js";
 import { create, open, type Source, type Stream } from "../core/stream.js";
 
 /**
- * Replace a failed upstream with the handler's input, once per execution.
+ * Recovers from an upstream failure by switching once to a fallback source returned by `handler`.
  *
- * Wait for upstream cleanup before calling the handler. Cancellation, cleanup
- * failures, and errors in the handler, replacement, or downstream are not recovered.
- * The handler may asynchronously prepare its replacement and receives the active
- * stage signal. Non-cooperative upstream work can delay recovery indefinitely.
+ * Waits for the failed upstream stage to finish cleaning up before calling `handler`. Execution cancellation, cleanup errors, downstream errors, and errors thrown by `handler` or the replacement source are not caught. `handler` may return a source or a promise of one, and receives the active stage's `AbortSignal`.
  * @category Lifecycle
  */
 export function catchError<U>(

@@ -3,9 +3,9 @@ import { acquireIterator } from "../core/iterator.js";
 import { done, item } from "../internal/deferred.js";
 
 /**
- * Wrap an iterable without changing its replayability or awaiting Promise-valued items.
+ * Wraps a synchronous or asynchronous iterable into a {@link Stream} without altering its replayability or unwrapping Promise values.
  *
- * Input acquisition is lazy until the first read. A single-use iterator remains single-use.
+ * The underlying iterator is not acquired until the first read. Single-use iterators remain single-use.
  * @example
  * ```ts
  * const values = await from([1, 2, 3]).toArray();
@@ -18,9 +18,9 @@ export function from<T>(source: Source<T>): Stream<T> {
 }
 
 /**
- * Create a fresh input on the first read of each execution.
+ * Creates a fresh source on the first read of each execution.
  *
- * The factory may return a PromiseLike of an iterable. Pass its signal to external I/O so cancellation can interrupt that work.
+ * The factory may return a source directly or a `PromiseLike` that resolves to one. Pass `context.signal` to any external I/O so cancellation can abort in-flight setup.
  * @category Sources
  */
 export function defer<T>(
@@ -49,14 +49,14 @@ export function defer<T>(
 }
 
 /**
- * Create a replayable stream containing the supplied values.
+ * Creates a replayable stream that emits the given values in order.
  * @category Sources
  */
 export function of<T>(...values: T[]): Stream<T> {
   return from(values);
 }
 /**
- * Create a stream that completes without emitting a value.
+ * Creates a stream that completes immediately without emitting any values.
  * @category Sources
  */
 export function empty<T = never>(): Stream<T> {
@@ -64,10 +64,10 @@ export function empty<T = never>(): Stream<T> {
 }
 
 /**
- * Emit safe integers from `start` toward, but excluding, `end`.
+ * Emits safe integers starting at `start` and stepping by `step` toward (but excluding) `end`.
  *
- * A negative step produces a descending range. A step pointing away from the end produces an empty stream.
- * @throws RangeError if a bound or step is not a safe integer, or the step is zero.
+ * Use a negative `step` for a descending range. If `step` moves away from `end`, the stream completes immediately without emitting values.
+ * @throws {RangeError} If `start`, `end`, or `step` is not a safe integer, or if `step` is `0`.
  * @category Sources
  */
 export function range(start: number, end: number, step = 1): Stream<number> {

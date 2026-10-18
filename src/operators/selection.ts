@@ -1,6 +1,7 @@
 import {
   create,
   open,
+  type Stream,
   type Operator,
   type OperatorContext,
 } from "../core/stream.js";
@@ -9,9 +10,9 @@ import { cancellationReason, integer } from "../internal/errors.js";
 import { from } from "./creation.js";
 
 /**
- * Discard a prefix while the sequential, awaited predicate returns true.
+ * Skips leading values while `predicate` returns `true`, then emits the first non-matching value and all subsequent values without calling `predicate` again.
  *
- * Emit the first failing value and all remaining values without testing again.
+ * Predicates run sequentially and may be asynchronous.
  * @category Selection
  */
 export function skipWhile<T>(
@@ -44,15 +45,19 @@ export function skipWhile<T>(
 }
 
 /**
- * Emit at most `count` values and start closing upstream before delivering the last one.
+ * Emits at most `count` values, then closes upstream.
  *
- * A count of zero never opens upstream. Downstream callback signals remain active.
- * @throws RangeError if count is not a non-negative safe integer.
+ * Upstream cleanup begins before the final (`count`-th) value is delivered, while downstream callback signals remain active. `take(0)` completes immediately without opening upstream.
+ * @throws {RangeError} If `count` is not a non-negative safe integer.
  * @category Selection
  */
-export function take<T>(count: number): Operator<T, T> {
+export function take(count: number): <T>(source: AsyncIterable<T>) => Stream<T>;
+export function take<T>(count: number): Operator<T, T>;
+export function take(
+  count: number,
+): <T>(source: AsyncIterable<T>) => Stream<T> {
   integer(count, "count", 0);
-  return (source) =>
+  return <T>(source: AsyncIterable<T>) =>
     create((scope) => {
       let upstream: ReturnType<typeof open<T>> | undefined;
       let remaining = count;
@@ -73,14 +78,18 @@ export function take<T>(count: number): Operator<T, T> {
 }
 
 /**
- * Discard the first `count` values, then emit the remainder.
- * @throws RangeError if count is not a non-negative safe integer.
+ * Skips the first `count` values and emits the remaining values.
+ * @throws {RangeError} If `count` is not a non-negative safe integer.
  * @category Selection
  */
-export function skip<T>(count: number): Operator<T, T> {
+export function skip(count: number): <T>(source: AsyncIterable<T>) => Stream<T>;
+export function skip<T>(count: number): Operator<T, T>;
+export function skip(
+  count: number,
+): <T>(source: AsyncIterable<T>) => Stream<T> {
   integer(count, "count", 0);
   if (count === 0) return from;
-  return (source) =>
+  return <T>(source: AsyncIterable<T>) =>
     create((scope) => {
       const upstream = open(source, scope);
       let remaining = count;
@@ -98,11 +107,20 @@ export function skip<T>(count: number): Operator<T, T> {
 }
 
 /**
- * Emit values until the sequential, awaited predicate first returns false.
+ * Emits values while `predicate` returns `true`, stopping and closing upstream on the first `false` result.
  *
- * The first failing value is consumed but not emitted; the remainder is closed.
+ * Predicates run sequentially and may be asynchronous. Synchronous type guard predicates narrow the output stream type. The first non-matching value is consumed by the test and is not emitted.
  * @category Selection
  */
+export function takeWhile<T, S extends T>(
+  predicate: (value: T, context: OperatorContext) => value is S,
+): Operator<T, S>;
+export function takeWhile<T>(
+  predicate: (
+    value: T,
+    context: OperatorContext,
+  ) => boolean | PromiseLike<boolean>,
+): Operator<T, T>;
 export function takeWhile<T>(
   predicate: (
     value: T,
