@@ -369,5 +369,123 @@ export async function runContracts() {
       equal(reads, 1_000);
     },
   );
+  await check("consumption and running aggregates", async () => {
+    const seen = [];
+    await stream.forEach([1, 2, 3], async (value, { index }) => {
+      seen.push([value, index]);
+    });
+    equal(seen, [
+      [1, 0],
+      [2, 1],
+      [3, 2],
+    ]);
+    equal(
+      await stream
+        .of(1, 2, 3)
+        .pipe(stream.scan(async (sum, value) => sum + value, 0))
+        .toArray(),
+      [1, 3, 6],
+    );
+    equal(await stream.find([1, 2, 3], async (value) => value > 1), 2);
+    equal(await stream.of(1, 2).some(async (value) => value === 2), true);
+    equal(await stream.of(1, 2).every((value) => value < 2), false);
+    equal(await stream.empty().every(() => false), true);
+  });
+  await check("timeline source completion and failure", async () => {
+    equal(
+      await stream
+        .fromTimeline([
+          { at: 0, kind: "value", value: "A" },
+          { at: 1, kind: "value", value: "B" },
+          { at: 2, kind: "complete" },
+        ])
+        .toArray(),
+      ["A", "B"],
+    );
+    const failure = new Error("timeline");
+    try {
+      await stream
+        .fromTimeline([{ at: 0, kind: "error", error: failure }])
+        .toArray();
+      throw new Error("Expected timeline failure.");
+    } catch (error) {
+      if (error !== failure) throw error;
+    }
+  });
+  await check("item retries and settled outcomes", async () => {
+    const attempts = [];
+    equal(
+      await stream
+        .of(1, 2)
+        .pipe(
+          stream.map(
+            (value, { attempt, index }) => {
+              attempts.push([index, attempt]);
+              if (attempt === 1) throw new Error("transient");
+              return Promise.resolve(value * 2);
+            },
+            { concurrency: 2, retry: { retries: 1, delayMs: 1 } },
+          ),
+        )
+        .toArray(),
+      [2, 4],
+    );
+    equal(attempts.length, 4);
+    const failure = new Error("item");
+    const values = await stream
+      .of(1, 2)
+      .pipe(
+        stream.mapSettled(
+          async (value) => {
+            if (value === 1) throw failure;
+            return value * 2;
+          },
+          { concurrency: 2 },
+        ),
+      )
+      .toArray();
+    equal(values[0].status, "rejected");
+    if (values[0].reason !== failure)
+      throw new Error("Mapper failure identity changed.");
+    equal(values[1], { status: "fulfilled", value: 4 });
+    let settledAttempts = 0;
+    const final = await stream
+      .of(1)
+      .pipe(
+        stream.mapSettled(
+          () => {
+            settledAttempts++;
+            throw failure;
+          },
+          { retry: { retries: 2, delayMs: 1 } },
+        ),
+      )
+      .toArray();
+    equal(settledAttempts, 3);
+    equal(final[0].status, "rejected");
+    if (final[0].reason !== failure)
+      throw new Error("Final retry failure identity changed.");
+    if ("mapRetry" in stream)
+      throw new Error("Removed mapRetry export is still present.");
+
+    const iterator = stream
+      .of(1)
+      .pipe(
+        stream.map(
+          () => {
+            throw failure;
+          },
+          { retry: { retries: 2, delayMs: 60_000 } },
+        ),
+      )
+      .iterate();
+    const pending = iterator.next().then(
+      () => false,
+      (error) => error === "stop",
+    );
+    iterator.cancel("stop");
+    equal(await pending, true);
+    equal((await iterator.closed).kind, "cancelled");
+  });
   return passed;
 }

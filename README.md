@@ -47,7 +47,7 @@ try {
 
 `cancel(reason)` immediately requests a stop. Pending `next()` rejects without waiting for cleanup. `return()` sends the stop request before awaiting cleanup. `closed` always resolves with a report, including when cleanup fails. `throw(error)` stops execution with that error instead of injecting it into the upstream generator.
 
-Only one public `next()` may be pending. A second overlapping request rejects with `TypeError`. A failure or cancellation is reported once through `next()`; later reads return `done: true`. `toArray` and `reduce` wait for cleanup before settling and preserve a primary processing error.
+Only one public `next()` may be pending. A second overlapping request rejects with `TypeError`. A failure or cancellation is reported once through `next()`; later reads return `done: true`. `toArray`, `reduce`, `forEach`, `find`, `some`, and `every` wait for cleanup before settling and preserve a primary processing error.
 
 Non-cooperative promises and input reads can keep `closed`, `return()`, and terminal consumers pending indefinitely. Async generators cannot forcibly interrupt an arbitrary `await`. Pass the supplied signal to external I/O through `defer` or callbacks. Signal propagation through arbitrary third-party wrappers is limited to that boundary.
 
@@ -57,7 +57,7 @@ Pipelines do not automatically yield to host tasks. Continuously ready inputs an
 
 ## Concurrency and demand
 
-`map(mapper, { concurrency = 1, capacity = concurrency, ordered = true })` awaits synchronous or asynchronous callback results. Its context contains `{ index, signal }`; indexes start at zero for each operator execution.
+`map(mapper, { concurrency = 1, capacity = concurrency, ordered = true })` awaits synchronous or asynchronous callback results. Its context contains `{ index, signal, attempt }`; attempts start at one and indexes start at zero for each operator execution.
 
 Both limits must be positive safe integers, and `capacity >= concurrency`. The total number of reserved input reads, running mappers, and completed outputs stays within `capacity`. A reservation also occupies a concurrency slot. At most one upstream read is pending per input.
 
@@ -67,7 +67,7 @@ Work advances while a downstream read is pending. Once a value is delivered, no 
 
 ## Public API
 
-All stream factories and operators return a `Stream<T>`, which implements `AsyncIterable<T>` and adds `.pipe()`, `.iterate(options?)`, `.toArray(options?)`, and `.reduce(reducer, initial, options?)`. Calling `stream.toArray({ signal })` is equivalent to `toArray(stream, { signal })`; `stream.reduce(reducer, initial, options)` is equivalent to `reduce(stream, reducer, initial, options)`. `stream.iterate(options)` is equivalent to `iterate(stream, options)`. All three standalone functions also accept arbitrary synchronous and asynchronous iterables. Operators also work with arbitrary `AsyncIterable` inputs. Creation and combination functions accept synchronous `Iterable` inputs too. The standalone `pipe(source, ...operators)` and `.pipe(...operators)` both infer types for zero through eight operators. Split longer pipelines into multiple `.pipe()` calls.
+All stream factories and operators return a `Stream<T>`, which implements `AsyncIterable<T>` and adds `.pipe()`, `.iterate(options?)`, `.toArray(options?)`, `.reduce(reducer, initial, options?)`, `.forEach(effect, options?)`, `.find(predicate, options?)`, `.some(predicate, options?)`, and `.every(predicate, options?)`. Calling `stream.toArray({ signal })` is equivalent to `toArray(stream, { signal })`; `stream.reduce(reducer, initial, options)` is equivalent to `reduce(stream, reducer, initial, options)`. `stream.iterate(options)` is equivalent to `iterate(stream, options)`. The corresponding standalone terminal functions also accept arbitrary synchronous and asynchronous iterables. Operators also work with arbitrary `AsyncIterable` inputs. Creation and combination functions accept synchronous `Iterable` inputs too. The standalone `pipe(source, ...operators)` and `.pipe(...operators)` both infer types for zero through eight operators. Split longer pipelines into multiple `.pipe()` calls.
 
 | API                                                             | Behavior                                                                                                                                                |
 | --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -89,11 +89,98 @@ All stream factories and operators return a `Stream<T>`, which implements `Async
 
 Compared with the aiostream API described in the supplied design, this library requires finite concurrency (default 1), defaults `zipLatest` to `partial: false`, and names its timing operators `delayStart` and `timeoutEach`.
 
-`filter`, `takeWhile`, `tap`, and `reduce` callbacks run sequentially. `take` and `skip` require non-negative safe integers. `chunks` requires a positive safe integer. Invalid numeric options throw `RangeError` when the operator is constructed.
+`filter`, `takeWhile`, `tap`, `reduce`, `scan`, `forEach`, `find`, `some`, and `every` callbacks run sequentially. `take` and `skip` require non-negative safe integers. `chunks` requires a positive safe integer. Invalid numeric options throw `RangeError` when the operator is constructed.
 
 Higher-order concurrency counts children from reservation through retirement, including cleanup. Each child has one read/result slot. `concat` retains completed successors until earlier children retire, so a blocked head cannot accumulate unlimited empty successors. `zip` may consume one extra value from another input before discovering the shortest input has ended. `zipLatest` coalesces updates before initialization; afterward it retains each accepted update until demand consumes it.
 
 Values that happen to be promises retain their identity in `from`, selection, and combination operators. Only callback results that explicitly require awaiting, such as `map` results, are resolved. Native `for await` over a synchronous iterable has its own adaptation rules; use this library's `from` when promise identity matters.
+
+Additional APIs:
+
+| API                                                                       | Behavior                                                                      |
+| ------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `forEach(source, effect, options?)`                                       | Await sequential effects without retaining results.                           |
+| `find(source, predicate, options?)`                                       | Return the first match or `undefined`, with synchronous type-guard narrowing. |
+| `some(source, predicate, options?)`, `every(source, predicate, options?)` | Short-circuit boolean tests.                                                  |
+| `scan(reducer, initial)`                                                  | Emit each updated accumulator.                                                |
+| `fromTimeline(events)`                                                    | Replay a demand-driven schedule of values, completion, or failure.            |
+
+## Retry and settled mapping
+
+`map(mapper, { retry, ...options })` retries only a failed mapper invocation for the same input. The optional `retry` object has type `RetryOptions` and requires an explicit finite non-negative safe-integer `retries` budget. Omit `retry` to disable retries. `retries: 2` allows at most three attempts. Context is `{ index, signal, attempt }`: `index` stays fixed for that input and `attempt` starts at one. Each execution starts fresh.
+
+```ts
+const results = from(jobs).pipe(
+  map((job, { signal, attempt }) => processJob(job, { signal, attempt }), {
+    concurrency: 4,
+    capacity: 4,
+    retry: {
+      retries: 2,
+      shouldRetry: (error) => isTransient(error),
+      delayMs: (_error, { attempt }) =>
+        Math.min(200 * 2 ** (attempt - 1), 5_000),
+    },
+  }),
+);
+```
+
+`shouldRetry(error, context)` may return a boolean or PromiseLike<boolean>; by default every mapper failure is eligible. `delayMs` is a finite non-negative number or a synchronous callback returning one; its default is zero. Both hooks receive the attempt that just failed and run only when retry budget remains. A false decision propagates the mapper error. A hook failure or invalid computed delay fails `map`; in `mapSettled`, it becomes the item's rejected outcome. Exhaustion propagates the final mapper error.
+
+All attempts, retry decisions, and retry waits for one item occupy the same concurrency and capacity slot. Waits use the execution scheduler and are abortable. Cancellation prevents further attempts; outstanding non-cooperative mapper or policy work still delays cleanup. Already reserved items can finish retrying while downstream is idle, but no new input is reserved. Upstream and cleanup failures are not retried. Retry hooks cannot recover execution cancellation.
+
+An upstream `rateLimit` counts input reads, not individual attempts inside `map`. Apply request limiting inside the mapper when retries must share that limit. Retrying an effect can repeat a successful operation whose response was lost; use an appropriate retry predicate and idempotency mechanism for that operation.
+
+`mapSettled(mapper, options?)` accepts the same mapper context and options as `map`. It emits `SettledResult<Awaited<U>>` for each input:
+
+```ts
+type SettledResult<T> =
+  | { readonly status: "fulfilled"; readonly value: T }
+  | { readonly status: "rejected"; readonly reason: unknown };
+
+const outcomes = from(jobs).pipe(
+  mapSettled((job, { signal }) => processJob(job, { signal }), {
+    concurrency: 4,
+    ordered: false,
+    retry: { retries: 2 },
+  }),
+);
+```
+
+With `retry`, each item is retried before producing its outcome: eventual success produces a fulfilled outcome, while retry exhaustion or a false retry decision produces a rejected outcome with the final mapper error. Synchronous throws, rejected promises, and rejected thenables from the mapper are handled alike without stopping other items. Upstream failures, cleanup failures, and execution cancellation still fail or cancel the execution normally. Late mapper failures after cancellation remain in the close report rather than becoming output values. Both operators share the same `MapOptions`, including `retry`, and preserve the bounds, ordering defaults, laziness, and cleanup behavior of `map`. Their mapper context is `MapContext`; even without retries, it includes `attempt: 1`.
+
+## Consumption and running aggregates
+
+`forEach(source, effect, options?)` awaits each effect without collecting values. Effects receive `{ index, signal }`; their return values are discarded. `find(source, predicate, options?)` returns the first matching value, `some` tests whether any value matches, and `every` tests whether all values match. Each also has an equivalent Stream method. Synchronous type predicates narrow the result of `find`.
+
+These terminal operations accept `{ signal }`, wait for cleanup, and preserve the primary processing error. A decisive predicate result closes upstream without reading the remainder. Empty inputs produce `undefined` for `find`, `false` for `some`, and `true` for `every`. A successful match whose value is `undefined` also returns `undefined` from `find`.
+
+`scan(reducer, initial)` is an operator that emits the updated accumulator after each input, whereas `reduce` returns only the final accumulator. It awaits the reducer and supplies `{ index, signal }`. The initial value itself is not emitted; an empty input emits nothing. Accumulation and callback indexes restart for each execution. As with `reduce`, the initial accumulator is used by reference; use immutable updates or `defer` when each execution needs a fresh mutable accumulator.
+
+```ts
+await from(jobs).forEach(async (job, { signal }) => save(job, signal));
+const totals = from([1, 2, 3]).pipe(scan((sum, value) => sum + value, 0));
+// totals emits 1, 3, 6
+const first = await from([1, 2, 3]).find((value) => value > 1); // 2
+```
+
+## Timeline sources
+
+`fromTimeline(events)` creates a replayable, demand-driven source from a readonly array of `TimelineEvent<T>` values:
+
+```ts
+const source = fromTimeline([
+  { at: 0, kind: "value", value: "A" },
+  { at: 100, kind: "value", value: "B" },
+  { at: 150, kind: "complete" },
+]);
+// An error terminator is { at: 150, kind: "error", error }.
+```
+
+Times are finite, non-negative milliseconds from the first read of this source stage in each execution, in non-decreasing order. Equal-time events retain array order. A completion or error event may appear only as the final event. Without a terminator, the source completes after the last value; an empty timeline completes immediately. Invalid schedules throw at construction.
+
+Construction snapshots the event records, retaining the identity of values and errors, including Promise values. No background queue or timers run while downstream is idle. An overdue event is delivered on the next request. Waits use the execution scheduler and are abortable. This models a pull source; it does not simulate loss or buffering of external push events.
+
+The internal `createTestClock()` utility supports `advanceBy(ms)`, `advanceTo(timeMs)`, and `pendingTimers`. It plugs into `iterateWithScheduler` so timelines and time operators share one clock. Advances process chained timers chronologically, preserve registration order for equal deadlines, and drain promise continuations between deadlines using a host turn. Time cannot move backwards, and advances cannot overlap. These testing seams are internal and are not exported from the package entry point.
 
 ## Time operators
 

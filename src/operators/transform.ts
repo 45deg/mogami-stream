@@ -1,4 +1,3 @@
-import { boundedMap } from "../internal/bounded-map.js";
 import {
   create,
   open,
@@ -7,9 +6,6 @@ import {
 } from "../core/stream.js";
 import { done, item } from "../internal/deferred.js";
 import { integer } from "../internal/errors.js";
-
-export const map = boundedMap;
-export type { MapOptions } from "../internal/bounded-map.js";
 
 export function filter<T, S extends T>(
   predicate: (value: T, context: OperatorContext) => value is S,
@@ -63,6 +59,34 @@ export function chunks<T>(size: number): Operator<T, T[]> {
             values.push(result.value);
           }
           return item(values);
+        },
+      };
+    });
+}
+
+export function scan<T, A>(
+  reducer: (
+    accumulator: A,
+    value: T,
+    context: OperatorContext,
+  ) => A | PromiseLike<A>,
+  initial: A,
+): Operator<T, A> {
+  return (source) =>
+    create((scope) => {
+      const upstream = open(source, scope);
+      let accumulator = initial;
+      let index = 0;
+      return {
+        async next() {
+          const result = await upstream.next();
+          if (result.done) return done();
+          scope.check();
+          accumulator = await reducer(accumulator, result.value, {
+            index: index++,
+            signal: scope.signal,
+          });
+          return item(accumulator);
         },
       };
     });

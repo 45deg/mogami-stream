@@ -1,3 +1,4 @@
+import type { Scope } from "../core/scope.js";
 import {
   create,
   open,
@@ -8,18 +9,32 @@ import {
 import { done, item } from "./deferred.js";
 import { integer } from "./errors.js";
 
-export interface MapOptions {
+export interface MapContext extends OperatorContext {
+  /** One-based attempt, including when retry is omitted. */
+  readonly attempt: number;
+}
+
+export interface BoundedMapOptions {
   readonly concurrency?: number;
   readonly capacity?: number;
   readonly ordered?: boolean;
 }
 
+export type MapperRecovery<T, U> = (
+  error: unknown,
+  value: T,
+  context: MapContext,
+) => U;
+
 /** One slot needs no result queue or background input pump. */
 function sequentialMap<T, U>(
-  mapper: (value: T, context: OperatorContext) => U,
+  makeMapper: (scope: Scope) => (value: T, context: MapContext) => U,
+  makeRecovery?: (scope: Scope) => MapperRecovery<T, U>,
 ): Operator<T, Awaited<U>> {
   return (source) =>
     create((scope) => {
+      const mapper = makeMapper(scope);
+      const recover = makeRecovery?.(scope);
       const upstream = open(source, scope);
       let index = 0;
       return {
@@ -27,20 +42,29 @@ function sequentialMap<T, U>(
           const result = await upstream.next();
           if (result.done) return done();
           scope.check();
-          const value = await mapper(result.value, {
+          const context: MapContext = {
             index: index++,
             signal: scope.signal,
-          });
+            attempt: 1,
+          };
+          let value: Awaited<U>;
+          try {
+            value = await mapper(result.value, context);
+          } catch (error) {
+            if (!recover) throw error;
+            value = await recover(error, result.value, context);
+          }
           return item(value);
         },
       };
     });
 }
 
-/** A slot stays occupied from the input reservation until its output is consumed. */
-export function boundedMap<T, U>(
-  mapper: (value: T, context: OperatorContext) => U,
-  options: MapOptions = {},
+/** A slot owns an item through mapping and consumption; mappers are created per execution. */
+export function scopedMap<T, U>(
+  makeMapper: (scope: Scope) => (value: T, context: MapContext) => U,
+  options: BoundedMapOptions = {},
+  makeRecovery?: (scope: Scope) => MapperRecovery<T, U>,
 ): Operator<T, Awaited<U>> {
   const concurrency = options.concurrency ?? 1;
   const capacity = options.capacity ?? concurrency;
@@ -49,10 +73,13 @@ export function boundedMap<T, U>(
   if (capacity < concurrency)
     throw new RangeError("capacity must be >= concurrency.");
   const ordered = options.ordered ?? true;
-  if (concurrency === 1 && capacity === 1) return sequentialMap(mapper);
+  if (concurrency === 1 && capacity === 1)
+    return sequentialMap(makeMapper, makeRecovery);
 
   return (source) =>
     create((scope) => {
+      const mapper = makeMapper(scope);
+      const recover = makeRecovery?.(scope);
       const upstream = open(source, scope);
       const results = new Map<number, Awaited<U>>();
       const completionOrder: number[] = [];
@@ -141,14 +168,23 @@ export function boundedMap<T, U>(
           const index = nextInputIndex++;
           running++;
           checkBounds();
+          const context: MapContext = {
+            index,
+            signal: scope.signal,
+            attempt: 1,
+          };
           let value: Awaited<U>;
           try {
-            const mapped = mapper(result.value, {
-              index,
-              signal: scope.signal,
-            });
-            pump();
-            value = await mapped;
+            try {
+              const mapped = mapper(result.value, context);
+              pump();
+              value = await mapped;
+            } catch (error) {
+              if (!recover) throw error;
+              const recovered = recover(error, result.value, context);
+              pump();
+              value = await recovered;
+            }
           } finally {
             running--;
           }

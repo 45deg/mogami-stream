@@ -1,8 +1,7 @@
 export type { Stream } from "./core/stream.js";
 export type { Source, Operator, OperatorContext } from "./core/stream.js";
 export { from, defer, of, empty, range } from "./operators/creation.js";
-export { map, filter, chunks } from "./operators/transform.js";
-export type { MapOptions } from "./operators/transform.js";
+export { filter, chunks, scan } from "./operators/transform.js";
 export { take, skip, takeWhile } from "./operators/selection.js";
 export { chain, merge, zip, zipLatest } from "./operators/combine.js";
 export type {
@@ -44,3 +43,15 @@ export {
   IteratorCleanupError,
 } from "./internal/errors.js";
 export { pipe } from "./core/pipe.js";
+
+export { forEach, find, some, every } from "./terminal/consume.js";
+export { fromTimeline } from "./operators/timeline.js";
+export type { TimelineEvent } from "./operators/timeline.js";
+
+export { map, mapSettled } from "./operators/mapping.js";
+export type {
+  MapOptions,
+  MapContext,
+  RetryOptions,
+  SettledResult,
+} from "./operators/mapping.js";

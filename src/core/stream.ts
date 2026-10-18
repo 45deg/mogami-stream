@@ -8,6 +8,7 @@ import {
 } from "../terminal/iterate.js";
 import { toArray } from "../terminal/to-array.js";
 import { reduce } from "../terminal/reduce.js";
+import { forEach, find, some, every } from "../terminal/consume.js";
 
 export type Source<T> = Iterable<T> | AsyncIterable<T>;
 export type Operator<T, U> = (source: AsyncIterable<T>) => Stream<U>;
@@ -64,6 +65,50 @@ export class Stream<T> implements AsyncIterable<T> {
     options: ExecutionOptions = {},
   ): Promise<A> {
     return reduce(this, reducer, initial, options);
+  }
+  forEach(
+    effect: (value: T, context: OperatorContext) => unknown,
+    options: ExecutionOptions = {},
+  ): Promise<void> {
+    return forEach(this, effect, options);
+  }
+  find<S extends T>(
+    predicate: (value: T, context: OperatorContext) => value is S,
+    options?: ExecutionOptions,
+  ): Promise<S | undefined>;
+  find(
+    predicate: (
+      value: T,
+      context: OperatorContext,
+    ) => boolean | PromiseLike<boolean>,
+    options?: ExecutionOptions,
+  ): Promise<T | undefined>;
+  find(
+    predicate: (
+      value: T,
+      context: OperatorContext,
+    ) => boolean | PromiseLike<boolean>,
+    options: ExecutionOptions = {},
+  ): Promise<T | undefined> {
+    return find(this, predicate, options);
+  }
+  some(
+    predicate: (
+      value: T,
+      context: OperatorContext,
+    ) => boolean | PromiseLike<boolean>,
+    options: ExecutionOptions = {},
+  ): Promise<boolean> {
+    return some(this, predicate, options);
+  }
+  every(
+    predicate: (
+      value: T,
+      context: OperatorContext,
+    ) => boolean | PromiseLike<boolean>,
+    options: ExecutionOptions = {},
+  ): Promise<boolean> {
+    return every(this, predicate, options);
   }
   pipe(): Stream<T>;
   pipe<A>(op1: Operator<T, A>): Stream<A>;
