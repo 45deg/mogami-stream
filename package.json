@@ -33,7 +33,8 @@
     "format:check": "prettier --check .",
     "prepack": "pnpm build && pnpm check:dist",
     "bench": "pnpm build && node --expose-gc benchmarks/run.mjs",
-    "docs": "typedoc"
+    "docs": "typedoc",
+    "bench:svg": "pnpm build && node --expose-gc benchmarks/render-svg.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
