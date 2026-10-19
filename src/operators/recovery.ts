@@ -1,16 +1,17 @@
 import { Scope, type ExecutionHost } from "../core/scope.js";
+import { withResourceContext, type ResourceContext } from "../core/resource.js";
 import { create, open, type Source, type Stream } from "../core/stream.js";
 
 /**
  * Recovers from an upstream failure by switching once to a fallback source returned by `handler`.
  *
- * Waits for the failed upstream stage to finish cleaning up before calling `handler`. Execution cancellation, cleanup errors, downstream errors, and errors thrown by `handler` or the replacement source are not caught. `handler` may return a source or a promise of one, and receives the active stage's `AbortSignal`.
+ * Waits for the failed upstream stage to finish cleaning up before calling `handler`. Execution cancellation, cleanup errors, downstream errors, and errors thrown by `handler` or the replacement source are not caught. `handler` may return a source or a promise of one, and receives the active stage's `AbortSignal`. Use `context.acquire(acquire, release)` for resources opened during recovery; plain fallback sources returned after cancellation are never opened or closed by the library.
  * @category Lifecycle
  */
 export function catchError<U>(
   handler: (
     error: unknown,
-    context: { readonly signal: AbortSignal },
+    context: ResourceContext,
   ) => Source<U> | PromiseLike<Source<U>>,
 ): <T>(source: AsyncIterable<T>) => Stream<T | U> {
   return <T>(source: AsyncIterable<T>) =>
@@ -55,9 +56,9 @@ export function catchError<U>(
             host.fail(error);
             await boundary.close();
             scope.check();
-            const fallback = await handler(failure!.error, {
-              signal: scope.signal,
-            });
+            const fallback = await withResourceContext(scope, (context) =>
+              handler(failure!.error, context),
+            );
             scope.check();
             replacement = open(fallback, scope);
             return replacement.next();

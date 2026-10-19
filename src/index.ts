@@ -1,5 +1,6 @@
 export type { Stream } from "./core/stream.js";
 export type { Source, Operator, OperatorContext } from "./core/stream.js";
+export type { ResourceContext } from "./core/resource.js";
 export { from, defer, of, empty, range } from "./operators/creation.js";
 export {
   filter,

@@ -100,7 +100,10 @@ Stream construction, `.pipe()`, and iterator acquisition are all lazy; execution
 ```ts
 import { defer, iterate } from "mogami-stream";
 
-const source = defer(({ signal }) => openResource(signal));
+const source = defer(async ({ signal, acquire }) => {
+  const resource = await acquire(openResource, (resource) => resource.close());
+  return resource.values(signal); // Borrows the resource; does not close it.
+});
 const iterator = iterate(source, { signal: controller.signal });
 
 try {
@@ -124,6 +127,8 @@ try {
 Only one `next()` call may be pending on a `StreamIterator` at a time; a concurrent call rejects with `TypeError`. A failure or cancellation rejects `next()` once, after which subsequent reads resolve to `{ done: true, value: undefined }`. Terminal consumers (`toArray`, `reduce`, `forEach`, `find`, `some`, and `every`) always wait for cleanup before settling and prioritize the primary processing error over subsequent cleanup errors.
 
 Because JavaScript async iterators cannot forcibly preempt an arbitrary `await`, non-cooperative promises or blocked upstream reads will keep `closed`, `return()`, and terminal consumers pending until they settle. Pass the `signal` provided by `defer` and operator callbacks into external I/O APIs so cancellation can abort underlying work.
+
+`defer` factories and `catchError` handlers also receive `acquire(acquire, release)`. Call and await it during setup to transfer resource ownership to the stage. Successful acquisition registers release even if cancellation arrives while waiting; teardown releases it once after child sources and pending work finish. The returned source must not release the same resource again. Plain sources returned after cancellation are never opened or closed. See [resource ownership](https://45deg.github.io/mogami-stream/guide/lifecycle#owning-resources-during-asynchronous-setup) for examples and failure semantics.
 
 Pipelines do not insert artificial timer ticks or macrotask yields. If a synchronous source and synchronous callbacks run continuously, they can starve timers and I/O on the host event loop unless the source, callback, or consumer yields explicitly.
 
@@ -185,7 +190,12 @@ Both `.pipe(...operators)` and the standalone `pipe(source, ...operators)` infer
 
 ```ts
 const values = from(primary).pipe(
-  catchError((_error, { signal }) => openFallback(signal)),
+  catchError(async (_error, { signal, acquire }) => {
+    const fallback = await acquire(openFallback, (resource) =>
+      resource.close(),
+    );
+    return fallback.values(signal);
+  }),
   filterMap((value) => value.parsed),
   dedupe((value) => value.id),
   skipWhile((value) => !value.ready),

@@ -1,5 +1,6 @@
 import { create, open, type Source, Stream } from "../core/stream.js";
 import { acquireIterator } from "../core/iterator.js";
+import { withResourceContext, type ResourceContext } from "../core/resource.js";
 import { done, item } from "../internal/deferred.js";
 
 /**
@@ -20,13 +21,11 @@ export function from<T>(source: Source<T>): Stream<T> {
 /**
  * Creates a fresh source on the first read of each execution.
  *
- * The factory may return a source directly or a `PromiseLike` that resolves to one. Pass `context.signal` to any external I/O so cancellation can abort in-flight setup.
+ * The factory may return a source directly or a `PromiseLike` that resolves to one. Pass `context.signal` to any external I/O so cancellation can abort in-flight setup. Use `context.acquire(acquire, release)` for resources opened during setup; plain sources returned after cancellation are never opened or closed by the library.
  * @category Sources
  */
 export function defer<T>(
-  factory: (context: {
-    readonly signal: AbortSignal;
-  }) => Source<T> | PromiseLike<Source<T>>,
+  factory: (context: ResourceContext) => Source<T> | PromiseLike<Source<T>>,
 ): Stream<T> {
   return create((scope) => {
     let reader: ReturnType<typeof open<T>> | undefined;
@@ -34,10 +33,7 @@ export function defer<T>(
       async next() {
         if (!reader) {
           const source = await scope.observe(
-            Promise.resolve().then(() => {
-              scope.check();
-              return factory({ signal: scope.signal });
-            }),
+            Promise.resolve().then(() => withResourceContext(scope, factory)),
           );
           scope.check();
           reader = open(source, scope);
