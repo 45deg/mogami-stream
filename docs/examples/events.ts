@@ -23,5 +23,8 @@ export function sseMessages(events: EventSource, signal: AbortSignal) {
   return fromEvent<MessageEvent>(events, "message", {
     capacity: 64,
     overflow: "drop-oldest",
+    onDrop(info) {
+      console.warn("Dropped SSE messages in this execution:", info.count);
+    },
   }).iterate({ signal });
 }

@@ -240,3 +240,363 @@ test("push ring reuses slots across interleaved reads and preserves falsy values
   assert.equal((await iterator.next()).done, true);
   await iterator.closed;
 });
+
+for (const overflow of ["drop-oldest", "drop-newest"]) {
+  test(`${overflow} reports live, per-execution counts without retaining dropped values`, async () => {
+    const infos = [];
+    const counts = [];
+    const source = fromCallback(
+      (observer) => {
+        for (let value = 0; value < 5; value++) observer.next({ value });
+        observer.complete();
+        assert.equal(observer.next({ value: 99 }), false);
+      },
+      {
+        capacity: 2,
+        overflow,
+        onDrop(info) {
+          infos.push(info);
+          counts.push(info.count);
+          assert.equal(info.overflow, overflow);
+          assert.deepEqual(Object.keys(info).sort(), [
+            "count",
+            "overflow",
+            "signal",
+          ]);
+          assert.equal(Object.isFrozen(info), true);
+        },
+      },
+    );
+    const expected = overflow === "drop-oldest" ? [3, 4] : [0, 1];
+    assert.deepEqual(
+      (await source.toArray()).map(({ value }) => value),
+      expected,
+    );
+    assert.deepEqual(counts, [1, 2, 3]);
+    assert.ok(infos.every((info) => info === infos[0]));
+    assert.equal(infos[0].count, 3);
+    await source.toArray();
+    assert.deepEqual(counts, [1, 2, 3, 1, 2, 3]);
+    assert.notEqual(infos[0], infos[3]);
+    assert.notEqual(infos[0].signal, infos[3].signal);
+    assert.equal(infos[0].count, 3);
+  });
+
+  test(`${overflow} bounds reentrant notification depth while counting every drop`, async () => {
+    let observer;
+    let info;
+    let calls = 0;
+    const accepted = [];
+    const iterator = fromCallback(
+      (sink) => {
+        observer = sink;
+      },
+      {
+        capacity: 1,
+        overflow,
+        onDrop(current) {
+          calls++;
+          info = current;
+          if (calls === 1) {
+            for (let value = 3; value < 20003; value++) {
+              accepted.push(observer.next(value));
+            }
+          }
+        },
+      },
+    ).iterate();
+    const first = iterator.next();
+    observer.next(0);
+    assert.equal((await first).value, 0);
+    assert.equal(observer.next(1), true);
+    assert.equal(observer.next(2), overflow === "drop-oldest");
+    assert.equal(calls, 1);
+    assert.equal(info.count, 20001);
+    assert.ok(
+      accepted.every((value) => value === (overflow === "drop-oldest")),
+    );
+    assert.equal(
+      (await iterator.next()).value,
+      overflow === "drop-oldest" ? 20002 : 1,
+    );
+    observer.next(4);
+    observer.next(5);
+    assert.equal(calls, 2);
+    assert.equal(info.count, 20002);
+    observer.complete();
+    await iterator.return();
+    assert.equal(observer.next(6), false);
+    assert.equal(info.count, 20002);
+    assert.equal(calls, 2);
+  });
+
+  test(`${overflow} hook throws fail setup without escaping next or losing cleanup`, async () => {
+    const failure = new Error("drop hook failed");
+    let cleaned = 0;
+    let info;
+    const acceptance = [];
+    await assert.rejects(
+      fromCallback(
+        (observer) => {
+          acceptance.push(observer.next(1));
+          acceptance.push(observer.next(2));
+          acceptance.push(observer.next(3));
+          observer.complete();
+          return () => {
+            cleaned++;
+          };
+        },
+        {
+          capacity: 1,
+          overflow,
+          onDrop(current) {
+            info = current;
+            throw failure;
+          },
+        },
+      ).toArray(),
+      (error) => error === failure,
+    );
+    assert.deepEqual(acceptance, [true, overflow === "drop-oldest", false]);
+    assert.equal(cleaned, 1);
+    assert.equal(info.count, 1);
+    assert.equal(info.signal.aborted, true);
+  });
+
+  test(`${overflow} cancellation inside the hook stops later emissions and preserves later throws`, async () => {
+    const controller = new AbortController();
+    const failure = new Error("after cancellation");
+    let observer;
+    let info;
+    let calls = 0;
+    let cleaned = 0;
+    const iterator = fromCallback(
+      (sink) => {
+        observer = sink;
+        return () => {
+          cleaned++;
+        };
+      },
+      {
+        capacity: 1,
+        overflow,
+        onDrop(current) {
+          calls++;
+          info = current;
+          controller.abort("stop");
+          assert.equal(observer.next(3), false);
+          throw failure;
+        },
+      },
+    ).iterate({ signal: controller.signal });
+    const first = iterator.next();
+    observer.next(0);
+    await first;
+    observer.next(1);
+    assert.equal(observer.next(2), overflow === "drop-oldest");
+    assert.equal(observer.next(4), false);
+    await assert.rejects(iterator.next(), (error) => error === "stop");
+    const report = await iterator.closed;
+    assert.equal(report.kind, "cancelled");
+    assert.equal(report.reason, "stop");
+    assert.deepEqual(report.suppressedErrors, [failure]);
+    assert.equal(cleaned, 1);
+    assert.equal(info.count, 1);
+    assert.equal(calls, 1);
+  });
+}
+
+test("drop-oldest commits the replacement before a hook reads or completes the source", async () => {
+  let observer;
+  let fromHook;
+  let info;
+  const iterator = fromCallback(
+    (sink) => {
+      observer = sink;
+    },
+    {
+      capacity: 1,
+      overflow: "drop-oldest",
+      onDrop(current) {
+        info = current;
+        fromHook = iterator.next();
+        observer.complete();
+        assert.equal(observer.next(99), false);
+      },
+    },
+  ).iterate();
+  const first = iterator.next();
+  observer.next(0);
+  await first;
+  observer.next(1);
+  assert.equal(observer.next(2), true);
+  assert.equal((await fromHook).value, 2);
+  assert.equal((await iterator.next()).done, true);
+  assert.equal(info.count, 1);
+  await iterator.closed;
+});
+
+test("overflow errors and lifecycle discards never notify onDrop", async () => {
+  let calls = 0;
+  await assert.rejects(
+    fromCallback(
+      (observer) => {
+        observer.next(1);
+        observer.next(2);
+      },
+      {
+        capacity: 1,
+        onDrop() {
+          calls++;
+        },
+      },
+    ).toArray(),
+    /capacity exceeded/,
+  );
+  for (const ending of ["complete", "error", "cancel"]) {
+    let observer;
+    const iterator = fromCallback(
+      (sink) => {
+        observer = sink;
+      },
+      {
+        capacity: 1,
+        overflow: "drop-oldest",
+        onDrop() {
+          calls++;
+        },
+      },
+    ).iterate();
+    const first = iterator.next();
+    observer.next(0);
+    await first;
+    observer.next(1);
+    if (ending === "cancel") iterator.cancel("stop");
+    else if (ending === "error") observer.error("failed");
+    else {
+      observer.complete();
+      await iterator.next();
+      await iterator.next();
+    }
+    await iterator.closed;
+    assert.equal(observer.next(2), false);
+  }
+  assert.equal(calls, 0);
+});
+
+test("fromEvent exposes separate live drop statistics for concurrent executions", async () => {
+  const target = new EventTarget();
+  const infos = [];
+  const source = fromEvent(target, "value", {
+    capacity: 1,
+    overflow: "drop-oldest",
+    onDrop(info) {
+      infos.push(info);
+    },
+  });
+  const first = source.iterate();
+  const second = source.iterate();
+  const pending = [first.next(), second.next()];
+  target.dispatchEvent(new Event("value"));
+  await Promise.all(pending);
+  target.dispatchEvent(new Event("value"));
+  target.dispatchEvent(new Event("value"));
+  assert.equal(infos.length, 2);
+  assert.notEqual(infos[0], infos[1]);
+  assert.equal(infos[0].count, 1);
+  assert.equal(infos[1].count, 1);
+  await first.return();
+  target.dispatchEvent(new Event("value"));
+  assert.equal(infos.length, 3);
+  assert.equal(infos[0].count, 1);
+  assert.equal(infos[1].count, 2);
+  assert.equal(infos[1], infos[2]);
+  await second.return();
+  target.dispatchEvent(new Event("value"));
+  assert.equal(infos.length, 3);
+});
+
+test("push options reject non-function onDrop hooks", () => {
+  for (const onDrop of [null, false, 1, {}]) {
+    assert.throws(
+      () => fromCallback(() => {}, { capacity: 1, onDrop }),
+      TypeError,
+    );
+  }
+});
+
+test("drop hook preserves a reentrant producer failure and records its own later throw", async () => {
+  let observer;
+  const failure = new Error("producer failed");
+  const hookFailure = new Error("hook failed later");
+  const iterator = fromCallback(
+    (sink) => {
+      observer = sink;
+    },
+    {
+      capacity: 1,
+      overflow: "drop-oldest",
+      onDrop() {
+        observer.error(failure);
+        assert.equal(observer.next(3), false);
+        throw hookFailure;
+      },
+    },
+  ).iterate();
+  const first = iterator.next();
+  observer.next(0);
+  await first;
+  observer.next(1);
+  assert.equal(observer.next(2), true);
+  await assert.rejects(iterator.next(), (error) => error === failure);
+  const report = await iterator.closed;
+  assert.equal(report.kind, "failed");
+  assert.equal(report.reason, failure);
+  assert.deepEqual(report.suppressedErrors, [hookFailure]);
+});
+
+test("drop hook throws remain failures after reentrant completion", async () => {
+  let observer;
+  const failure = new Error("hook failed after complete");
+  await assert.rejects(
+    fromCallback(
+      (sink) => {
+        observer = sink;
+        observer.next(1);
+        assert.equal(observer.next(2), true);
+        assert.equal(observer.next(3), false);
+      },
+      {
+        capacity: 1,
+        overflow: "drop-oldest",
+        onDrop() {
+          observer.complete();
+          throw failure;
+        },
+      },
+    ).toArray(),
+    (error) => error === failure,
+  );
+});
+
+test("drop notification ignores returned thenables without retaining or awaiting them", async () => {
+  const result = await fromCallback(
+    (observer) => {
+      observer.next(1);
+      observer.next(2);
+      observer.complete();
+    },
+    {
+      capacity: 1,
+      overflow: "drop-oldest",
+      onDrop() {
+        return {
+          get then() {
+            assert.fail("hook return must not be inspected");
+          },
+        };
+      },
+    },
+  ).toArray();
+  assert.deepEqual(result, [2]);
+});

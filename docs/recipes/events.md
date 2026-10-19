@@ -8,4 +8,6 @@ The WebSocket adapter handles messages, errors, and closure, then removes its li
 
 Use `overflow: "error"` to fail on overflow, or `"drop-newest"` to discard incoming values instead.
 
+The optional synchronous `onDrop(info)` hook reports intentional overflow loss. `info.count` is a live, cumulative count for that execution; `info.overflow` identifies the drop policy and `info.signal` identifies the execution. Keeping `info` retains no dropped values. Reentrant drops update the count without recursive notifications. A synchronous hook throw fails the execution; an earlier cancellation or failure keeps its original reason. Return values, including promises, are ignored.
+
 [fromCallback](/mogami-stream/api/functions/fromCallback.html){target="_self"} · [fromEvent](/mogami-stream/api/functions/fromEvent.html){target="_self"}

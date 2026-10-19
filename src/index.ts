@@ -65,4 +65,8 @@ export type {
 } from "./operators/mapping.js";
 
 export { fromCallback, fromEvent } from "./operators/push.js";
-export type { PushOptions, PushObserver } from "./operators/push.js";
+export type {
+  PushOptions,
+  PushObserver,
+  PushDropInfo,
+} from "./operators/push.js";
