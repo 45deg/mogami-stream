@@ -8,3 +8,6 @@ docs/api/
 *.cpuprofile
 *.heapprofile
 *.heapsnapshot
+benchmarks/results/**
+!benchmarks/results/readme/
+!benchmarks/results/readme/comparison.svg

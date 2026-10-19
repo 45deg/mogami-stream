@@ -99,6 +99,7 @@ export function scopedMap<T, U>(
       const mapper = makeMapper(scope);
       const recover = makeRecovery?.(scope);
       const upstream = open(source, scope);
+      const signal = scope.signal;
       const results = new Map<number, Awaited<U>>();
       const completionOrder: number[] = [];
       let waiter:
@@ -107,9 +108,9 @@ export function scopedMap<T, U>(
             reject: Parameters<Read<Awaited<U>>>[1];
           }
         | undefined;
-      scope.signal.addEventListener("abort", deliver, { once: true });
+      signal.addEventListener("abort", deliver, { once: true });
       scope.finalizers.push(() => {
-        scope.signal.removeEventListener("abort", deliver);
+        signal.removeEventListener("abort", deliver);
         // Late mapper results may arrive after stop; release them after work drains.
         results.clear();
         completionOrder.length = 0;
@@ -134,7 +135,7 @@ export function scopedMap<T, U>(
       };
 
       function pump(): void {
-        if (pumping) return;
+        if (pumping || !demand) return;
         pumping = true;
         try {
           // A ready upstream stage may deliver synchronously. Refill iteratively
@@ -144,7 +145,7 @@ export function scopedMap<T, U>(
             !inputDone &&
             !pulling &&
             !failure &&
-            !scope.signal.aborted &&
+            !signal.aborted &&
             running < concurrency &&
             running + results.size < capacity
           ) {
@@ -180,7 +181,7 @@ export function scopedMap<T, U>(
       async function run(result: IteratorResult<T>): Promise<void> {
         pulling = false;
         try {
-          if (scope.signal.aborted) return;
+          if (signal.aborted) return;
           if (result.done) {
             inputDone = true;
             deliver();
@@ -191,7 +192,7 @@ export function scopedMap<T, U>(
           checkBounds();
           const context: MapContext = {
             index,
-            signal: scope.signal,
+            signal,
             attempt: 1,
           };
           let value: Awaited<U>;
@@ -211,10 +212,25 @@ export function scopedMap<T, U>(
           } finally {
             running--;
           }
-          results.set(index, value);
-          if (!ordered) completionOrder.push(index);
-          checkBounds();
-          deliver();
+          if (
+            waiter &&
+            (!ordered || index === nextOutputIndex) &&
+            !failure &&
+            !signal.aborted
+          ) {
+            // The next result can satisfy demand without entering the ready queue.
+            const pending = waiter;
+            waiter = undefined;
+            demand = false;
+            if (ordered) nextOutputIndex++;
+            checkBounds();
+            pending.receive(item(value));
+          } else {
+            results.set(index, value);
+            if (!ordered) completionOrder.push(index);
+            checkBounds();
+            deliver();
+          }
           pump();
         } catch (error) {
           fail(error);

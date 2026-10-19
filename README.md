@@ -300,11 +300,11 @@ All timer waits abort cleanly on cancellation, split durations longer than $2^{3
 
 ## Benchmarks
 
-Compared with IxJS, Mogami achieved **3.5× throughput for a 13-stage map/filter pipeline** and **6.7× for sequential flatMap** in these workloads.
+AsyncIterable inputs and Promise-returning transforms, without I/O waits. Top to bottom: serial map, ordered map (concurrency 8, capacity 16), and a 13-stage map/filter pipeline.
 
-![Median elapsed time in milliseconds for JSON transformation, a 13-stage map/filter pipeline, and sequential flatMap; lower is better.](benchmarks/results/readme/comparison.svg)
+![Node.js and Bun elapsed times for sequential async map, bounded async map, and a 13-stage async pipeline.](benchmarks/results/readme/comparison.svg)
 
-10,000 inputs on Node.js v24.22.0 / Apple M1 Pro; median of 7 runs after 2 warmups ([details](benchmarks/README.md)).
+100,000 inputs · Node.js v24.22.0 / Bun v1.4.3 · Apple M1 Pro. Median of 7 runs after 5 warmups. Seconds; lower is faster. Each panel has its own scale. [Methodology and reproduction](benchmarks/README.md).
 
 ## Development and validation
 
@@ -318,7 +318,7 @@ pnpm test:browser
 pnpm test:cloudflare
 ```
 
-Run `pnpm bench --json=/tmp/mogami-bench.json` to benchmark workloads against baseline native JavaScript implementations, or `pnpm bench:compare --json=/tmp/mogami-compare.json` to compare against third-party libraries. See [`benchmarks/README.md`](benchmarks/README.md) for workload definitions, metrics, and CLI flags.
+Run `pnpm bench --json=/tmp/mogami-bench.json` to compare async stream libraries. See [`benchmarks/README.md`](benchmarks/README.md) for workload definitions, metrics, and CLI flags.
 
 `pnpm test:browser` uses a local Google Chrome installation on macOS when available and falls back to Playwright Chromium (override with `PLAYWRIGHT_EXECUTABLE_PATH`). `pnpm test:cloudflare` runs locally in Miniflare/`workerd` without requiring a Cloudflare account.
 

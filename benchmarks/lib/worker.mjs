@@ -5,9 +5,7 @@ import { prepareWorkload, workloads } from "./workloads.mjs";
 const job = JSON.parse(process.env.MOGAMI_BENCH_JOB);
 const { config } = job;
 const workload = workloads.find((w) => w.name === job.case);
-const adapter = (await adaptersFor(job.suite)).find(
-  (a) => a.name === job.library,
-);
+const adapter = (await adaptersFor()).find((a) => a.name === job.library);
 if (!adapter?.supports(workload)) throw new Error("Unsupported case/library");
 const execution = prepareWorkload(workload, config);
 const samples = [];
@@ -45,7 +43,6 @@ process.send({
   elapsedMs: metric("elapsedMs"),
   cpuMs: metric("cpuMs"),
   firstItemMs: metric("firstItemMs"),
-  stopToClosedMs: metric("stopToClosedMs"),
   maxActive: Math.max(...samples.map((s) => s.maxActive)),
   maxAhead:
     samples[0].maxAhead === null

@@ -8,14 +8,10 @@ import { workloads } from "./workloads.mjs";
 export function parseOptions(argv) {
   const defaults = {
     items: 10_000,
-    "io-items": 128,
     samples: 7,
     warmup: 2,
     concurrency: 8,
     capacity: 16,
-    "latency-ms": 2,
-    "sink-ms": 2,
-    "stop-after": 100,
     seed: 42,
     "timeout-ms": 30_000,
   };
@@ -40,23 +36,22 @@ export function parseOptions(argv) {
   }
   if (numbers.capacity < numbers.concurrency)
     throw new RangeError("capacity must be >= concurrency");
-  if (numbers["io-items"] < numbers.concurrency)
-    throw new RangeError(
-      "io-items must be >= concurrency so cancellation can fill all slots",
-    );
-  const selectedCase = options.get("case");
-  if (selectedCase && !workloads.some((w) => w.name === selectedCase))
-    throw new Error(`Unknown case: ${selectedCase}`);
+  const selectedCase =
+    options.get("case") === "all" ? undefined : options.get("case");
+  if (selectedCase) {
+    const names = selectedCase.split(",");
+    if (
+      new Set(names).size !== names.length ||
+      names.some((name) => !workloads.some((w) => w.name === name))
+    )
+      throw new Error(`Unknown or duplicate case: ${selectedCase}`);
+  }
   return {
     items: numbers.items,
-    ioItems: numbers["io-items"],
     samples: numbers.samples,
     warmup: numbers.warmup,
     concurrency: numbers.concurrency,
     capacity: numbers.capacity,
-    latencyMs: numbers["latency-ms"],
-    sinkMs: numbers["sink-ms"],
-    stopAfter: numbers["stop-after"],
     seed: numbers.seed,
     timeoutMs: numbers["timeout-ms"],
     selectedCase,
@@ -88,7 +83,7 @@ export function shuffle(values, seed) {
   return result;
 }
 
-function runWorker(job, suite, config) {
+function runWorker(job, config) {
   return new Promise((accept, reject) => {
     const child = fork(
       fileURLToPath(new URL("./worker.mjs", import.meta.url)),
@@ -97,7 +92,7 @@ function runWorker(job, suite, config) {
         stdio: ["ignore", "ignore", "pipe", "ipc"],
         env: {
           ...process.env,
-          MOGAMI_BENCH_JOB: JSON.stringify({ ...job, suite, config }),
+          MOGAMI_BENCH_JOB: JSON.stringify({ ...job, config }),
         },
       },
     );
@@ -129,7 +124,7 @@ function runWorker(job, suite, config) {
   });
 }
 
-export async function runBenchmarks(suite, argv = process.argv.slice(2)) {
+export async function runBenchmarks(argv = process.argv.slice(2)) {
   const config = parseOptions(argv);
   const runtime = {
     name: process.versions.bun ? "bun" : process.release.name,
@@ -138,10 +133,9 @@ export async function runBenchmarks(suite, argv = process.argv.slice(2)) {
       : process.version,
     forcedGcBetweenRuns: typeof globalThis.gc === "function",
   };
-  const adapters = await adaptersFor(suite);
-  const selected = workloads.filter(
-    (w) => !config.selectedCase || w.name === config.selectedCase,
-  );
+  const adapters = await adaptersFor();
+  const names = config.selectedCase?.split(",");
+  const selected = workloads.filter((w) => !names || names.includes(w.name));
   const jobs = selected.flatMap((w) =>
     adapters
       .filter((a) => a.supports(w))
@@ -150,10 +144,10 @@ export async function runBenchmarks(suite, argv = process.argv.slice(2)) {
   const order = shuffle(jobs, config.seed);
   const results = [];
   console.log(
-    `${runtime.name} ${runtime.version}; ${suite}; ${config.warmup} warmups + ${config.samples} samples; isolated processes; seed ${config.seed}`,
+    `${runtime.name} ${runtime.version}; ${config.warmup} warmups + ${config.samples} samples; isolated processes; seed ${config.seed}`,
   );
   for (const job of order) {
-    const result = await runWorker(job, suite, config);
+    const result = await runWorker(job, config);
     results.push(result);
     console.log(
       `${job.case.padEnd(17)} ${job.library.padEnd(15)} ${result.elapsedMs.median.toFixed(2).padStart(9)} ms; first ${result.firstItemMs?.median.toFixed(2) ?? "n/a"} ms; active ${result.maxActive}; ahead ${result.maxAhead}`,
@@ -166,7 +160,6 @@ export async function runBenchmarks(suite, argv = process.argv.slice(2)) {
   );
   const report = {
     schemaVersion: 2,
-    suite,
     createdAt: new Date().toISOString(),
     runtime,
     configuration: Object.fromEntries(
@@ -177,7 +170,8 @@ export async function runBenchmarks(suite, argv = process.argv.slice(2)) {
         "One fresh process per case/library; sequential jobs in seeded shuffled order; warmups excluded",
       timing:
         "Includes construction, consumption, assertions per output, instrumentation, and cleanup; excludes prepared inputs, imports, post-run assertions, and process startup",
-      io: "Deterministic timer-based I/O simulation; every fifth item waits 4x latencyMs; no network or disk benchmark",
+      async:
+        "async-* uses AsyncIterable inputs and Promise-returning transforms without timer waits; configured concurrency is an upper bound, not necessarily observed overlap",
       bounds:
         "maxAhead = pulled minus received by sink, including in-flight work; maxReady = mapper completions minus received; neither is a heap measurement",
       statistics:

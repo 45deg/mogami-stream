@@ -67,6 +67,7 @@ function combineSequentially<T, U>(
         }, reject);
       };
       return {
+        read: readNext,
         next: () => new Promise(readNext),
       };
     });
