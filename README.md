@@ -338,11 +338,11 @@ For deterministic unit tests within this repository, the internal `createTestClo
 | `spaceout(intervalMs)`               | Emit the first item without added delay, then space subsequent emissions at least `intervalMs` apart. Upstream read time and downstream idle time count toward the gap.   |
 | `rateLimit({ count, perMs })`        | Allow at most `count` upstream read starts per `perMs` sliding window. Failed and terminal (`done: true`) reads still count.                                              |
 | `delayStart(ms)`                     | Wait `ms` milliseconds on the first read before opening upstream.                                                                                                         |
-| `timeoutEach(ms)`                    | Fail with `TimeoutError` if a single upstream read takes longer than `ms` milliseconds (excluding downstream idle time).                                                  |
+| `timeoutEach(ms)`                    | Fail with `TimeoutError` if a single upstream read reaches its `ms` millisecond deadline (excluding downstream idle time).                                                |
 | `deadline(durationMs)`               | Fail with `DeadlineExceededError` once the stage's total elapsed time reaches `durationMs` (including downstream idle time). `deadline(0)` fails before opening upstream. |
 | `bufferTime(windowMs, { maxItems })` | Collect items into non-empty arrays, flushing when the first item's `windowMs` window expires or `maxItems` is reached. Partial batches flush only on normal completion.  |
 
-All durations are in milliseconds and must be finite and non-negative (`perMs` and `windowMs` must be strictly positive, and `count` and `maxItems` must be positive safe integers). `timeoutEach(0)` sets an immediate 0 ms deadline for each read.
+All durations are in milliseconds and must be finite and non-negative (`perMs` and `windowMs` must be strictly positive, and `count` and `maxItems` must be positive safe integers). `timeoutEach` checks monotonic elapsed time when a read returns a value or completes the stream, so a delayed timer callback cannot allow a result at or after the deadline. `timeoutEach(0)` fails on the first read without opening upstream. Terminal consumers still wait for in-flight work and cleanup before settling.
 
 In `bufferTime`, a window timer starts when the first item of a batch is observed. While waiting for a window to fill, at most one upstream read is in flight. If the window expires while that read is pending, the read's result (if it arrives later) is held for the next downstream read rather than starting a background queue of windows.
 
