@@ -43,6 +43,11 @@ try {
     throw new Error("Packed runtime dependencies are not empty.");
   const publicImport = `
     import { range, map, toArray } from "mogami-stream";
+    import { from as coreFrom, map as coreMap } from "mogami-stream/core";
+    const coreValues = await coreFrom([1, 2]).pipe(coreMap(x => x * 2)).toArray();
+    if (JSON.stringify(coreValues) !== "[2,4]" || "map" in coreFrom([])) throw new Error("Core package import failed.");
+    const fluentValues = await range(0, 3).map(x => x * 2).take(2).toArray();
+    if (JSON.stringify(fluentValues) !== "[0,2]") throw new Error("Fluent package import failed.");
     const values = await toArray(range(0, 3).pipe(map(x => x * 2)));
     if (JSON.stringify(values) !== "[0,2,4]") throw new Error("Public package import failed.");
   `;

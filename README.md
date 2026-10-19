@@ -143,6 +143,23 @@ With `ordered: true` (the default), results are emitted in input order even when
 
 Work is driven by downstream demand: the stage pulls new inputs only while a downstream read is pending. Once a result is delivered to downstream, no further upstream reads are started until the next `next()` request (though reads and mapper calls already in flight may finish up to `capacity`). Each concurrent stage manages its own bounds independently of external source buffers or terminal collectors like `toArray`.
 
+## Choosing an entry point
+
+The default `mogami-stream` entry supports fluent methods and standalone functions. Use `mogami-stream/core` for standalone operators, `.pipe()`, and terminal methods without the fluent operator methods:
+
+```ts
+import { from, map, take } from "mogami-stream/core";
+
+const values = await from([1, 2, 3])
+  .pipe(
+    map((value) => value * 2),
+    take(2),
+  )
+  .toArray(); // [2, 4]
+```
+
+Both entries share execution, cancellation, and cleanup. The core entry does not import the fluent layer, so bundlers can remove unused operators. Streams from either entry can be passed to the other; use the default `from(coreStream)` to continue with fluent methods. Importing the default entry does not add methods to existing core streams.
+
 ## Public API
 
 All source factories and operators return a `Stream<T>`, which implements `AsyncIterable<T>` and provides fluent transformation methods (`.map()`, `.filter()`, `.take()`, and every other single-source operator), alongside `.pipe()`, `.iterate(options?)`, `.toArray(options?)`, `.reduce(reducer, initial, options?)`, `.forEach(effect, options?)`, `.find(predicate, options?)`, `.some(predicate, options?)`, and `.every(predicate, options?)`.
@@ -151,7 +168,7 @@ Every `Stream` terminal method has a standalone counterpart (`iterate`, `toArray
 
 Method chains infer types at every step without a fixed limit on the number of stages. Each method delegates to its standalone operator, preserving options, laziness, cancellation, and cleanup. `flatten` and `concat` require a stream of iterable sources. Source factories and multi-source functions (`chain`, `merge`, `zip`, `zipLatest`) remain standalone.
 
-Use `.pipe(customA(), customB())` to connect custom operators between fluent methods. Operators retain the contract `(source: AsyncIterable<T>) => Stream<U>`; standalone operators remain available for composition. Because `Stream` references all fluent operators, bundlers may retain unused operator implementations.
+Use `.pipe(customA(), customB())` to connect custom operators between fluent methods. Operators retain the contract `(source: AsyncIterable<T>) => Stream<U>`; standalone operators remain available for composition. Because the default `Stream` references all fluent operators, bundlers may retain unused operator implementations; use `mogami-stream/core` when bundle size matters.
 
 Both `.pipe(...operators)` and the standalone `pipe(source, ...operators)` infer types for up to eight operators; chain multiple `.pipe()` calls for longer pipelines. Parameterless or value-independent operators (`take`, `skip`, `chunks`, timing operators, and `finalize`) remain generic when stored in a variable, so `const first = take(1)` can be reused across streams of different element types. `chain` and `merge` infer the union of their input element types when given heterogeneous sources.
 

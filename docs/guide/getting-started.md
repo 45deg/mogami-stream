@@ -42,6 +42,14 @@ Values flow from the source, through operators from left to right, to the consum
 
 See [When to use mogami-stream](../index.md#when-to-use) for examples of tasks that benefit from its concurrency and lifecycle controls.
 
+## Choosing the core entry
+
+`mogami-stream/core` exposes the same standalone functions and types, with `.pipe()` and terminal methods on streams. It omits fluent operator methods such as `.map()` and `.take()`, allowing bundlers to remove unused operators without retaining the fluent layer.
+
+<<< @/examples/core.ts
+
+Both entries share execution and cleanup. Pass a core stream to the default entry's `from()` when you need fluent methods; importing the default entry does not change existing core streams.
+
 ## 3. Adding asynchronous work
 
 For concurrent API requests, replace the synchronous mapper with an async callback and set the concurrency limit. This example also adds a read-rate limit and early termination:

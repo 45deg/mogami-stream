@@ -5,7 +5,8 @@
     "rootDir": "../..",
     "baseUrl": "../..",
     "paths": {
-      "mogami-stream": ["./src/index.ts"]
+      "mogami-stream": ["./src/index.ts"],
+      "mogami-stream/core": ["./src/core/index.ts"]
     },
     "allowJs": true,
     "checkJs": true
