@@ -26,6 +26,7 @@
     "check:dist": "node scripts/check-dist.mjs",
     "check": "pnpm test && pnpm typecheck && pnpm check:dist && pnpm format:check",
     "test:browser": "pnpm build && node scripts/test-browser.mjs",
+    "test:runtime-watchdog": "pnpm build && node --test --test-timeout=30000 test/runtime/watchdog.test.mjs",
     "test:cloudflare": "pnpm build && node scripts/test-cloudflare.mjs",
     "test:package": "pnpm build && node scripts/test-package.mjs",
     "format": "prettier --write .",
