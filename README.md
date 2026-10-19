@@ -11,25 +11,24 @@ TypeScript operators for standard `AsyncIterable` pipelines, with bounded concur
 - **Demand-driven execution.** Pipelines start on the first read. Concurrent stages start new upstream reads only while downstream is waiting for a value; work already in flight may finish within the stage's bounds.
 - **Separate cancellation and cleanup completion.** `cancel()` rejects a pending `next()` immediately and passes the stop request to upstream stages through `AbortSignal`. Await `closed` for in-flight work and cleanup to finish.
 - **Awaited cleanup with error reports.** Async `finalize` callbacks run after upstream stages and in-flight work finish. Terminal consumers wait for cleanup before settling. `closed` reports completion, cancellation, or failure, preserving the primary reason and collecting additional errors in `suppressedErrors`.
-- **Standard iterable interop.** Wrap synchronous iterables and async generators, compose typed operators with `.pipe()`, and consume the result with `for await...of` or terminal methods such as `.toArray()`.
+- **Standard iterable interop.** Wrap synchronous iterables and async generators, chain typed methods such as `.map()` and `.filter()`, and consume the result with `for await...of` or terminal methods such as `.toArray()`.
 
 ```ts
-import { from, map, rateLimit, take, toArray } from "mogami-stream";
+import { from } from "mogami-stream";
 
-const texts = from(urls).pipe(
-  rateLimit({ count: 5, perMs: 1_000 }),
-  map(
+const texts = from(urls)
+  .rateLimit({ count: 5, perMs: 1_000 })
+  .map(
     async (url, { signal }) => {
       const response = await fetch(url, { signal });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       return response.text();
     },
     { concurrency: 5, capacity: 5, ordered: false },
-  ),
-  take(20),
-);
+  )
+  .take(20);
 
-const results = await toArray(texts, { signal });
+const results = await texts.toArray({ signal });
 ```
 
 In the example above, `rateLimit` paces how often upstream `next()` reads start within a single pipeline execution. It does not coordinate requests across separate executions or count retry attempts inside `map`.
@@ -146,9 +145,13 @@ Work is driven by downstream demand: the stage pulls new inputs only while a dow
 
 ## Public API
 
-All source factories and operators return a `Stream<T>`, which implements `AsyncIterable<T>` and provides `.pipe()`, `.iterate(options?)`, `.toArray(options?)`, `.reduce(reducer, initial, options?)`, `.forEach(effect, options?)`, `.find(predicate, options?)`, `.some(predicate, options?)`, and `.every(predicate, options?)`.
+All source factories and operators return a `Stream<T>`, which implements `AsyncIterable<T>` and provides fluent transformation methods (`.map()`, `.filter()`, `.take()`, and every other single-source operator), alongside `.pipe()`, `.iterate(options?)`, `.toArray(options?)`, `.reduce(reducer, initial, options?)`, `.forEach(effect, options?)`, `.find(predicate, options?)`, `.some(predicate, options?)`, and `.every(predicate, options?)`.
 
 Every `Stream` terminal method has a standalone counterpart (`iterate`, `toArray`, `reduce`, `forEach`, `find`, `some`, `every`) that accepts any synchronous `Iterable` or `AsyncIterable`. Operators also accept arbitrary `AsyncIterable` inputs, and source/combination functions (`from`, `chain`, `merge`, `zip`, `zipLatest`) accept both `Iterable` and `AsyncIterable` inputs.
+
+Method chains infer types at every step without a fixed limit on the number of stages. Each method delegates to its standalone operator, preserving options, laziness, cancellation, and cleanup. `flatten` and `concat` require a stream of iterable sources. Source factories and multi-source functions (`chain`, `merge`, `zip`, `zipLatest`) remain standalone.
+
+Use `.pipe(customA(), customB())` to connect custom operators between fluent methods. Operators retain the contract `(source: AsyncIterable<T>) => Stream<U>`; standalone operators remain available for composition. Because `Stream` references all fluent operators, bundlers may retain unused operator implementations.
 
 Both `.pipe(...operators)` and the standalone `pipe(source, ...operators)` infer types for up to eight operators; chain multiple `.pipe()` calls for longer pipelines. Parameterless or value-independent operators (`take`, `skip`, `chunks`, timing operators, and `finalize`) remain generic when stored in a variable, so `const first = take(1)` can be reused across streams of different element types. `chain` and `merge` infer the union of their input element types when given heterogeneous sources.
 

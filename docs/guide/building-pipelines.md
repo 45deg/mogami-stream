@@ -8,7 +8,7 @@ From a list of tasks, select the first two unfinished tasks and trim the whitesp
 
 `filter` selects unfinished tasks, `map` trims their titles, and `take(2)` limits the result to two items. Completed tasks never reach `map`, so their titles are not processed.
 
-`.pipe()` connects operators in the order written. Here, `map` changes each task into a string, so `task.done` is no longer available afterward. Filter by task state before that transformation.
+Method calls connect stages in the order written. Here, `map` changes each task into a string, so `task.done` is no longer available afterward. Filter by task state before that transformation.
 
 ## Follow the values and types
 
@@ -45,3 +45,9 @@ If you do not need an array, process the same `titles` stream one item at a time
 This call starts a separate execution that reads the `tasks` array again; it does not reuse the earlier `result`. `forEach` does not collect a result array and waits for each callback to finish, including asynchronous callbacks.
 
 See [Terminal consumers](./consumers.md) for aggregation and predicate-based early termination, or [Concurrency, capacity, and demand](./concurrency.md) for concurrent asynchronous work. For external I/O, see [Cancellation and cleanup](./lifecycle.md) for stopping work and releasing resources.
+
+## Connect custom operators
+
+Use `.pipe(a, b)` for multiple custom operators. Each takes the preceding source and returns a new stream; fluent methods can continue afterward.
+
+<<< @/examples/building-pipelines.ts#custom-operators

@@ -33,7 +33,7 @@ bun add mogami-stream
 In this pipeline:
 
 - `from` creates a source from the array.
-- `.pipe(map(...))` describes how to transform each value; it does not start processing yet.
+- `.map(...)` describes how to transform each value; it does not start processing yet.
 - `.toArray()` consumes the stream and resolves to `[2, 4, 6]` after cleanup.
 
 Continue with [Getting started](./guide/getting-started.md) for the basic terms and a concurrent API request example.
@@ -54,7 +54,7 @@ Continue with [Getting started](./guide/getting-started.md) for the basic terms 
 - **Demand-driven execution.** Pipelines are lazy and do no work until the first `next()` call. Concurrent stages initiate new upstream reads only while a downstream read is pending; once a value is delivered, no further upstream reads start until the next pull.
 - **Separate cancellation and teardown.** `iterator.cancel(reason)` rejects a pending `next()` immediately and propagates cancellation upstream via `AbortSignal`, while `iterator.closed` resolves with a `CloseReport` once all in-flight operations and finalizers finish.
 - **Awaited cleanup and error preservation.** Asynchronous `finalize` callbacks run from inner stages outward after upstream stages and in-flight work settle. Terminal consumers wait for cleanup before resolving or rejecting, prioritizing the primary processing error and recording secondary errors in `suppressedErrors`.
-- **Standard iterable interoperability.** Wrap any synchronous `Iterable` or `AsyncIterable`, compose typed operators with `.pipe()`, and consume streams with native `for await...of` loops or built-in terminal consumers.
+- **Standard iterable interoperability.** Wrap any synchronous `Iterable` or `AsyncIterable`, chain typed methods such as `.map()` and `.filter()`, and consume streams with native `for await...of` loops or built-in terminal consumers.
 
 ## Documentation map
 

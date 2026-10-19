@@ -28,13 +28,13 @@ Start with a finite array and double each value:
 
 <<< @/examples/basics.ts
 
-`from` and `.pipe()` only describe the work. Calling `.toArray()` starts reading and returns a Promise for `[2, 4, 6]` after processing and cleanup finish.
+`from` and transformation methods such as `.map()` only describe the work. Calling `.toArray()` starts reading and returns a Promise for `[2, 4, 6]` after processing and cleanup finish.
 
-| Term              | In this example             | Role                                                                   |
-| ----------------- | --------------------------- | ---------------------------------------------------------------------- |
-| Source            | `from([1, 2, 3])`           | Supplies values as a `Stream<number>`.                                 |
-| Operator          | `map((value) => value * 2)` | Returns a function that transforms a source when applied by `.pipe()`. |
-| Terminal consumer | `.toArray()`                | Reads the stream and collects its values.                              |
+| Term              | In this example              | Role                                                          |
+| ----------------- | ---------------------------- | ------------------------------------------------------------- |
+| Source            | `from([1, 2, 3])`            | Supplies values as a `Stream<number>`.                        |
+| Transformation    | `.map((value) => value * 2)` | Returns a new stream that doubles each input value when read. |
+| Terminal consumer | `.toArray()`                 | Reads the stream and collects its values.                     |
 
 [`Stream<T>`](/mogami-stream/api/interfaces/Stream.html){target="_self"} implements JavaScript's standard `AsyncIterable<T>` protocol: a consumer asks for the next value with `next()` and awaits its arrival. You can also consume a stream with `for await...of`.
 
@@ -52,11 +52,11 @@ For concurrent API requests, replace the synchronous mapper with an async callba
 2. **`rateLimit({ count: 5, perMs: 1_000 })`** restricts upstream read starts to at most 5 per 1,000 ms sliding window within this execution.
 3. **`map(mapper, { concurrency: 5, capacity: 5, ordered: false })`** runs up to 5 mapper callbacks concurrently, limits total occupied slots (reads + running mappers + buffered results) to 5, and emits results as soon as each call finishes.
 4. **`take(20)`** stops the pipeline after 20 emitted values and initiates upstream teardown before delivering the 20th value.
-5. **`toArray(texts, { signal })`** pulls items from the pipeline, forwards `controller.signal` to every stage and callback, and waits for upstream cleanup before resolving.
+5. **`texts.toArray({ signal })`** pulls items from the pipeline, forwards `controller.signal` to every stage and callback, and waits for upstream cleanup before resolving.
 
 ## Lazy evaluation
 
-Stream construction, `.pipe()` composition, and iterator creation (`iterate(stream)`) are strictly lazy. No upstream iterator is opened and no timer or callback runs until the first `next()` read occurs.
+Stream construction, method chaining (including `.pipe()`), and iterator creation (`iterate(stream)`) are strictly lazy. No upstream iterator is opened and no timer or callback runs until the first `next()` read occurs.
 
 - If `take(0)` is in the pipeline or the external `AbortSignal` is already aborted before the first read, the execution finishes immediately without opening the upstream source.
 - Each consumption of a `Stream` runs an independent execution with its own stage state, concurrency slots, and indices.
@@ -76,6 +76,8 @@ Every terminal consumer is available both as a method on `Stream<T>` and as a st
 | Standard loop consumption                    | `for await (const x of stream)`       | `for await (const x of from(source))`        |
 
 See [Terminal consumers](./consumers.md) for examples and guidance on choosing one.
+
+Fluent methods such as `.map()`, `.filter()`, and `.take()` infer types at every stage with no fixed stage limit. Use `.pipe(customA(), customB())` for custom operators; standalone operator functions remain supported.
 
 Both `stream.pipe(...ops)` and the standalone `pipe(source, ...ops)` infer types across up to 8 operators per call; chain `.pipe()` calls for longer pipelines. Value-independent operators (`take`, `skip`, `chunks`, timing operators, and `finalize`) remain generic when stored in a variable, so `const firstFive = take(5)` can be reused across streams of different element types.
 
