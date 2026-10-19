@@ -68,6 +68,38 @@ If cleanup is the first failure, its error becomes `reason` and is not also adde
 
 Built-in terminal consumers (`toArray`, `forEach`, `reduce`, `find`, `some`, `every`) always wait for cleanup before settling and prioritize the primary processing error over subsequent cleanup errors. Awaiting `iterator.closed` by itself only observes teardown—it does not trigger cancellation.
 
+## Collecting a result with its report
+
+When an application needs both the terminal result and secondary errors, retain the iterator for the same execution and consume it with `toArray`. This application helper returns a fulfilled or rejected outcome together with its final report. It waits for cleanup in both cases, just like the built-in terminal:
+
+<<< @/examples/terminal-report.ts#collect
+
+Check `status` rather than the truthiness of `reason`: JavaScript permits throwing `undefined`. A rejected outcome preserves the original reason, while `report.suppressedErrors` contains secondary processing and cleanup errors. A cleanup-only failure also produces a rejected outcome. This helper does not throw stream errors, so callers must inspect its returned status.
+
+To migrate `await source.toArray(options)`, use `await collectWithReport(source, options)`, inspect the report, then return `value` or throw `reason` according to `status`. Pass cancellation options to the helper so they govern the retained iterator. Do not start another execution just to obtain a report, or read that iterator concurrently.
+
+This recipe covers collection. Wrapping an iterator in `reduce`, `forEach`, or a predicate terminal creates another execution; failures in that terminal's callback are not part of the retained iterator's report. For one report covering application callbacks, place that work in operators such as `map` or `tap` before calling `iterate`, and consume that execution. Keep existing terminals when only their result or primary error is needed; their return types and cleanup guarantees are unchanged.
+
+### Timeout notification before cleanup completes
+
+A terminal promise cannot provide an early timeout notification because it waits for cleanup. For that distinction, use `iterator.next()` and `iterator.closed` separately. This example holds work open until after the timeout is observed, then rejects it and also fails cleanup:
+
+<<< @/examples/terminal-report.ts#timeout
+
+The first pending `next()` rejects with `TimeoutError` when the timeout is processed; this is a stop notification, not proof that resources have been released. JavaScript event-loop blocking can delay that notification. `closed` resolves only after the held work settles and cleanup runs, preserving both later failures. If the work never settles, `closed` stays pending. A promise cannot be forcibly stopped; real I/O should honor the callback's `signal`.
+
+Handle every `next()` rejection as soon as the read is started, as the example does. Keep and eventually await `closed`, even after notifying the user of failure. `Promise.race` around a terminal does not cancel its underlying execution or certify cleanup. The `closed` promise itself never rejects; any application callbacks chained onto it still need their own rejection handling.
+
+### API choice
+
+| Approach                                  | Tradeoff                                                                                                                                                                          |
+| ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Report subscription in execution options  | Keeps terminal return values, but needs additional rules for callback failures and whether asynchronous observers delay cleanup. It cannot provide a completed report at timeout. |
+| Report-returning terminal variants        | Convenient for each result type, but expands the terminal API and still waits for cleanup.                                                                                        |
+| Separate notification and cleanup handles | Already available through `iterate`, `next()`, and `closed`; the recipes above use these existing contracts.                                                                      |
+
+The current choice is the tested application recipe and existing iterator API. No subscription option or new terminal variant is introduced. Applications that need early notification opt into manual iteration; normal terminal calls retain their cleanup completion guarantee.
+
 ## Finalizer order and `take(n)` teardown
 
 [`finalize(effect)`](/mogami-stream/api/functions/finalize.html){target="_self"} registers a synchronous or asynchronous teardown callback on a stage:

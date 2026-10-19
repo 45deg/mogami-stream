@@ -40,3 +40,5 @@ Pass `{ signal }` to cancel the execution. Forward the callback's `signal` into 
 Consumers settle after cleanup finishes. If processing and cleanup both fail, the primary processing error takes precedence. I/O that does not support cancellation must still finish before the consumer settles.
 
 For manual consumption, use `for await...of` or [`iterate`](/mogami-stream/api/functions/iterate.html){target="_self"}. Acquiring an iterator does not start execution; its first `next()` does. See [Cancellation and cleanup](./lifecycle.md) for `cancel()`, `return()`, and `closed`.
+
+For secondary errors, use the [collection report recipe](./lifecycle.md#collecting-a-result-with-its-report). It also explains how to observe a timeout before cleanup completes.
