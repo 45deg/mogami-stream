@@ -22,9 +22,10 @@ export interface PushOptions {
    * Synchronous overflow notification after updating the queue. Receives one live
    * statistics object per execution. Reentrant drops update its count without
    * recursively notifying. Throws fail the execution (or are suppressed after
-   * cancellation/failure). Returns, including promises, are ignored.
+   * cancellation/failure). Synchronous only: return undefined. JavaScript return
+   * values, including promises, are not inspected, awaited, or managed.
    */
-  readonly onDrop?: (info: PushDropInfo) => void;
+  readonly onDrop?: (info: PushDropInfo) => undefined;
 }
 
 /** Callbacks supplied to a push producer for one subscription. */

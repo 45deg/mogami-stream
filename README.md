@@ -279,8 +279,10 @@ dropped values, history, or deferred notifications, and does no counting when
 A synchronous hook throw fails the execution, clears buffered values, and runs
 cleanup; it does not escape `observer.next`. If the hook already cancelled or
 failed the execution, that earlier reason stays primary and a different throw
-is recorded in `closed.suppressedErrors`. Hook return values are ignored; no
-asynchronous work is awaited or managed. Handle any promises started by the hook.
+is recorded in `closed.suppressedErrors`. Hooks are synchronous only: the
+TypeScript signature requires an `undefined` return and rejects async callbacks.
+JavaScript return values, including promises, are not inspected, awaited, or
+managed. Handle any asynchronous work started inside a synchronous hook yourself.
 The outer `next` still returns its original acceptance decision even if the hook
 subsequently replaces that value, completes, fails, or cancels the execution.
 Later producer calls observe that termination and return `false`.

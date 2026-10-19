@@ -553,3 +553,14 @@ fromEvent(new EventTarget(), "change", {
     info.value;
   },
 });
+
+fromEvent(new EventTarget(), "change", {
+  capacity: 4,
+  // @ts-expect-error Drop hooks are synchronous; async callbacks are not managed.
+  onDrop: async () => {},
+});
+fromEvent(new EventTarget(), "change", {
+  capacity: 4,
+  // @ts-expect-error Returning a Promise is unsupported, even without async syntax.
+  onDrop: () => Promise.resolve(undefined),
+});
