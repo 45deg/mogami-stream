@@ -209,9 +209,10 @@ for (const termination of ["cancel", "child failure", "cleanup failure"]) {
       termination === "cancel" ? "cancelled" : "failed",
     );
     assert.equal(report.reason, primary);
-    assert.deepEqual(report.suppressedErrors, [
-      termination === "cleanup failure" ? primary : secondary,
-    ]);
+    assert.deepEqual(
+      report.suppressedErrors,
+      termination === "cleanup failure" ? [] : [secondary],
+    );
     assert.equal(finalizers, 1);
     assert.equal(sibling.returns, 1);
     assert.equal((await iterator.next()).done, true);

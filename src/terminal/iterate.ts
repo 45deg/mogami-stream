@@ -15,7 +15,7 @@ export interface ExecutionOptions {
  * Summary of how a stream execution terminated and whether any secondary errors occurred during teardown.
  */
 export type CloseReport = {
-  /** Additional processing or cleanup errors observed after the primary termination reason was recorded. */
+  /** Distinct secondary processing or cleanup errors, excluding the primary reason. Repeated values are deduplicated with SameValueZero equality (as in Array.includes). */
   readonly suppressedErrors: readonly unknown[];
 } & (
   | { readonly kind: "completed" }
@@ -40,9 +40,9 @@ export interface StreamIterator<T> extends AsyncIterableIterator<
 > {
   /** Immediately requests cancellation without waiting for cleanup. Track teardown completion via {@link closed}. */
   cancel(reason?: unknown): void;
-  /** Stops the execution and waits for cleanup before resolving `{ done: true, value: undefined }`. Rejects if cleanup fails. */
+  /** Stops the execution and waits for cleanup before resolving `{ done: true, value: undefined }`. Rejects with the primary reason if the execution failed, including cleanup-only failure. After cancellation, resolves even if cleanup fails; inspect closed for suppressed errors. */
   return(value?: unknown): Promise<IteratorResult<T, unknown>>;
-  /** Terminates the execution with `error` without forwarding the throw into the upstream iterator. */
+  /** Requests failure without forwarding the throw into the upstream iterator and rejects immediately, without waiting for cleanup. Preserves an existing failure or cancellation reason; await closed for teardown completion. */
   throw(error?: unknown): Promise<IteratorResult<T, unknown>>;
   /** Resolves with a {@link CloseReport} once all upstream iterators and finalizers have finished. Never rejects, and awaiting it does not trigger cancellation. */
   readonly closed: Promise<CloseReport>;
@@ -71,14 +71,19 @@ export function iterateWithScheduler<T>(
       stop("failed", error);
     },
     suppress(error) {
-      if (kind === "failed" && Object.is(error, reason)) return;
-      if (!suppressedErrors.includes(error)) suppressedErrors.push(error);
+      if (
+        (kind === "failed" || kind === "cancelled") &&
+        Object.is(error, reason)
+      )
+        return;
       if (kind === undefined || kind === "completed") {
         kind = "failed";
         reason = error;
         root.stop(error);
         wakePending?.();
         void close();
+      } else if (!suppressedErrors.includes(error)) {
+        suppressedErrors.push(error);
       }
     },
   };
