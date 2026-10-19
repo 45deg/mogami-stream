@@ -25,6 +25,21 @@ function validateResult<T>(result: IteratorResult<T>): IteratorResult<T> {
   return result;
 }
 
+function normalizeResult<T>(
+  result: IteratorResult<T>,
+  scope: Scope,
+): IteratorResult<T> {
+  validateResult(result);
+  scope.check();
+  const completed = result.done;
+  scope.check();
+  if (completed) return done();
+  // Snapshot external getters inside the owned read, before downstream delivery.
+  const value = result.value;
+  scope.check();
+  return item(value);
+}
+
 /** Adapts the external protocol without awaiting values stored in its results. */
 export function acquireIterator<T>(source: Source<T>, scope: Scope): Reader<T> {
   // Boxing lets primitive iterables (notably strings) use the same protocol.
@@ -61,23 +76,15 @@ export function acquireIterator<T>(source: Source<T>, scope: Scope): Reader<T> {
     const result = validateResult(await close.call(iterator));
     if (result.done !== true) throw new IteratorCleanupError();
   });
-  const normalizeResult = (result: IteratorResult<T>): IteratorResult<T> => {
-    validateResult(result);
-    scope.check();
-    const completed = result.done;
-    scope.check();
-    if (completed) return done();
-    // Snapshot external getters inside the owned read, before downstream delivery.
-    const value = result.value;
-    scope.check();
-    return item(value);
-  };
   return {
-    next: () => Promise.resolve(iterator.next()).then(normalizeResult),
+    next: () =>
+      Promise.resolve(iterator.next()).then((result) =>
+        normalizeResult(result, scope),
+      ),
     read(receive, reject) {
       void Promise.resolve(iterator.next()).then((result) => {
         try {
-          receive(normalizeResult(result));
+          receive(normalizeResult(result, scope));
         } catch (error) {
           reject(error);
         }
