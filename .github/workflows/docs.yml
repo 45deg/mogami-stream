@@ -27,7 +27,7 @@ jobs:
       - run: pnpm run docs
       - uses: actions/upload-pages-artifact@v4
         with:
-          path: docs/api
+          path: docs/.vitepress/dist
 
   deploy:
     needs: build
