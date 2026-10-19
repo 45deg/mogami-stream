@@ -41,4 +41,4 @@ Consumers settle after cleanup finishes. If processing and cleanup both fail, th
 
 For manual consumption, use `for await...of` or [`iterate`](/mogami-stream/api/functions/iterate.html){target="_self"}. Acquiring an iterator does not start execution; its first `next()` does. See [Cancellation and cleanup](./lifecycle.md) for `cancel()`, `return()`, and `closed`.
 
-For secondary errors, use the [collection report recipe](./lifecycle.md#collecting-a-result-with-its-report). It also explains how to observe a timeout before cleanup completes.
+For secondary errors, use the [collection report recipe](../recipes/terminal-report.md). It also explains how to observe a timeout before cleanup completes.

@@ -90,7 +90,7 @@ Use [`defer`](/mogami-stream/api/functions/defer.html){target="_self"} to create
 
 ### Owning and releasing a resource
 
-The following function accepts an application-provided `openCursor` adapter. Its cursor exposes rows and an asynchronous close operation; adapt these methods to your database client:
+The following function wraps an `openCursor` adapter in an async generator so each execution opens and closes its own cursor:
 
 <<< @/examples/resources.ts
 
@@ -100,4 +100,4 @@ The library calls the opened iterator's `return()` during early cleanup and awai
 
 Pass the execution's `signal` through to the cursor's underlying I/O, including row reads where your driver supports it. If a pending read ignores cancellation, cleanup must wait for it to settle before `finally` can run. If `openCursor` fails before returning a cursor, the adapter is responsible for releasing any partially acquired resources.
 
-Next, learn how [concurrency, capacity, and demand](./concurrency.md) govern in-flight work, or how [cancellation and cleanup](./lifecycle.md) manage teardown.
+Continue with [Building a pipeline](./building-pipelines.md) to choose processing order and count limits in a worked example.

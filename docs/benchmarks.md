@@ -4,7 +4,7 @@
 
 ![Node.js and Bun elapsed times for sequential async map, bounded ordered async map, and a 13-stage async pipeline. Lower is faster; each panel has its own scale.](/benchmarks.svg)
 
-**Environment:** 100,000 inputs · Node.js v24.22.0 / Bun v1.4.3 · Apple M1 Pro · Median of 7 measured runs after 5 warmup runs (seconds; lower is faster; each panel has its own horizontal scale).
+**Environment:** 100,000 inputs · Node.js v26.5.0 / Bun v1.4.3 · Apple M1 Pro · Median of 7 measured runs after 5 warmup runs (seconds; lower is faster; each panel has its own horizontal scale).
 
 | Benchmark case         | Workload                                                                                     | Compared libraries                     |
 | ---------------------- | -------------------------------------------------------------------------------------------- | -------------------------------------- |

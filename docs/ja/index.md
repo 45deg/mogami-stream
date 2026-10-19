@@ -59,11 +59,12 @@ bun add mogami-stream
 ## ドキュメント構成
 
 - **[はじめに](./guide/getting-started.md)** — 最小のパイプライン、基本用語、リクエストの並行取得、`from` と `defer` を使ったリソース管理。
+- **[パイプラインの組み立て方](./guide/building-pipelines.md)** — 一つの例で処理順、値と型、件数制限、結果の受け取り方を確認。
+- **[オペレータ](./operators.md)** — カテゴリ別の説明、使用例と出力結果。
 - **[終端処理](./guide/consumers.md)** — 結果の収集・集約、1件ずつの処理、条件による早期終了。
 - **[並行数・容量・需要](./guide/concurrency.md)** — スロットの状態遷移図、`ordered: true` と `false` の違い、バックプレッシャー、子ストリームの並行数。
-- **[キャンセルと後処理](./guide/lifecycle.md)** — `cancel()` と `return()` の違い、`CloseReport` の構造、`finalize` の実行順序、`catchError` の回復境界。
 - **[時間制御](./guide/timing.md)** — 読み取り回数、出力間隔、タイムアウト、時間によるバッチ化。
-- **[リトライ](./guide/retry.md)** — 項目単位の再試行とバックオフ。
-- **[オペレータ](./operators.md)** — カテゴリ別の説明、使用例と出力結果。
-- **[実践レシピ](./recipes/api-requests.md)** — [API 取得](./recipes/api-requests.md)、[WebSocket と SSE](./recipes/events.md)、[DB バッチ書き込み](./recipes/database.md)、[タイムラインによるテスト](./recipes/testing.md)。
+- **[エラー処理](./guide/errors.md)** — エラーによる停止、項目ごとの結果、再試行、代替ソース、後処理のエラー。
+- **[キャンセルと後処理](./guide/lifecycle.md)** — 実行の停止方法、`finalize` の実行順序、リソースの所有権。
+- **[実践レシピ](./recipes/api-requests.md)** — [API 取得](./recipes/api-requests.md)、[WebSocket と SSE](./recipes/events.md)、[DB バッチ書き込み](./recipes/database.md)、[タイムラインによるテスト](./recipes/testing.md)、[イベントループへ処理を譲る](./recipes/event-loop.md)、[リクエスト制限の共有](./recipes/shared-rate-limiter.md)、[結果と後処理のエラー](./recipes/terminal-report.md)。
 - **[ベンチマーク](./benchmarks.md)** — Node.js / Bun での性能比較と再現手順。

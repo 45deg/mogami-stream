@@ -19,9 +19,9 @@ Use timing operators to control read rates, output spacing, and time limits. All
 
 <<< @/examples/timing/rate-limit.ts
 
-Put `rateLimit` before `map` to pace its upstream reads. It does not directly schedule external calls inside the callback; for a request budget shared across retries and executions, use the [shared limiter recipe](./retry.md#sharing-a-request-budget-across-executions). Set simultaneous work separately with `map`'s `concurrency` option.
+Put `rateLimit` before `map` to pace its upstream reads. It does not directly schedule external calls inside the callback; for a request budget shared across retries and executions, use the [shared limiter recipe](../recipes/shared-rate-limiter.md). Set simultaneous work separately with `map`'s `concurrency` option.
 
-Each execution has its own limit. Failed reads and the final read that observes completion also count. Retry attempts inside `map` do not count; see [Retries](./retry.md#concurrency-cancellation-and-rate-limits) for limits that must include retries.
+Each execution has its own limit. Failed reads and the final read that observes completion also count. Retry attempts inside `map` do not count; see [Retries](./errors.md#retry) for limits that must include retries.
 
 ## Space outputs apart
 

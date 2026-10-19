@@ -75,7 +75,7 @@ The package exports the built ESM and TypeScript declarations in `dist/`. Rebuil
 
 ## Documentation and API reference
 
-Read the documentation in [English](https://45deg.github.io/mogami-stream/) or [日本語](https://45deg.github.io/mogami-stream/ja/). It includes an interactive concurrency/capacity diagram, operator examples and descriptions, a retry guide, recipes, and benchmarks.
+Read the documentation in [English](https://45deg.github.io/mogami-stream/) or [日本語](https://45deg.github.io/mogami-stream/ja/). It includes an interactive concurrency/capacity diagram, operator examples and descriptions, an [error handling guide](https://45deg.github.io/mogami-stream/guide/errors.html), recipes, and benchmarks.
 
 The [API reference](https://45deg.github.io/mogami-stream/api/) covers exported functions, overloads, option types, callback contexts, and `Stream` methods. It is generated from the English source comments with [TypeDoc](https://typedoc.org/) and published alongside the VitePress guides to GitHub Pages on each push to `main`.
 
@@ -130,7 +130,7 @@ Because JavaScript async iterators cannot forcibly preempt an arbitrary `await`,
 
 `defer` factories and `catchError` handlers also receive `acquire(acquire, release)`. Call and await it during setup to transfer resource ownership to the stage. Successful acquisition registers release even if cancellation arrives while waiting; teardown releases it once after child sources and pending work finish. The returned source must not release the same resource again. Plain sources returned after cancellation are never opened or closed. See [resource ownership](https://45deg.github.io/mogami-stream/guide/lifecycle#owning-resources-during-asynchronous-setup) for examples and failure semantics.
 
-Pipelines do not insert artificial timer ticks or macrotask yields. If a synchronous source and synchronous callbacks run continuously, they can starve timers and I/O on the host event loop unless the source, callback, or consumer yields explicitly. For an opt-in, cancellable `tap` recipe with count and time intervals, see [yielding to the event loop](https://45deg.github.io/mogami-stream/recipes/event-loop.html). [Measurements and tradeoffs](benchmarks/event-loop.md) compare these recipes with a dedicated operator prototype.
+Pipelines do not insert artificial timer ticks or macrotask yields. If a synchronous source and synchronous callbacks run continuously, they can starve timers and I/O on the host event loop unless the source, callback, or consumer yields explicitly. For an opt-in, cancellable `tap` recipe with count and time intervals, see [yielding to the event loop](https://45deg.github.io/mogami-stream/recipes/event-loop.html).
 
 `take(n)` begins closing its upstream stage before delivering the `n`th value, while keeping downstream callback signals active. `finalize(effect)` runs once when a started stage closes, after its child stages and in-flight operations complete. Nested finalizers run from inner stages outward.
 
@@ -207,11 +207,7 @@ const values = from(primary).pipe(
 
 ## Push event sources
 
-`fromCallback(subscribe, { capacity, overflow?, onDrop? })` bridges callback APIs to a
-bounded stream. Each execution subscribes lazily on its first read and owns its
-queue. `capacity` is a required positive safe integer. The default overflow policy
-is `"error"`; `"drop-oldest"` retains recent values and `"drop-newest"` preserves
-already buffered values. Event producers cannot be blocked by this adapter.
+`fromCallback(subscribe, { capacity, overflow?, onDrop? })` bridges callback APIs to a bounded stream. Each execution subscribes lazily on its first read and owns its queue. `capacity` is a required positive safe integer. The default overflow policy is `"error"`; `"drop-oldest"` retains recent values and `"drop-newest"` preserves already buffered values. Event producers cannot be blocked by this adapter.
 
 ```ts
 import { fromCallback, fromEvent, take } from "mogami-stream";
@@ -244,48 +240,9 @@ const updates = fromCallback<string>(
 );
 ```
 
-`observer.next(value)` preserves Promise-valued items and reports acceptance of
-that incoming value: `drop-oldest` returns `true` after replacing the oldest
-buffered value, while `drop-newest` returns `false`. It also returns `false` after
-the subscription ends or when the default `error` policy rejects an overflow.
-`complete()` drains buffered values; `error(reason)` fails immediately and discards
-them. The synchronous
-subscribe function may return an asynchronous cleanup function, which runs once
-and is awaited before the execution closes. Use `observer.signal` for cancellation.
-Synchronous setup emissions also count toward capacity; events before subscription
-are not captured. `fromEvent` does not infer completion from other event names
-(such as WebSocket `close`); use `fromCallback` to wire those explicitly.
+`observer.next(value)` preserves Promise-valued items and reports whether the incoming value was accepted: `"drop-oldest"` returns `true` after replacing the oldest buffered value, whereas `"drop-newest"` returns `false`. It also returns `false` after the subscription ends or when the default `"error"` policy rejects an overflow. `complete()` drains buffered values; `error(reason)` fails immediately and discards them. The synchronous `subscribe` function may return an asynchronous cleanup function, which runs once and is awaited before the execution closes. Use `observer.signal` for cancellation. Synchronous emissions during setup also count toward `capacity`; events emitted before subscription are not captured. `fromEvent` does not infer completion from other event names (such as WebSocket `close`); use `fromCallback` to wire those explicitly.
 
-Both push sources accept an optional synchronous `onDrop(info)` hook. It receives
-one frozen `PushDropInfo` object per execution, allocated on the first drop:
-
-- `count` is a live cumulative count of intentionally dropped values, saturating
-  at `Number.MAX_SAFE_INTEGER`. Retaining `info` keeps the current count readable,
-  including after execution closes; it is not a snapshot of one notification.
-- `overflow` identifies `drop-oldest` (one old buffered value removed) or
-  `drop-newest` (one incoming value rejected). The default `error` overflow,
-  failure/cancellation buffer clears, completion, and calls after termination do
-  not count or notify.
-- `signal` belongs to that execution, allowing concurrent subscriptions to be
-  distinguished. Counters start separately for each execution.
-
-The hook runs after the queue decision is committed. Reentrant producer calls
-are allowed; their drops update the same live count without recursively calling
-the hook or queueing notifications. Read `info.count` after such calls to observe
-their total. The next non-reentrant drop notifies normally. The adapter stores no
-dropped values, history, or deferred notifications, and does no counting when
-`onDrop` is absent.
-
-A synchronous hook throw fails the execution, clears buffered values, and runs
-cleanup; it does not escape `observer.next`. If the hook already cancelled or
-failed the execution, that earlier reason stays primary and a different throw
-is recorded in `closed.suppressedErrors`. Hooks are synchronous only: the
-TypeScript signature requires an `undefined` return and rejects async callbacks.
-JavaScript return values, including promises, are not inspected, awaited, or
-managed. Handle any asynchronous work started inside a synchronous hook yourself.
-The outer `next` still returns its original acceptance decision even if the hook
-subsequently replaces that value, completes, fails, or cancels the execution.
-Later producer calls observe that termination and return `false`.
+Pass a synchronous `onDrop(info)` callback to observe overflow drops through a live, per-execution counter without retaining dropped values. See the [overflow observation recipe](https://45deg.github.io/mogami-stream/recipes/events.html#observing-dropped-values) for counting rules, reentrant calls, cancellation, and error handling.
 
 ## Retry and settled mapping
 
@@ -371,7 +328,7 @@ await totals.toArray(); // [1, 3]
 await Promise.all([totals.toArray(), totals.toArray()]); // [[1, 3], [1, 3]]
 ```
 
-The `map` captures each total immediately. Without it, each execution emits the same mutable object repeatedly, so previously collected references reflect its later mutations. `defer` isolates the accumulator across executions; the source must also support replay or be created afresh inside the callback. No separate scan factory API is needed for this pattern.
+The `map` captures each total immediately. Without it, each execution emits the same mutable object repeatedly, so previously collected references reflect its later mutations. `defer` isolates the accumulator across executions; the source must also support replay or be created afresh inside the callback.
 
 ## Timeline sources (testing and mocking)
 
@@ -415,7 +372,7 @@ AsyncIterable inputs and Promise-returning transforms, without I/O waits. Top to
 
 ![Node.js and Bun elapsed times for sequential async map, bounded async map, and a 13-stage async pipeline.](benchmarks/results/readme/comparison.svg)
 
-100,000 inputs · Node.js v24.22.0 / Bun v1.4.3 · Apple M1 Pro. Median of 7 runs after 5 warmups. Seconds; lower is faster. Each panel has its own scale. [Methodology and reproduction](benchmarks/README.md).
+100,000 inputs · Node.js v26.5.0 / Bun v1.4.3 · Apple M1 Pro. Median of 7 runs after 5 warmups. Seconds; lower is faster. Each panel has its own scale. [Methodology and reproduction](benchmarks/README.md).
 
 ## Development and validation
 

@@ -19,11 +19,11 @@ export interface PushOptions {
   /** Full-queue policy. Defaults to `error`; event producers cannot be blocked. */
   readonly overflow?: "error" | "drop-oldest" | "drop-newest";
   /**
-   * Synchronous overflow notification after updating the queue. Receives one live
-   * statistics object per execution. Reentrant drops update its count without
-   * recursively notifying. Throws fail the execution (or are suppressed after
-   * cancellation/failure). Synchronous only: return undefined. JavaScript return
-   * values, including promises, are not inspected, awaited, or managed.
+   * Synchronous overflow notification called after updating the queue. Receives one
+   * live statistics object per execution; reentrant drops update its count without
+   * re-entering `onDrop`. Synchronous throws fail the execution (or are recorded in
+   * `suppressedErrors` after cancellation or failure). Return values, including
+   * promises, are ignored and not awaited.
    */
   readonly onDrop?: (info: PushDropInfo) => undefined;
 }

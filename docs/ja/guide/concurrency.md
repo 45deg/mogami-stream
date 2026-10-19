@@ -52,4 +52,4 @@
 
 パイプラインは、要素間に人工的な `setTimeout` やマクロタスクの yield を挿入しません。同期的なソースと同期的なコールバックが I/O を挟まずに連続実行されると、ホストのイベントループを占有してタイマーや I/O を飢餓状態（Starvation）にする場合があります。大量の CPU バウンドな同期データを扱う際は、ソース・コールバック・コンシューマのいずれかで明示的にイベントループへ制御を返してください。
 
-詳細なオプション型は [MapOptions](/mogami-stream/api/interfaces/MapOptions.html){target="_self"}、リトライ設定の実践例は [リトライ](./retry.md)を参照してください。
+詳細なオプション型は [MapOptions](/mogami-stream/api/interfaces/MapOptions.html){target="_self"}、リトライ設定の実践例は [リトライ](./errors.md#retry)を参照してください。

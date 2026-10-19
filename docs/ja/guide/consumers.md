@@ -41,4 +41,4 @@
 
 手動で読み取る場合は `for await...of`、または [`iterate`](/mogami-stream/api/functions/iterate.html){target="_self"} を使います。`iterate` は取得しただけでは実行せず、最初の `next()` で開始します。`cancel()`・`return()`・`closed` の使い分けは[キャンセルと後処理](./lifecycle.md)を参照してください。
 
-副次的なエラーも取得する場合は、[結果と終了報告の取得レシピ](./lifecycle.md#終端の結果と終了報告を取得する)を参照してください。クリーンアップ完了前にタイムアウトを観測する方法も説明しています。
+副次的なエラーも取得する場合は、[結果と終了報告の取得レシピ](../recipes/terminal-report.md)を参照してください。クリーンアップ完了前にタイムアウトを観測する方法も説明しています。

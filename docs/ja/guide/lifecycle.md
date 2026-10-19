@@ -2,18 +2,18 @@
 
 ## ストリームの停止方法
 
-[`iterate(source, { signal })`](/mogami-stream/api/functions/iterate.html){target="_self"} で取得できる [`StreamIterator`](/mogami-stream/api/interfaces/StreamIterator.html){target="_self"} を使うと、実行の停止方法とクリーンアップ完了の待機を明示的に制御できます：
+[`iterate(source, { signal })`](/mogami-stream/api/functions/iterate.html){target="_self"} で取得できる [`StreamIterator`](/mogami-stream/api/interfaces/StreamIterator.html){target="_self"} を使うと、実行の停止方法とクリーンアップ完了の待機を明示的に制御できます。
 
-| メソッド / プロパティ     | 挙動                                                                                                                                 |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| `iterator.cancel(reason)` | 即時停止を要求し、各ステージの `AbortSignal` を abort する。待機中の `next()` はクリーンアップ完了を待たずに即座に reject される。   |
-| `iterator.return()`       | 停止を要求し、すべてのステージのクリーンアップと `finalize` が完了するのを待ってから `{ done: true, value: undefined }` で解決する。 |
-| `iterator.throw(error)`   | 失敗による停止を要求し、クリーンアップ完了を待たずに reject する（上流ジェネレータの `.throw()` へは転送しない）。                   |
-| `iterator.closed`         | すべてのクリーンアップ完了後に [`CloseReport`](/mogami-stream/api/types/CloseReport.html){target="_self"} で必ず解決する Promise。   |
+| メソッド / プロパティ     | 挙動                                                                                                                               |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `iterator.cancel(reason)` | 即時停止を要求し、各ステージの `AbortSignal` を abort する。待機中の `next()` はクリーンアップ完了を待たずに即座に reject される。 |
+| `iterator.return()`       | 停止を要求し、各ステージの `AbortSignal` を abort する。上流のクリーンアップと `finalize` の完了を待つ。                           |
+| `iterator.throw(error)`   | 失敗による停止を要求し、クリーンアップ完了を待たずに reject する（上流ジェネレータの `.throw()` へは転送しない）。                 |
+| `iterator.closed`         | すべてのクリーンアップ完了後に [`CloseReport`](/mogami-stream/api/types/CloseReport.html){target="_self"} で必ず解決する Promise。 |
 
-1つの `StreamIterator` に対して同時に待機できる `next()` は1つだけであり、並行して2つ目の `next()` を呼ぶと `TypeError` で reject されます。エラーまたはキャンセルが発生すると、待機中の `next()`（または次の1回の `next()`）がその理由で reject され、以降のすべての `next()` は `{ done: true, value: undefined }` で解決します。
+1つの `StreamIterator` に対して同時に待機できる `next()` は1つだけです。並行して2つ目の `next()` を呼ぶと `TypeError` で reject されます。エラーまたはキャンセルが発生すると、待機中の `next()`（または次の1回の `next()`）がその理由で reject され、以降のすべての `next()` は `{ done: true, value: undefined }` で解決します。
 
-`return()` は、クリーンアップだけが失敗した場合も含め、実行が失敗していれば主エラーで reject します。キャンセル後はクリーンアップが失敗しても `{ done: true, value: undefined }` で解決し、そのエラーは `closed` の解決値の `suppressedErrors` に残ります。後から `throw(error)` を呼んでも、すでに確定したキャンセル理由や主エラーが優先されます。`throw()` の後に後処理の完了を待つには、`closed` を await してください。
+`return()` は正常に終了すると `{ done: true, value: undefined }` で解決します。クリーンアップだけが失敗した場合も含め、実行が失敗していれば主エラーで reject します。キャンセル後はクリーンアップが失敗しても `{ done: true, value: undefined }` で解決し、そのエラーは `closed` の解決値の `suppressedErrors` に残ります。後から `throw(error)` を呼んでも、すでに確定したキャンセル理由や主エラーが優先されます。`throw()` の後に後処理の完了を待つには、`closed` を await してください。
 
 <<< @/examples/lifecycle.ts
 
@@ -23,87 +23,56 @@ JavaScript の非同期イテレータは、任意の `await` を外部から強
 
 `fetch`、ファイル I/O、DB クエリ、タイマーなどの外部 I/O には必ずこの `signal` を渡してください。I/O 側が `signal` を無視して完了しない場合、`return()`、`closed`、および終端コンシューマはその処理が決着するまで待機し続けます。
 
-## `CloseReport` の構造とエラー優先順位
-
-`iterator.closed` はクリーンアップ中に例外が投げられた場合でも決して reject されず、すべてのステージの後処理が終わった時点で以下の判別共用体（Discriminated Union）として解決します：
-
-```ts
-type CloseReport =
-  | {
-      readonly kind: "completed";
-      readonly suppressedErrors: readonly unknown[];
-    }
-  | {
-      readonly kind: "cancelled";
-      readonly reason: unknown;
-      readonly suppressedErrors: readonly unknown[];
-    }
-  | {
-      readonly kind: "failed";
-      readonly reason: unknown;
-      readonly suppressedErrors: readonly unknown[];
-    };
-```
-
-- **`reason`**（`"cancelled"` および `"failed"` の場合）：キャンセルの理由、または停止の引き金となった最初の主エラーを保持します。
-- **`suppressedErrors`**：主たる終了理由が確定した後に、残りの実行中タスクやクリーンアップ処理（`return()` や `finalize`）から発生した副次的なエラーを配列として収集します。
-
-クリーンアップが最初の失敗であれば、その例外が `reason` になり、`suppressedErrors` には重複して入りません。主たる終了理由と `Object.is` で一致するエラーは除外します。副次的なエラー同士は `Array.includes` の等価判定（SameValueZero）で重複を除き、最初に観測した順に記録します。オブジェクトは参照が同じ場合に重複とみなし、`NaN` や `undefined` もそれぞれ1回だけ記録します。
-
-組み込みの終端コンシューマ（`toArray`、`forEach`、`reduce`、`find`、`some`、`every`）はすべてクリーンアップ完了まで待機し、クリーンアップ時のエラーよりも最初の処理エラーを優先して throw します。なお、`iterator.closed` を await するだけでは停止は要求されないため、手動イテレーションを途中で抜ける際は必ず `return()` または `cancel()` を呼んでください。
-
-## 終端の結果と終了報告を取得する
-
-終端の結果と副次的なエラーが必要な場合は、同じ実行のイテレータを保持して `toArray` で読み取ります。次のアプリケーション用ヘルパーは、成功・失敗を表す結果と終了報告をまとめて返します。どちらの場合も、組み込みの終端コンシューマと同様にクリーンアップ完了を待ちます。
-
-<<< @/examples/terminal-report.ts#collect
-
-JavaScript では `undefined` も throw できるため、`reason` の真偽ではなく `status` で判定します。失敗時の `reason` は元の例外を保持し、`report.suppressedErrors` には処理やクリーンアップの副次的なエラーが入ります。クリーンアップだけが失敗した場合も結果は `rejected` です。このヘルパーはストリームの例外を throw しないので、呼び出し側で必ず `status` を確認してください。
-
-`await source.toArray(options)` から移行する場合は `await collectWithReport(source, options)` に置き換え、報告を確認した後、`status` に応じて `value` を返すか `reason` を throw します。キャンセルの指定はヘルパーに渡し、保持したイテレータに適用します。報告を得るために別の実行を開始したり、そのイテレータを並行して読み取ったりしないでください。
-
-このレシピは配列への収集用です。保持したイテレータを `reduce`、`forEach`、述語を受け取る終端に渡すと別の実行ができるため、その終端のコールバックで起きた失敗は保持したイテレータの報告には含まれません。アプリケーションのコールバックも同じ報告に含める場合は、処理を `map` や `tap` などのオペレータに置いてから `iterate` し、その実行を読み取ります。結果または主エラーだけが必要な既存の終端呼び出しは、そのまま使えます。戻り値の型やクリーンアップの保証は変わりません。
-
-### タイムアウト通知とクリーンアップ完了を分ける
-
-終端の Promise はクリーンアップを待つため、早いタイムアウト通知には使えません。通知と完了を分ける場合は `iterator.next()` と `iterator.closed` を使います。次の例はタイムアウトを観測するまで処理を保留し、その後で処理とクリーンアップの両方を失敗させます。
-
-<<< @/examples/terminal-report.ts#timeout
-
-待機中の最初の `next()` は、タイムアウト処理時に `TimeoutError` で reject します。これは停止の通知であり、リソース解放の完了を意味しません。イベントループが塞がっていれば通知も遅れます。`closed` は保留中の処理とクリーンアップが終了してから解決し、後で発生した両方の例外を保持します。処理が決着しなければ `closed` も待機し続けます。任意の Promise を強制停止することはできないため、実際の I/O ではコールバックの `signal` に従って停止してください。
-
-例のように、`next()` を呼んだ時点で reject を処理します。利用者に失敗を通知した後も `closed` を保持し、最後に await してください。終端を `Promise.race` で包んでも元の実行はキャンセルされず、クリーンアップ完了の証明にもなりません。`closed` 自体は reject しませんが、その後にアプリケーション側でつないだコールバックの失敗には別途対処が必要です。
-
-### API の選択
-
-| 案                                 | 判断材料                                                                                                                                         |
-| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 実行オプションによる終了報告の購読 | 終端の戻り値を維持できる一方、購読コールバックの失敗や非同期購読者を待つかどうかの契約が必要です。タイムアウト時点では完了した報告を渡せません。 |
-| 報告付き終端を追加                 | 結果の種類ごとに使いやすくなりますが、終端 API が増え、クリーンアップ待ちも残ります。                                                            |
-| 通知とクリーンアップの分離         | 既存の `iterate`、`next()`、`closed` で実現できます。上のレシピはこの契約を使います。                                                            |
-
-現時点では、実行検証するアプリケーション用レシピと既存のイテレータ API を採用します。購読オプションや新しい終端は追加しません。早い通知が必要な箇所は手動イテレーションに移行し、通常の終端はクリーンアップ完了の保証を維持します。
-
 ## `finalize` の実行順序と `take(n)` のクローズタイミング
 
-[`finalize(effect)`](/mogami-stream/api/functions/finalize.html){target="_self"} はステージの終了時に実行される同期・非同期のクリーンアップ処理を登録します：
+[`finalize(effect)`](/mogami-stream/api/functions/finalize.html){target="_self"} はステージの終了時に実行される同期・非同期のクリーンアップ処理を登録します。
 
-- 登録した関数は、**そのステージが実際に開始された場合（少なくとも1回 `next()` が到達した場合）に限り、実行ごとに1回だけ**呼ばれます。
-- 上流の子ステージのクローズと、そのステージ内の進行中タスクがすべて完了した**後**に実行され、戻り値の Promise も完了まで await されます。
-- パイプライン内で複数の `finalize` がネストしている場合、**内側（上流側）から外側（下流側）の順**に実行されます。
+- 登録した関数は、そのステージが開始された場合（少なくとも1回 `next()` が到達した場合）に限り、実行ごとに1回だけ呼ばれます。
+- 上流の子ステージのクローズと、そのステージ内の進行中タスクがすべて完了した後に実行され、戻り値の Promise も完了まで await されます。
+- パイプライン内で複数の `finalize` がネストしている場合、内側（上流側）から外側（下流側）の順に実行されます。
 
-また、`take(n)` は `n` 件目の要素を受け取った時点で—その `n` 件目を下流へ引き渡す前に—上流ステージのクローズ処理を開始します。このとき下流ステージの `signal` は有効なまま維持されるため、下流のオペレータやコンシューマは最後の `n` 件目の要素を正常に処理できます。
+`take(n)` は `n` 件目の要素を受け取ると、その要素を下流へ渡す前に上流ステージを閉じ始めます。このとき下流ステージの `signal` は有効なまま維持されるため、下流のオペレータやコンシューマは最後の `n` 件目の要素を正常に処理できます。
+
+## 非同期の準備処理でリソースを管理する
+
+`defer` のファクトリと `catchError` のハンドラは、`signal` と `acquire(acquire, release)` を持つ `ResourceContext` を受け取ります。ソースを返す前にカーソル、セッション、ファイルなどを開く場合は、`acquire` を使います。
+
+<<< @/examples/resource-ownership.ts
+
+### 取得と解放のタイミング
+
+ファクトリまたはハンドラの実行中に `context.acquire` を呼び、await してください。取得用のコールバックにはステージの `signal` が渡されます。取得を始める前にステージが停止していれば、コールバックは呼ばれません。
+
+取得に成功すると、キャンセルの確認より先に `release(resource)` が登録されます。そのため、キャンセル後に取得が完了したリソースも解放されます。この場合、`acquire` の Promise はキャンセル理由で reject し、ソースは開かれません。
+
+完了・失敗・途中終了のいずれでも、子ソースが閉じ、ステージ内の実行中の処理が決着した後に、登録された解放処理をそれぞれ1回だけ呼びます。解放処理は登録と逆の順序で実行され、`closed` と終端コンシューマはその完了を待ちます。取得や解放が完了しなければ、後処理も待機し続けます。ファクトリまたはハンドラの処理が決着した後は、そのコンテキストで新たな取得を始められません。
+
+### 取得・解放時のエラー
+
+取得に失敗すると、そのリソースを所有するステージが失敗します。上流の `defer` で起きた失敗は `catchError` で処理できます。取得用のコールバックが例外を投げる場合、途中まで確保したリソースの解放は、そのコールバックの責任です。
+
+解放時のエラーには、[後処理のエラー優先順位](./errors.md#cleanup-errors)が適用されます。
+
+### 所有権と二重解放
+
+取得に成功した `acquire` の呼び出しごとに、ステージがリソースを所有します。返すソースはそのリソースを借りて使うため、イテレータの `return()` や `finally` で重ねて解放しないでください。例の `rows` ジェネレータは独立して閉じ、その後で登録済みのコールバックがカーソルを閉じます。同じリソースを二重に登録しないでください。
+
+すでに開いたイテレータを扱う場合は、その `return()` を解放処理として登録します。そのイテレータ自体を返す代わりに、`next()` を呼び出すソースを返し、解放を登録済みの処理に任せます。
+
+通常のソースを返す場合、ライブラリがそのイテレータを所有するのは、ソースを開いた後です。キャンセル後に返された通常のソースは、調べることも、開くことも、閉じることもしません。イテレータの取得によって、別の処理が始まる可能性があるためです。ファクトリやハンドラが直接確保したリソースは、所有権を明示的に登録するまで、そのコールバックが管理します。
+
+遅延評価されるジェネレータなら、[はじめに](./getting-started.md#再実行性とリソース管理-from-と-defer)のように、最初の読み取り時に自身の `try/finally` 内でリソースを取得する方法もあります。
+
+## `CloseReport` の構造とエラー優先順位
+
+`iterator.closed` は後処理の完了後に終了状態を返します。[エラー処理](./errors.md#cleanup-errors)で `CloseReport` の構造とエラーの優先順位を説明しています。
 
 ## `catchError` によるエラー回復境界
 
-[`catchError(handler)`](/mogami-stream/api/functions/catchError.html){target="_self"} は上流ソースの初期化エラーや処理エラーを捕捉し、1回だけ代替ソース（Fallback Source）へ切り替えます：
+上流の失敗から代替ソースへ切り替える方法と、捕捉できるエラーの範囲は、[エラー処理の `catchError`](./errors.md#catch-error)を参照してください。
 
-1. 上流でエラーが発生すると、`catchError` はまず上流の進行中タスクと上流の `finalize` がすべて完了するのを待ちます。
-2. その後、`handler(error, { signal })` を呼び出し、返された代替ソース（またはその Promise）から読み取りを再開します。
-3. 以下のエラーは `catchError` では**捕捉されません**：
-   - 実行全体のキャンセル（`cancel()`、`return()`、外部 `AbortSignal`）、
-   - 上流のクリーンアップ処理（`return()` や `finalize`）で発生したエラー、
-   - `handler` 自身が投げたエラー、および切り替え後の代替ソースから発生したエラー（代替ソース自体にも回復が必要な場合は、下流にもう1段 `catchError` をつなぎます）、
-   - `catchError` より下流のステージで発生したエラー。
+## 終端の結果と終了報告を取得する
+
+結果と副次的なエラーをまとめて取得する方法は、[終端の結果と終了報告のレシピ](../recipes/terminal-report.md)を参照してください。タイムアウト通知と後処理の完了を分ける例もあります。
 
 [StreamIterator](/mogami-stream/api/interfaces/StreamIterator.html){target="_self"} · [CloseReport](/mogami-stream/api/types/CloseReport.html){target="_self"} · [finalize](/mogami-stream/api/functions/finalize.html){target="_self"} · [catchError](/mogami-stream/api/functions/catchError.html){target="_self"}

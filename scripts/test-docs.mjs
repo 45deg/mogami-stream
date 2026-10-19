@@ -32,10 +32,12 @@ try {
   const routes = [
     "",
     "guide/getting-started.html",
+    "guide/building-pipelines.html",
     "guide/consumers.html",
     "guide/concurrency.html",
     "guide/lifecycle.html",
     "guide/timing.html",
+    "guide/errors.html",
     "guide/retry.html",
     "operators.html",
     "recipes/api-requests.html",
@@ -43,6 +45,8 @@ try {
     "recipes/database.html",
     "recipes/testing.html",
     "recipes/event-loop.html",
+    "recipes/shared-rate-limiter.html",
+    "recipes/terminal-report.html",
     "benchmarks.html",
   ];
   const locales = [
@@ -110,11 +114,65 @@ try {
           .locator(".vp-doc .language-js pre")
           .allTextContents();
         assert.equal(examples.length, 4);
-        assert.match(examples[0], /function yieldToHost/);
-        assert.match(examples[1], /function yieldEvery/);
-        assert.match(examples[2], /yieldEvery\(1_024\)/);
+        assert.match(examples[0], /yieldEvery\(1_024\)/);
+        assert.match(examples[1], /function yieldToHost/);
+        assert.match(examples[2], /function yieldEvery/);
         assert.match(examples[3], /function yieldAfter/);
         assert.ok(examples.every((example) => !example.includes("#region")));
+      }
+      if (route === "guide/building-pipelines.html") {
+        const examples = await page
+          .locator(".vp-doc .language-ts pre")
+          .allTextContents();
+        assert.equal(examples.length, 3);
+        assert.match(examples[0], /const titles = from\(tasks\)/);
+        assert.match(examples[1], /const firstTwoInputs = from\(tasks\)/);
+        assert.match(examples[2], /await titles\.forEach/);
+        assert.ok(examples.every((example) => !example.includes("#region")));
+        const guideLinks = await page
+          .locator(".VPSidebar a[href]")
+          .evaluateAll((nodes) => nodes.map((node) => node.href));
+        assert.deepEqual(guideLinks.slice(0, 3), [
+          `${base}${locale.prefix}guide/getting-started.html`,
+          `${base}${locale.prefix}guide/building-pipelines.html`,
+          `${base}${locale.prefix}operators.html`,
+        ]);
+      }
+      if (route === "guide/errors.html") {
+        const examples = await page
+          .locator(".vp-doc .language-ts pre")
+          .allTextContents();
+        assert.equal(examples.length, 4);
+        assert.match(examples[0], /mapSettled/);
+        assert.match(examples[1], /retries: 3/);
+        assert.match(examples[2], /catchError/);
+        assert.match(examples[3], /type CloseReport/);
+        assert.ok(examples.every((example) => !example.includes("#region")));
+        for (const anchor of [
+          "item-errors",
+          "retry",
+          "catch-error",
+          "cleanup-errors",
+        ])
+          assert.equal(await page.locator(`.vp-doc #${anchor}`).count(), 1);
+        assert.equal(
+          await page.locator('.VPSidebar a[href$="guide/retry.html"]').count(),
+          0,
+        );
+        assert.equal(
+          await page.locator('.VPSidebar a[href$="guide/errors.html"]').count(),
+          1,
+        );
+      }
+      if (route === "guide/retry.html") {
+        assert.equal(
+          await page
+            .locator(
+              '.vp-doc a[href="./errors.html#retry"], .vp-doc a[href$="/errors.html#retry"]',
+            )
+            .count(),
+          1,
+        );
       }
       if (route === "guide/consumers.html") {
         assert.equal(await page.locator(".vp-doc .language-ts").count(), 3);

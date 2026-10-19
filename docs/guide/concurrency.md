@@ -50,4 +50,4 @@ Higher-order operators ([`flatten`](/mogami-stream/api/functions/flatten.html){t
 
 Pipelines do not insert artificial `setTimeout` ticks or macrotask yields between items. If a synchronous source and synchronous callbacks run continuously without awaiting I/O, they can monopolize the event loop. Insert explicit yields in the source, operator callback, or consumer when processing large CPU-bound synchronous sequences alongside timers or network I/O.
 
-See [MapOptions](/mogami-stream/api/interfaces/MapOptions.html){target="_self"} for the full option type and [Retries](./retry.md) for retry configuration.
+See [MapOptions](/mogami-stream/api/interfaces/MapOptions.html){target="_self"} for the full option type and [Retries](./errors.md#retry) for retry configuration.
