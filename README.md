@@ -70,14 +70,16 @@ The package exports the built ESM and TypeScript declarations in `dist/`. Rebuil
 
 ## API reference
 
-Generate the HTML API reference from the TypeScript entry point with [TypeDoc](https://typedoc.org/):
+Read the [API reference](https://45deg.github.io/mogami-stream/) for exported functions, overloads, option types, callback contexts, and `Stream` methods. It is generated with [TypeDoc](https://typedoc.org/) and published to GitHub Pages on each push to `main`.
+
+To generate it locally:
 
 ```sh
 pnpm install --frozen-lockfile
 pnpm run docs
 ```
 
-Then open `docs/api/index.html` in a browser. The generated reference covers all exported functions, overloads, option types, callback contexts, and `Stream` methods. Generated HTML under `docs/` is ignored by Git and excluded from the npm package.
+Then open `docs/api/index.html` in a browser. Generated HTML under `docs/` is ignored by Git and excluded from the npm package.
 
 ## Execution and cleanup
 
