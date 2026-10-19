@@ -4,7 +4,11 @@
     "noEmit": true,
     "rootDir": "../..",
     "baseUrl": "../..",
-    "paths": { "mogami-stream": ["./src/index.ts"] }
+    "paths": {
+      "mogami-stream": ["./src/index.ts"]
+    },
+    "allowJs": true,
+    "checkJs": true
   },
-  "include": ["./**/*.ts"]
+  "include": ["./**/*.ts", "./event-loop.mjs"]
 }

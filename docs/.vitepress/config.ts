@@ -16,6 +16,7 @@ const labels = {
     events: "WebSocket & SSE",
     database: "Database batches",
     testing: "Timeline testing",
+    eventLoop: "Event loop yielding",
     benchmarks: "Benchmarks",
     api: "API reference ↗",
   },
@@ -33,6 +34,7 @@ const labels = {
     events: "WebSocket と SSE",
     database: "DB バッチ書き込み",
     testing: "タイムラインによるテスト",
+    eventLoop: "イベントループへ処理を譲る",
     benchmarks: "ベンチマーク",
     api: "API リファレンス ↗",
   },
@@ -68,6 +70,7 @@ function theme(lang: keyof typeof labels): DefaultTheme.Config {
           { text: t.events, link: link("recipes/events") },
           { text: t.database, link: link("recipes/database") },
           { text: t.testing, link: link("recipes/testing") },
+          { text: t.eventLoop, link: link("recipes/event-loop") },
         ],
       },
       {
