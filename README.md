@@ -1,5 +1,10 @@
 # mogami-stream
 
+[![npm version](https://img.shields.io/npm/v/mogami-stream)](https://www.npmjs.com/package/mogami-stream)
+[![CI](https://github.com/45deg/mogami-stream/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/45deg/mogami-stream/actions/workflows/ci.yml)
+[![API reference](https://img.shields.io/badge/docs-API_reference-blue)](https://45deg.github.io/mogami-stream/)
+[![MIT license](https://img.shields.io/npm/l/mogami-stream)](https://github.com/45deg/mogami-stream/blob/main/LICENSE)
+
 TypeScript operators for standard `AsyncIterable` pipelines, with bounded concurrency, explicit cancellation, and zero runtime dependencies.
 
 - **Bounded work and buffering.** `map` limits concurrent work with `concurrency` and caps the total of pending reads, running callbacks, and buffered results with `capacity`. Results are emitted in input order or completion order.
