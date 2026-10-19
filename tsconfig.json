@@ -14,7 +14,8 @@
     "sourceMap": true,
     "outDir": "dist",
     "rootDir": "src",
-    "verbatimModuleSyntax": true
+    "verbatimModuleSyntax": true,
+    "inlineSources": true
   },
   "include": ["src/**/*.ts"]
 }

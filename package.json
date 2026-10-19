@@ -19,12 +19,12 @@
     "node": ">=22"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "node scripts/build.mjs",
     "typecheck": "tsc -p test/types/tsconfig.json && tsc -p test/types/tsconfig.worker.json && tsc -p test/types/tsconfig.node.json",
     "test": "pnpm build && node --test --test-timeout=10000 test/*.test.mjs",
     "test:bun": "pnpm build && bun test test/*.test.mjs",
     "check:dist": "node scripts/check-dist.mjs",
-    "check": "pnpm test && pnpm typecheck && pnpm check:dist && pnpm format:check",
+    "check": "pnpm test && pnpm test:dist && pnpm typecheck && pnpm check:dist && pnpm format:check",
     "test:browser": "pnpm build && node scripts/test-browser.mjs",
     "test:cloudflare": "pnpm build && node scripts/test-cloudflare.mjs",
     "test:package": "pnpm build && node scripts/test-package.mjs",
@@ -40,7 +40,8 @@
     "docs:preview": "vitepress preview docs",
     "docs:typecheck": "tsc -p docs/examples/tsconfig.json",
     "docs:test": "pnpm docs:build && node scripts/test-docs.mjs",
-    "bench:svg": "pnpm build && node --expose-gc benchmarks/render-svg.mjs"
+    "bench:svg": "pnpm build && node --expose-gc benchmarks/render-svg.mjs",
+    "test:dist": "node scripts/test-dist.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

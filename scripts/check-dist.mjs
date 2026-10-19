@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readdir, readFile } from "node:fs/promises";
 import { resolve, dirname } from "node:path";
 import ts from "typescript";
+import { checkSourceMap } from "./check-source-map.mjs";
 
 const root = resolve(import.meta.dirname, "..");
 const dist = resolve(root, "dist");
@@ -14,6 +15,20 @@ assert.equal(
   "Runtime dependencies must remain empty.",
 );
 const forbidden = new Set(["process", "Buffer", "window", "document"]);
+const config = ts.getParsedCommandLineOfConfigFile(
+  resolve(root, "tsconfig.json"),
+  {},
+  ts.sys,
+);
+assert.ok(
+  config && config.errors.length === 0,
+  "Invalid compiler configuration.",
+);
+const expected = new Set(
+  config.fileNames.flatMap((file) =>
+    ts.getOutputFileNames(config, file, false),
+  ),
+);
 let checked = 0;
 async function inspect(directory) {
   for (const entry of await readdir(directory, { withFileTypes: true })) {
@@ -22,6 +37,8 @@ async function inspect(directory) {
       await inspect(path);
       continue;
     }
+    assert.ok(expected.delete(path), `Unexpected distribution file: ${path}`);
+    if (entry.name.endsWith(".map")) await checkSourceMap(path);
     if (!entry.name.endsWith(".js") && !entry.name.endsWith(".d.ts")) continue;
     const source = ts.createSourceFile(
       path,
@@ -64,6 +81,11 @@ async function inspect(directory) {
   }
 }
 await inspect(dist);
+assert.equal(
+  expected.size,
+  0,
+  `Missing distribution files: ${[...expected].join(", ")}`,
+);
 const originalTimeout = globalThis.setTimeout;
 let timers = 0;
 globalThis.setTimeout = (...args) => {

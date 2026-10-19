@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { checkSourceMap } from "./check-source-map.mjs";
 import { mkdtemp, cp, readdir, rm, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
@@ -29,6 +30,12 @@ try {
     );
   execFileSync("tar", ["-xzf", archivePath, "-C", temporary]);
   const packed = resolve(temporary, "package");
+  for (const entry of entries.filter((entry) => entry.endsWith(".map")))
+    await checkSourceMap(resolve(temporary, entry));
+  assert.ok(
+    entries.some((entry) => entry.endsWith(".map")),
+    "Package has no source maps.",
+  );
   const manifest = JSON.parse(
     await readFile(resolve(packed, "package.json"), "utf8"),
   );
