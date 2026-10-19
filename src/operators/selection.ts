@@ -98,6 +98,10 @@ export function skip(
       const upstream = open(source, scope);
       let remaining = count;
       const read: Read<T> = (receive, reject) => {
+        if (remaining === 0) {
+          upstream.read(receive, reject);
+          return;
+        }
         const accept = async (result: IteratorResult<T>): Promise<void> => {
           try {
             if (result.done || remaining === 0) {

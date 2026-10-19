@@ -140,3 +140,52 @@ for (const name of ["flatMap", "concatMap"]) {
     assert.notEqual(contexts[0].signal, contexts[2].signal);
   });
 }
+
+test("skip preserves Promise values, demand, and cleanup after the skipped prefix", async () => {
+  let reads = 0;
+  let closed = 0;
+  const value = Promise.resolve(42);
+  function* input() {
+    try {
+      for (const next of [0, 1, value, 3]) {
+        reads++;
+        yield next;
+      }
+    } finally {
+      closed++;
+    }
+  }
+  const iterator = stream.iterate(stream.skip(1)(input()));
+  assert.equal((await iterator.next()).value, 1);
+  await flush();
+  assert.equal(reads, 2);
+  assert.equal((await iterator.next()).value, value);
+  await iterator.return();
+  assert.equal(reads, 3);
+  assert.equal(closed, 1);
+});
+
+test("skip drains a cancelled read and retains failures after the skipped prefix", async () => {
+  const input = controlled();
+  const iterator = stream.iterate(stream.skip(1)(input.source));
+  const first = iterator.next();
+  await flush();
+  input.reads[0].resolve({ value: 0, done: false });
+  await flush();
+  input.reads[1].resolve({ value: 1, done: false });
+  assert.equal((await first).value, 1);
+  const pending = assert.rejects(iterator.next(), (error) => error === "stop");
+  await flush();
+  iterator.cancel("stop");
+  await pending;
+  assert.equal(input.returns, 1);
+  let closed = false;
+  iterator.closed.then(() => {
+    closed = true;
+  });
+  await flush();
+  assert.equal(closed, false);
+  const late = new Error("late upstream failure");
+  input.reads[2].reject(late);
+  assert.deepEqual((await iterator.closed).suppressedErrors, [late]);
+});
