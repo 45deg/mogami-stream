@@ -29,8 +29,14 @@ function validateResult<T>(result: IteratorResult<T>): IteratorResult<T> {
 export function acquireIterator<T>(source: Source<T>, scope: Scope): Reader<T> {
   // Boxing lets primitive iterables (notably strings) use the same protocol.
   const iterable: IteratorSource<T> = Object(source);
-  const getIterator: (() => ExternalIterator<T>) | undefined =
-    iterable[Symbol.asyncIterator] ?? iterable[Symbol.iterator];
+  let getIterator: (() => ExternalIterator<T>) | undefined =
+    iterable[Symbol.asyncIterator];
+  // Method getters can cancel before the fallback lookup or factory starts.
+  scope.check();
+  if (getIterator == null) {
+    getIterator = iterable[Symbol.iterator];
+    scope.check();
+  }
   if (typeof getIterator !== "function") {
     throw new TypeError("The source must be iterable or async iterable.");
   }
