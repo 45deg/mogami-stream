@@ -42,6 +42,7 @@ try {
     "recipes/events.html",
     "recipes/database.html",
     "recipes/testing.html",
+    "recipes/event-loop.html",
     "benchmarks.html",
   ];
   const locales = [
@@ -103,6 +104,17 @@ try {
           await page.locator(".vp-doc").innerText(),
           /createTestClock|iterateWithScheduler/,
         );
+      }
+      if (route === "recipes/event-loop.html") {
+        const examples = await page
+          .locator(".vp-doc .language-js pre")
+          .allTextContents();
+        assert.equal(examples.length, 4);
+        assert.match(examples[0], /function yieldToHost/);
+        assert.match(examples[1], /function yieldEvery/);
+        assert.match(examples[2], /yieldEvery\(1_024\)/);
+        assert.match(examples[3], /function yieldAfter/);
+        assert.ok(examples.every((example) => !example.includes("#region")));
       }
       if (route === "guide/consumers.html") {
         assert.equal(await page.locator(".vp-doc .language-ts").count(), 3);

@@ -130,7 +130,7 @@ Because JavaScript async iterators cannot forcibly preempt an arbitrary `await`,
 
 `defer` factories and `catchError` handlers also receive `acquire(acquire, release)`. Call and await it during setup to transfer resource ownership to the stage. Successful acquisition registers release even if cancellation arrives while waiting; teardown releases it once after child sources and pending work finish. The returned source must not release the same resource again. Plain sources returned after cancellation are never opened or closed. See [resource ownership](https://45deg.github.io/mogami-stream/guide/lifecycle#owning-resources-during-asynchronous-setup) for examples and failure semantics.
 
-Pipelines do not insert artificial timer ticks or macrotask yields. If a synchronous source and synchronous callbacks run continuously, they can starve timers and I/O on the host event loop unless the source, callback, or consumer yields explicitly.
+Pipelines do not insert artificial timer ticks or macrotask yields. If a synchronous source and synchronous callbacks run continuously, they can starve timers and I/O on the host event loop unless the source, callback, or consumer yields explicitly. For an opt-in, cancellable `tap` recipe with count and time intervals, see [yielding to the event loop](https://45deg.github.io/mogami-stream/recipes/event-loop.html). [Measurements and tradeoffs](benchmarks/event-loop.md) compare these recipes with a dedicated operator prototype.
 
 `take(n)` begins closing its upstream stage before delivering the `n`th value, while keeping downstream callback signals active. `finalize(effect)` runs once when a started stage closes, after its child stages and in-flight operations complete. Nested finalizers run from inner stages outward.
 
