@@ -86,6 +86,7 @@ function combineChildren<T>(
       const outer = open(source, scope);
       const changed = notifications(scope);
       const slots: ChildSlot<T>[] = [];
+      const cleanupStates = new Map<ChildSlot<T>, "pending" | "finished">();
       let pulling = false;
       let filling = false;
       let outerDone = false;
@@ -163,10 +164,23 @@ function combineChildren<T>(
                 if (slot.failure) throw slot.failure.error;
                 if (ordered && index > 0) break;
                 if (!slot.result) continue;
-                const result = slot.consume();
+                const result = slot.result;
                 if (result.done) {
                   // A completed child retains its slot until cleanup has finished.
-                  await slot.reader.scope.close();
+                  if (ordered) await slot.reader.scope.close();
+                  else {
+                    const cleanup = cleanupStates.get(slot);
+                    if (!cleanup) {
+                      cleanupStates.set(slot, "pending");
+                      void slot.reader.scope.close().then(() => {
+                        cleanupStates.set(slot, "finished");
+                        changed.notify();
+                      }, fail);
+                    }
+                    // Unordered siblings can still deliver while this slot closes.
+                    if (cleanup !== "finished") continue;
+                    cleanupStates.delete(slot);
+                  }
                   slots.splice(index, 1);
                   cursor = slots.length ? index % slots.length : 0;
                   retired = true;
@@ -174,7 +188,7 @@ function combineChildren<T>(
                 }
                 cursor = (index + 1) % slots.length;
                 refill = slot;
-                return result;
+                return slot.consume();
               }
               if (retired) continue;
               if (outerDone && slots.length === 0) return done();
@@ -194,6 +208,7 @@ function combineChildren<T>(
  * Flattens a stream of child sources, interleaving values when `concurrency > 1`.
  *
  * Each active child holds a single read/result slot and occupies a concurrency slot until its cleanup finishes.
+ * A child's cleanup does not block values from other active children.
  * @throws {RangeError} If `concurrency` is not a positive safe integer.
  * @category Higher-order
  */
