@@ -120,9 +120,10 @@ export function rateLimit({
 }
 
 /**
- * Fails with {@link TimeoutError} if any individual upstream read takes longer than `ms` milliseconds.
+ * Fails with {@link TimeoutError} if any individual upstream read reaches its `ms` millisecond deadline.
  *
- * The timer runs only while waiting for an upstream read; idle time between downstream reads does not count. `timeoutEach(0)` sets an immediate 0 ms deadline for each read.
+ * Elapsed time is checked when a read returns a value or completes the stream, even if the timer callback is delayed. A result at exactly the deadline is rejected. Idle time between downstream reads does not count. `timeoutEach(0)` fails on the first read without opening upstream.
+ * Terminal consumers still wait for in-flight work and cleanup before settling.
  * @throws {RangeError} If `ms` is not finite and non-negative.
  * @category Timing
  */
@@ -136,12 +137,14 @@ export function timeoutEach(
   duration(ms, "ms");
   return <T>(source: AsyncIterable<T>) =>
     create((scope) => {
+      if (ms === 0) throw new TimeoutError(ms);
       const upstream = open(source, scope);
       return {
         async next() {
+          const startedAtMs = scope.scheduler.now();
           const timer = alarm(scope, ms);
           try {
-            return await Promise.race([
+            const result = await Promise.race([
               upstream.next(),
               timer.promise.then((expired): IteratorResult<T> => {
                 if (expired) throw new TimeoutError(ms);
@@ -149,6 +152,9 @@ export function timeoutEach(
                 return done();
               }),
             ]);
+            if (scope.scheduler.now() - startedAtMs >= ms)
+              throw new TimeoutError(ms);
+            return result;
           } finally {
             timer.cancel();
           }

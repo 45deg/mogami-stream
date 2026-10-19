@@ -9,7 +9,7 @@ export class IteratorCleanupError extends Error {
 }
 
 /**
- * Thrown by {@link timeoutEach} when a single upstream read takes longer than `durationMs` milliseconds.
+ * Thrown by {@link timeoutEach} when a single upstream read reaches its `durationMs` millisecond deadline.
  */
 export class TimeoutError extends Error {
   constructor(readonly durationMs: number) {

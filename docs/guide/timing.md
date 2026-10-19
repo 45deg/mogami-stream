@@ -49,7 +49,7 @@ With immediately available input and continuous downstream demand, approximate t
 
 ## Per-read timeouts and overall deadlines
 
-`timeoutEach` measures only the wait for one upstream read and fails with `TimeoutError` when the limit is exceeded. Time between downstream requests does not count.
+`timeoutEach` measures only the wait for one upstream read and fails with `TimeoutError` at the deadline. Time between downstream requests does not count. When a read returns a value or completes the stream, monotonic elapsed time is checked even if the timer callback has not run. Results at or after the deadline are rejected. `timeoutEach(0)` fails on the first read without opening upstream.
 
 `deadline` measures elapsed time from that stage's first read and fails with `DeadlineExceededError` at the deadline. Time continues to count while downstream processes a value.
 

@@ -147,6 +147,80 @@ test("timeoutEach cancels successful read timers and does not time downstream id
   assert.equal(clock.timers.size, 0);
 });
 
+test("timeoutEach checks elapsed time for values and completion when timer callbacks are delayed", async () => {
+  for (const elapsed of [9, 10, 11]) {
+    for (const done of [false, true]) {
+      const clock = new VirtualScheduler(),
+        input = controlled();
+      clock.time = 100;
+      const iterator = virtual(
+        s.from(input.source).pipe(s.timeoutEach(10)),
+        clock,
+      );
+      const read = iterator.next();
+      const rejected = elapsed >= 10 && assert.rejects(read, s.TimeoutError);
+      await flush();
+      assert.equal(clock.timers.size, 1);
+      // Advance only the monotonic clock, leaving the timer callback pending.
+      clock.time += elapsed;
+      input.reads[0].resolve({ done, value: 7 });
+      if (rejected) {
+        await rejected;
+        assert.equal((await iterator.closed).kind, "failed");
+        assert.equal((await iterator.next()).done, true);
+      } else {
+        assert.deepEqual(await read, { done, value: done ? undefined : 7 });
+        await iterator.return();
+      }
+      assert.equal(input.returns, done ? 0 : 1);
+      assert.equal(clock.timers.size, 0);
+    }
+  }
+});
+
+test("timeoutEach includes synchronous work performed by an upstream read", async () => {
+  const clock = new VirtualScheduler();
+  let finalized = 0;
+  const iterator = virtual(
+    s
+      .from({
+        *[Symbol.iterator]() {
+          try {
+            clock.time += 25;
+            yield 1;
+          } finally {
+            finalized++;
+          }
+        },
+      })
+      .pipe(s.timeoutEach(5)),
+    clock,
+  );
+  await assert.rejects(iterator.next(), s.TimeoutError);
+  const report = await iterator.closed;
+  assert.equal(report.kind, "failed");
+  assert.equal(report.reason.durationMs, 5);
+  assert.equal(finalized, 1);
+  assert.equal(clock.timers.size, 0);
+});
+
+test("timeoutEach(0) fails without opening input or scheduling a timer", async () => {
+  const clock = new VirtualScheduler();
+  let opens = 0;
+  const source = {
+    [Symbol.asyncIterator]() {
+      opens++;
+      return { next: async () => ({ done: false, value: 1 }) };
+    },
+  };
+  // Apply the operator directly to also cover arbitrary AsyncIterable input.
+  const zero = virtual(s.timeoutEach(0)(source), clock);
+  await assert.rejects(zero.next(), s.TimeoutError);
+  await zero.closed;
+  assert.equal(opens, 0);
+  assert.equal(clock.timers.size, 0);
+});
+
 test("value/timeout races choose one result and observe late failures", async () => {
   for (const timeoutFirst of [false, true]) {
     const clock = new VirtualScheduler(),
@@ -161,9 +235,10 @@ test("value/timeout races choose one result and observe late failures", async ()
       (error) => ({ error }),
     );
     await flush();
+    const late = new Error("late");
     if (timeoutFirst) {
       await clock.advance(10);
-      input.reads[0].reject(new Error("late"));
+      input.reads[0].reject(late);
       assert.ok((await result).error instanceof s.TimeoutError);
     } else {
       input.reads[0].resolve({ value: 7 });
@@ -172,7 +247,8 @@ test("value/timeout races choose one result and observe late failures", async ()
       assert.equal((await result).value.value, 7);
       await iterator.return();
     }
-    await iterator.closed;
+    const report = await iterator.closed;
+    assert.deepEqual(report.suppressedErrors, timeoutFirst ? [late] : []);
     assert.equal(clock.timers.size, 0);
   }
 });
