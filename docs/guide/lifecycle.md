@@ -8,10 +8,12 @@ Acquiring a [`StreamIterator`](/mogami-stream/api/interfaces/StreamIterator.html
 | ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
 | `iterator.cancel(reason)` | Requests an immediate stop and aborts stage `AbortSignal`s. Any pending `next()` rejects right away without waiting for cleanup.       |
 | `iterator.return()`       | Requests a stop, aborts stage `AbortSignal`s, and waits for all upstream cleanup and finalizers to complete before resolving.          |
-| `iterator.throw(error)`   | Terminates the execution with `error` and awaits cleanup (does not forward `.throw()` into upstream generators).                       |
+| `iterator.throw(error)`   | Requests failure and rejects immediately without waiting for cleanup (does not forward `.throw()` into upstream generators).           |
 | `iterator.closed`         | Promise that always resolves with a [`CloseReport`](/mogami-stream/api/types/CloseReport.html){target="_self"} once teardown finishes. |
 
 Only one `next()` call may be pending on a `StreamIterator` at a time; calling `next()` concurrently rejects with `TypeError`. When an execution fails or is cancelled, `next()` rejects once with the primary reason, and all subsequent `next()` calls resolve to `{ done: true, value: undefined }`.
+
+`return()` rejects with the primary reason when the execution has failed, including a failure caused only by cleanup. After cancellation it resolves to `{ done: true, value: undefined }`, even if cleanup fails; inspect `suppressedErrors` in the resolved `closed` report for those errors. An existing cancellation or failure takes precedence over a later `throw(error)`. Await `closed` after `throw()` to wait for teardown.
 
 <<< @/examples/lifecycle.ts
 
@@ -61,6 +63,8 @@ type CloseReport =
 
 - **`reason`** (on `"cancelled"` and `"failed"` reports) holds the primary cancellation reason or the first unhandled error that triggered termination.
 - **`suppressedErrors`** collects any secondary errors thrown by in-flight operations or cleanup callbacks after the primary termination outcome was already decided.
+
+If cleanup is the first failure, its error becomes `reason` and is not also added to `suppressedErrors`. Errors matching the primary reason via `Object.is` are excluded. Repeated secondary errors are recorded once using `Array.includes` equality (SameValueZero): object identity for objects, with repeated `NaN` and `undefined` values deduplicated. Errors remain in first-observed order.
 
 Built-in terminal consumers (`toArray`, `forEach`, `reduce`, `find`, `some`, `every`) always wait for cleanup before settling and prioritize the primary processing error over subsequent cleanup errors. Awaiting `iterator.closed` by itself only observes teardown—it does not trigger cancellation.
 

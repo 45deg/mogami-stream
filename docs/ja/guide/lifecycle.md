@@ -8,10 +8,12 @@
 | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
 | `iterator.cancel(reason)` | 即時停止を要求し、各ステージの `AbortSignal` を abort する。待機中の `next()` はクリーンアップ完了を待たずに即座に reject される。   |
 | `iterator.return()`       | 停止を要求し、すべてのステージのクリーンアップと `finalize` が完了するのを待ってから `{ done: true, value: undefined }` で解決する。 |
-| `iterator.throw(error)`   | 指定した `error` で実行を失敗させ、クリーンアップ完了を待つ（上流ジェネレータの `.throw()` へは転送しない）。                        |
+| `iterator.throw(error)`   | 失敗による停止を要求し、クリーンアップ完了を待たずに reject する（上流ジェネレータの `.throw()` へは転送しない）。                   |
 | `iterator.closed`         | すべてのクリーンアップ完了後に [`CloseReport`](/mogami-stream/api/types/CloseReport.html){target="_self"} で必ず解決する Promise。   |
 
 1つの `StreamIterator` に対して同時に待機できる `next()` は1つだけであり、並行して2つ目の `next()` を呼ぶと `TypeError` で reject されます。エラーまたはキャンセルが発生すると、待機中の `next()`（または次の1回の `next()`）がその理由で reject され、以降のすべての `next()` は `{ done: true, value: undefined }` で解決します。
+
+`return()` は、クリーンアップだけが失敗した場合も含め、実行が失敗していれば主エラーで reject します。キャンセル後はクリーンアップが失敗しても `{ done: true, value: undefined }` で解決し、そのエラーは `closed` の解決値の `suppressedErrors` に残ります。後から `throw(error)` を呼んでも、すでに確定したキャンセル理由や主エラーが優先されます。`throw()` の後に後処理の完了を待つには、`closed` を await してください。
 
 <<< @/examples/lifecycle.ts
 
@@ -45,6 +47,8 @@ type CloseReport =
 
 - **`reason`**（`"cancelled"` および `"failed"` の場合）：キャンセルの理由、または停止の引き金となった最初の主エラーを保持します。
 - **`suppressedErrors`**：主たる終了理由が確定した後に、残りの実行中タスクやクリーンアップ処理（`return()` や `finalize`）から発生した副次的なエラーを配列として収集します。
+
+クリーンアップが最初の失敗であれば、その例外が `reason` になり、`suppressedErrors` には重複して入りません。主たる終了理由と `Object.is` で一致するエラーは除外します。副次的なエラー同士は `Array.includes` の等価判定（SameValueZero）で重複を除き、最初に観測した順に記録します。オブジェクトは参照が同じ場合に重複とみなし、`NaN` や `undefined` もそれぞれ1回だけ記録します。
 
 組み込みの終端コンシューマ（`toArray`、`forEach`、`reduce`、`find`、`some`、`every`）はすべてクリーンアップ完了まで待機し、クリーンアップ時のエラーよりも最初の処理エラーを優先して throw します。なお、`iterator.closed` を await するだけでは停止は要求されないため、手動イテレーションを途中で抜ける際は必ず `return()` または `cancel()` を呼んでください。
 

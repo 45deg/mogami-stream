@@ -120,9 +120,9 @@ try {
 ```
 
 - `cancel(reason)` requests an immediate stop. Any pending `next()` call rejects right away without waiting for cleanup to finish.
-- `return()` requests a stop and awaits cleanup before resolving.
-- `throw(error)` stops the execution with `error` rather than forwarding it into an upstream generator's `.throw()`.
-- `closed` always resolves with a `CloseReport` once teardown finishes, even if cleanup throws.
+- `return()` requests a stop and awaits cleanup. It rejects with the primary reason if the execution failed, including cleanup-only failure. After cancellation it resolves even if cleanup fails; those errors remain in the `closed` report.
+- `throw(error)` requests failure and rejects immediately without waiting for cleanup or forwarding the throw into an upstream generator. An existing failure or cancellation reason takes precedence. Await `closed` for teardown completion.
+- `closed` always resolves with a `CloseReport` once teardown finishes, even if cleanup throws. A cleanup-only failure becomes the primary `reason`; `suppressedErrors` contains distinct secondary errors without duplicating that reason.
 
 Only one `next()` call may be pending on a `StreamIterator` at a time; a concurrent call rejects with `TypeError`. A failure or cancellation rejects `next()` once, after which subsequent reads resolve to `{ done: true, value: undefined }`. Terminal consumers (`toArray`, `reduce`, `forEach`, `find`, `some`, and `every`) always wait for cleanup before settling and prioritize the primary processing error over subsequent cleanup errors.
 

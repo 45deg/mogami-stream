@@ -198,10 +198,15 @@ test("seeded fuzz: stopping sequential children observes late results without re
     if (returning) {
       const returned = await returning;
       assert.equal(report.kind, fails ? "failed" : "completed");
-      if (fails) assert.equal(returned.error, late);
-      else assert.equal(returned.value.done, true);
+      if (fails) {
+        assert.equal(returned.error, late);
+        assert.equal(report.reason, late);
+      } else assert.equal(returned.value.done, true);
     } else assert.equal(report.kind, "cancelled");
-    assert.deepEqual(report.suppressedErrors, fails ? [late] : []);
+    assert.deepEqual(
+      report.suppressedErrors,
+      fails && !returning ? [late] : [],
+    );
     assert.equal(accepted, 1);
   });
 });
