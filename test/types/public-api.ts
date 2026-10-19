@@ -35,6 +35,7 @@ import {
   type Stream,
   type StreamIterator,
   type ResourceContext,
+  type PushDropInfo,
 } from "../../dist/index.js";
 
 type Equal<A, B> =
@@ -536,3 +537,30 @@ export type CallbackValues = Expect<
 >;
 const eventValues = fromEvent(new EventTarget(), "change", { capacity: 4 });
 export type EventValues = Expect<Equal<Value<typeof eventValues>, Event>>;
+
+fromEvent(new EventTarget(), "change", {
+  capacity: 4,
+  overflow: "drop-oldest",
+  onDrop(info) {
+    const statistics: PushDropInfo = info;
+    const count: number = statistics.count;
+    const overflow: "drop-oldest" | "drop-newest" = info.overflow;
+    const signal: AbortSignal = info.signal;
+    void [count, overflow, signal];
+    // @ts-expect-error Drop statistics are read-only.
+    info.count = 0;
+    // @ts-expect-error The observation API does not expose discarded values.
+    info.value;
+  },
+});
+
+fromEvent(new EventTarget(), "change", {
+  capacity: 4,
+  // @ts-expect-error Drop hooks are synchronous; async callbacks are not managed.
+  onDrop: async () => {},
+});
+fromEvent(new EventTarget(), "change", {
+  capacity: 4,
+  // @ts-expect-error Returning a Promise is unsupported, even without async syntax.
+  onDrop: () => Promise.resolve(undefined),
+});

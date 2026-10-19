@@ -207,7 +207,7 @@ const values = from(primary).pipe(
 
 ## Push event sources
 
-`fromCallback(subscribe, { capacity, overflow? })` bridges callback APIs to a
+`fromCallback(subscribe, { capacity, overflow?, onDrop? })` bridges callback APIs to a
 bounded stream. Each execution subscribes lazily on its first read and owns its
 queue. `capacity` is a required positive safe integer. The default overflow policy
 is `"error"`; `"drop-oldest"` retains recent values and `"drop-newest"` preserves
@@ -220,6 +220,9 @@ import { fromCallback, fromEvent, take } from "mogami-stream";
 const messages = fromEvent<MessageEvent>(socket, "message", {
   capacity: 64,
   overflow: "drop-oldest",
+  onDrop(info) {
+    console.warn("Dropped messages in this execution:", info.count);
+  },
 }).pipe(take(10));
 
 // Node EventEmitter or another callback API; no Node dependency in the library.
@@ -241,14 +244,48 @@ const updates = fromCallback<string>(
 );
 ```
 
-`observer.next(value)` preserves Promise-valued items and returns `false` when
-that value is dropped or the subscription has ended. `complete()` drains buffered
-values; `error(reason)` fails immediately and discards them. The synchronous
+`observer.next(value)` preserves Promise-valued items and reports acceptance of
+that incoming value: `drop-oldest` returns `true` after replacing the oldest
+buffered value, while `drop-newest` returns `false`. It also returns `false` after
+the subscription ends or when the default `error` policy rejects an overflow.
+`complete()` drains buffered values; `error(reason)` fails immediately and discards
+them. The synchronous
 subscribe function may return an asynchronous cleanup function, which runs once
 and is awaited before the execution closes. Use `observer.signal` for cancellation.
 Synchronous setup emissions also count toward capacity; events before subscription
 are not captured. `fromEvent` does not infer completion from other event names
 (such as WebSocket `close`); use `fromCallback` to wire those explicitly.
+
+Both push sources accept an optional synchronous `onDrop(info)` hook. It receives
+one frozen `PushDropInfo` object per execution, allocated on the first drop:
+
+- `count` is a live cumulative count of intentionally dropped values, saturating
+  at `Number.MAX_SAFE_INTEGER`. Retaining `info` keeps the current count readable,
+  including after execution closes; it is not a snapshot of one notification.
+- `overflow` identifies `drop-oldest` (one old buffered value removed) or
+  `drop-newest` (one incoming value rejected). The default `error` overflow,
+  failure/cancellation buffer clears, completion, and calls after termination do
+  not count or notify.
+- `signal` belongs to that execution, allowing concurrent subscriptions to be
+  distinguished. Counters start separately for each execution.
+
+The hook runs after the queue decision is committed. Reentrant producer calls
+are allowed; their drops update the same live count without recursively calling
+the hook or queueing notifications. Read `info.count` after such calls to observe
+their total. The next non-reentrant drop notifies normally. The adapter stores no
+dropped values, history, or deferred notifications, and does no counting when
+`onDrop` is absent.
+
+A synchronous hook throw fails the execution, clears buffered values, and runs
+cleanup; it does not escape `observer.next`. If the hook already cancelled or
+failed the execution, that earlier reason stays primary and a different throw
+is recorded in `closed.suppressedErrors`. Hooks are synchronous only: the
+TypeScript signature requires an `undefined` return and rejects async callbacks.
+JavaScript return values, including promises, are not inspected, awaited, or
+managed. Handle any asynchronous work started inside a synchronous hook yourself.
+The outer `next` still returns its original acceptance decision even if the hook
+subsequently replaces that value, completes, fails, or cancels the execution.
+Later producer calls observe that termination and return `false`.
 
 ## Retry and settled mapping
 
