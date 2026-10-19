@@ -264,7 +264,7 @@ const first = await from([1, 2, 3]).find((value) => value > 1); // 2
 
 ## Timeline sources (testing and mocking)
 
-`fromTimeline(events)` is a helper for tests and mocks that creates a replayable, pull-driven stream from a scripted array of `TimelineEvent<T>` records—useful for simulating delayed arrivals, timeouts, or upstream failures at specific points in time:
+For tests and mocks, `fromTimeline(events)` creates a replayable, pull-driven stream from a scripted array of `TimelineEvent<T>` records to simulate delayed arrivals, timeouts, or upstream failures at specific timestamps:
 
 ```ts
 const source = fromTimeline([
