@@ -55,3 +55,7 @@ pnpm bench:svg --reuse --png=/tmp/mogami-async.png
 The default command builds, measures Node.js then Bun, and plots all three cases: 100,000 inputs, 5 warmups, 7 samples, seed 42, concurrency 8, capacity 16, and GC between runs. Measurement options above can override these defaults; `--svg` and `--results-dir` change output paths. `--reuse` skips measurement and cannot change its settings.
 
 Raw samples are generated locally as `results/readme/node.json` and `bun.json` and excluded from Git. Only the README chart is tracked. Plotting checks matching settings, cases, library versions, and sample counts. Update the root README's environment caption when remeasuring.
+
+## Representative waits and cleanup
+
+[`representative.mjs`](representative.mjs) adds seeded timer jitter, a slow sink, retries, cooperative/uncooperative cancellation, concurrency 1,024 and a 10,000-start rate window. See [loads, raw samples, sampled-memory limits and the decision to defer queue changes](representative.md). It runs separately from the Promise-only overhead cases and README chart.
