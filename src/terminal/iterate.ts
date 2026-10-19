@@ -88,15 +88,16 @@ export function iterateWithScheduler<T>(
     },
   };
   const root = new Scope(host);
-  const abort = () => stop("cancelled", options.signal!.reason);
-  options.signal?.addEventListener("abort", abort, { once: true });
+  const signal = options.signal;
+  const abort = () => stop("cancelled", signal!.reason);
+  signal?.addEventListener("abort", abort, { once: true });
 
   function close(): Promise<void> {
     closing ??= (async () => {
       await root.close();
       // Closed iterators no longer need stage buffers or acquired inputs.
       reader = undefined;
-      options.signal?.removeEventListener("abort", abort);
+      signal?.removeEventListener("abort", abort);
       kind ??= "completed";
       cleanupFinished = true;
       completion.resolve(
@@ -146,7 +147,7 @@ export function iterateWithScheduler<T>(
         return Promise.reject(
           new TypeError("Only one next() may be pending at a time."),
         );
-      if (options.signal?.aborted && kind === undefined) abort();
+      if (signal?.aborted && kind === undefined) abort();
       if (kind !== undefined) {
         try {
           return Promise.resolve(stoppedResult());
@@ -211,7 +212,7 @@ export function iterateWithScheduler<T>(
       throw reason;
     },
   };
-  if (options.signal?.aborted) abort();
+  if (signal?.aborted) abort();
   return iterator;
 }
 
