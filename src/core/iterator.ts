@@ -1,4 +1,5 @@
 import { IteratorCleanupError } from "../internal/errors.js";
+import { done, item } from "../internal/deferred.js";
 import type { ExecutionHost, Scope } from "./scope.js";
 import type { Reader, Source } from "./stream.js";
 
@@ -54,12 +55,23 @@ export function acquireIterator<T>(source: Source<T>, scope: Scope): Reader<T> {
     const result = validateResult(await close.call(iterator));
     if (result.done !== true) throw new IteratorCleanupError();
   });
+  const normalizeResult = (result: IteratorResult<T>): IteratorResult<T> => {
+    validateResult(result);
+    scope.check();
+    const completed = result.done;
+    scope.check();
+    if (completed) return done();
+    // Snapshot external getters inside the owned read, before downstream delivery.
+    const value = result.value;
+    scope.check();
+    return item(value);
+  };
   return {
-    next: () => Promise.resolve(iterator.next()).then(validateResult),
+    next: () => Promise.resolve(iterator.next()).then(normalizeResult),
     read(receive, reject) {
       void Promise.resolve(iterator.next()).then((result) => {
         try {
-          receive(validateResult(result));
+          receive(normalizeResult(result));
         } catch (error) {
           reject(error);
         }
