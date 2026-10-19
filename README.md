@@ -303,7 +303,7 @@ Terminal consumers accept `{ signal }`, wait for cleanup before settling, and pr
 - `find(source, predicate, options?)` returns the first matching item (or `undefined` if none match) and closes upstream immediately. Synchronous type guards narrow the return type. If the matched item is a Promise, `find` awaits it before resolving (`Promise<Awaited<T> | undefined>`), though `predicate` receives the original item.
 - `some(source, predicate, options?)` and `every(source, predicate, options?)` short-circuit and close upstream as soon as the boolean outcome is decided. Empty sources return `false` for `some` and `true` for `every`.
 
-`scan(reducer, initial)` is a streaming counterpart to `reduce`: it awaits `reducer(accumulator, value, { index, signal })` for each item and emits the updated accumulator after every step. Both `reduce` and `scan` await `initial` on execution start before opening the upstream input, passing the resolved `Awaited<A>` value to `reducer`. If the input is empty, `reduce` resolves to the awaited `initial` value, while `scan` completes without emitting. Because object accumulators are passed by reference, use immutable updates or wrap the pipeline in `defer` if you plan to run the same stream multiple times with a mutable accumulator.
+`scan(reducer, initial)` is a streaming counterpart to `reduce`: it awaits `reducer(accumulator, value, { index, signal })` for each item and emits the updated accumulator after every step. Both `reduce` and `scan` await `initial` on execution start before opening the upstream input, passing the resolved `Awaited<A>` value to `reducer`. If the input is empty, `reduce` resolves to the awaited `initial` value, while `scan` completes without emitting. Object accumulators are passed by reference; they are not cloned, and a function passed as `initial` remains an accumulator value rather than being called as a factory.
 
 ```ts
 await from(jobs).forEach(async (job, { signal }) => save(job, signal));
@@ -311,6 +311,30 @@ const totals = from([1, 2, 3]).pipe(scan((sum, value) => sum + value, 0));
 // totals emits 1, 3, 6
 const first = await from([1, 2, 3]).find((value) => value > 1); // 2
 ```
+
+Choose immutable updates when each emitted object should remain a snapshot: `scan((state, value) => ({ total: state.total + value }), { total: 0 })`. This also supports repeated and concurrent executions, provided the initial object and its nested values are never mutated.
+
+For mutable state, create the initial value inside `defer` so each execution gets its own accumulator. A named factory is useful when initialization is reused or more involved; call it inside the deferred pipeline, not when constructing the outer stream. An async factory can be awaited inside an async `defer` callback.
+
+```ts
+import { defer, from, map, scan } from "mogami-stream";
+
+const createState = () => ({ total: 0 });
+const totals = defer(() =>
+  from([1, 2]).pipe(
+    scan((state, value) => {
+      state.total += value;
+      return state;
+    }, createState()),
+    map((state) => state.total),
+  ),
+);
+await totals.toArray(); // [1, 3]
+await totals.toArray(); // [1, 3]
+await Promise.all([totals.toArray(), totals.toArray()]); // [[1, 3], [1, 3]]
+```
+
+The `map` captures each total immediately. Without it, each execution emits the same mutable object repeatedly, so previously collected references reflect its later mutations. `defer` isolates the accumulator across executions; the source must also support replay or be created afresh inside the callback. No separate scan factory API is needed for this pattern.
 
 ## Timeline sources (testing and mocking)
 
