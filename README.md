@@ -2,7 +2,7 @@
 
 [![npm version](https://img.shields.io/npm/v/mogami-stream)](https://www.npmjs.com/package/mogami-stream)
 [![CI](https://github.com/45deg/mogami-stream/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/45deg/mogami-stream/actions/workflows/ci.yml)
-[![API reference](https://img.shields.io/badge/docs-API_reference-blue)](https://45deg.github.io/mogami-stream/)
+[![Documentation](https://img.shields.io/badge/docs-English%20%7C%20日本語-blue)](https://45deg.github.io/mogami-stream/)
 [![MIT license](https://img.shields.io/npm/l/mogami-stream)](https://github.com/45deg/mogami-stream/blob/main/LICENSE)
 
 TypeScript operators for standard `AsyncIterable` pipelines, with bounded concurrency, explicit cancellation, and zero runtime dependencies.
@@ -73,18 +73,25 @@ npm install /absolute/path/to/mogami-stream
 
 The package exports the built ESM and TypeScript declarations in `dist/`. Rebuild the checkout after changing its source.
 
-## API reference
+## Documentation and API reference
 
-Read the [API reference](https://45deg.github.io/mogami-stream/) for exported functions, overloads, option types, callback contexts, and `Stream` methods. It is generated with [TypeDoc](https://typedoc.org/) and published to GitHub Pages on each push to `main`.
+Read the documentation in [English](https://45deg.github.io/mogami-stream/) or [日本語](https://45deg.github.io/mogami-stream/ja/). It includes an interactive concurrency/capacity diagram, operator examples and descriptions, a retry guide, recipes, and benchmarks.
 
-To generate it locally:
+The [API reference](https://45deg.github.io/mogami-stream/api/) covers exported functions, overloads, option types, callback contexts, and `Stream` methods. It is generated from the English source comments with [TypeDoc](https://typedoc.org/) and published alongside the VitePress guides to GitHub Pages on each push to `main`.
+
+To develop or build the complete site locally:
 
 ```sh
 pnpm install --frozen-lockfile
-pnpm run docs
+pnpm docs:dev       # Generate TypeDoc/assets and start the development server
+pnpm docs           # Type-check examples and build guides + TypeDoc
+pnpm docs:preview   # Serve the production build at /mogami-stream/
+pnpm docs:test      # Build and run documentation browser checks (requires Chrome/Chromium)
 ```
 
-Then open `docs/api/index.html` in a browser. Generated HTML under `docs/` is ignored by Git and excluded from the npm package.
+`pnpm docs:api` still generates TypeDoc alone in `docs/api/`. The complete static site is written to `docs/.vitepress/dist/`. Generated files are ignored by Git, and all documentation tooling is excluded from the npm package.
+
+Edit matching guide paths under `docs/` and `docs/ja/` together. Examples under `docs/examples/` are shared across both languages and checked by `pnpm docs:typecheck`. Operator descriptions live in `docs/.vitepress/theme/components/operators.ts`. Runnable examples live in `docs/examples/operators/`; `docs:prepare` checks their results against `expected.json` before generating the displayed snippets. After API, operator example, or benchmark asset changes, restart `docs:dev` to regenerate the site data. Local search indexes the guides and operator list; TypeDoc has its own API search.
 
 ## Execution and cleanup
 
