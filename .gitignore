@@ -4,6 +4,11 @@ dist/
 coverage/
 .pnpm-store/
 docs/api/
+docs/public/api/
+docs/public/benchmarks.svg
+docs/.vitepress/cache/
+docs/.vitepress/generated/
+docs/.vitepress/dist/
 .DS_Store
 *.cpuprofile
 *.heapprofile

@@ -10,5 +10,9 @@
   "excludeInternal": true,
   "disableGit": true,
   "treatWarningsAsErrors": true,
-  "disableSources": true
+  "disableSources": true,
+  "navigationLinks": {
+    "Guide": "/mogami-stream/",
+    "日本語": "/mogami-stream/ja/"
+  }
 }

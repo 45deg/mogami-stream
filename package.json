@@ -32,7 +32,14 @@
     "format:check": "prettier --check .",
     "prepack": "pnpm build && pnpm check:dist",
     "bench": "pnpm build && node --expose-gc benchmarks/run.mjs",
-    "docs": "typedoc",
+    "docs": "pnpm docs:build",
+    "docs:api": "typedoc",
+    "docs:prepare": "pnpm build && pnpm docs:api && node scripts/prepare-docs.mjs",
+    "docs:dev": "pnpm docs:prepare && vitepress dev docs --host 127.0.0.1",
+    "docs:build": "pnpm docs:typecheck && pnpm docs:prepare && vitepress build docs",
+    "docs:preview": "vitepress preview docs",
+    "docs:typecheck": "tsc -p docs/examples/tsconfig.json",
+    "docs:test": "pnpm docs:build && node scripts/test-docs.mjs",
     "bench:svg": "pnpm build && node --expose-gc benchmarks/render-svg.mjs"
   },
   "devDependencies": {
@@ -41,7 +48,9 @@
     "playwright": "^1.64.1",
     "prettier": "^3.9.10",
     "typedoc": "^0.28.20",
-    "typescript": "~5.9.3"
+    "typescript": "~5.9.3",
+    "vitepress": "^1.6.4",
+    "vue": "^3.5.44"
   },
   "packageManager": "pnpm@11.1.1",
   "license": "MIT",
@@ -49,7 +58,7 @@
     "type": "git",
     "url": "git+https://github.com/45deg/mogami-stream.git"
   },
-  "homepage": "https://github.com/45deg/mogami-stream#readme",
+  "homepage": "https://45deg.github.io/mogami-stream/",
   "bugs": {
     "url": "https://github.com/45deg/mogami-stream/issues"
   }

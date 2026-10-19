@@ -1,0 +1,82 @@
+:root {
+  --vp-c-brand-1: #28605b;
+  --vp-c-brand-2: #34786f;
+  --vp-c-brand-3: #28605b;
+  --vp-c-brand-soft: rgba(40, 96, 91, 0.1);
+  --vp-font-family-base:
+    "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans",
+    "Noto Sans JP", "Noto Sans SC", sans-serif;
+}
+
+.dark {
+  --vp-c-brand-1: #84c7ba;
+  --vp-c-brand-2: #a4dbcf;
+  --vp-c-brand-3: #34786f;
+  --vp-c-brand-soft: rgba(132, 199, 186, 0.12);
+}
+
+.vp-doc h1 {
+  letter-spacing: -0.025em;
+}
+.vp-doc a:focus-visible,
+.vp-doc button:focus-visible,
+.vp-doc input:focus-visible,
+.vp-doc select:focus-visible {
+  outline: 3px solid var(--vp-c-brand-1);
+  outline-offset: 3px;
+}
+.docs-widget {
+  margin: 24px 0;
+  padding: 20px;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 8px;
+  background: var(--vp-c-bg-soft);
+}
+.docs-widget button,
+.docs-widget input,
+.docs-widget select {
+  min-height: 44px;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 4px;
+  padding: 8px 12px;
+  color: var(--vp-c-text-1);
+  background: var(--vp-c-bg);
+  font: inherit;
+}
+.docs-widget button:not(:disabled):hover {
+  border-color: var(--vp-c-brand-1);
+}
+.docs-widget button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.docs-widget label {
+  display: grid;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.widget-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.widget-note {
+  font-size: 14px;
+  color: var(--vp-c-text-2);
+}
+
+@media (max-width: 480px) {
+  .docs-widget {
+    padding: 14px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition: none !important;
+    animation: none !important;
+  }
+}
