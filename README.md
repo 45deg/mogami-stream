@@ -32,7 +32,19 @@ In the example above, `rateLimit` paces how often upstream `next()` reads start 
 ## Installation
 
 ```sh
+npm install mogami-stream
+```
+
+With pnpm:
+
+```sh
 pnpm add mogami-stream
+```
+
+With Bun:
+
+```sh
+bun add mogami-stream
 ```
 
 Requires Node.js 22 or later when running on Node.js. The package exports ESM JavaScript and TypeScript declarations.
@@ -51,7 +63,7 @@ pnpm build
 In another project, add the built checkout as a local dependency:
 
 ```sh
-pnpm add /absolute/path/to/mogami-stream
+npm install /absolute/path/to/mogami-stream
 ```
 
 The package exports the built ESM and TypeScript declarations in `dist/`. Rebuild the checkout after changing its source.
