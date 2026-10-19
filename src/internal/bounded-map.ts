@@ -152,22 +152,23 @@ export function scopedMap<T, U>(
             pulling = true;
             checkBounds();
             scope.operationStarted();
-            upstream.read(
-              (result) => {
-                void run(result);
-              },
-              (error) => {
-                pulling = false;
-                try {
-                  fail(error);
-                } finally {
-                  scope.operationFinished();
-                }
-              },
-            );
+            upstream.read(acceptInput, rejectInput);
           }
         } finally {
           pumping = false;
+        }
+      }
+
+      function acceptInput(result: IteratorResult<T>): void {
+        void run(result);
+      }
+
+      function rejectInput(error: unknown): void {
+        pulling = false;
+        try {
+          fail(error);
+        } finally {
+          scope.operationFinished();
         }
       }
 

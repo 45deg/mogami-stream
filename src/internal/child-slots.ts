@@ -17,19 +17,19 @@ export class ChildSlot<T> {
   start(): void {
     if (this.pending || this.result || this.failure) return;
     this.pending = true;
-    this.reader.read(
-      (result) => {
-        this.pending = false;
-        this.result = result;
-        this.notify();
-      },
-      (error: unknown) => {
-        this.pending = false;
-        this.failure = { error };
-        this.notify();
-      },
-    );
+    this.reader.read(this.receive, this.reject);
   }
+  private readonly receive = (result: IteratorResult<T>): void => {
+    this.pending = false;
+    this.result = result;
+    this.notify();
+  };
+  private readonly reject = (error: unknown): void => {
+    this.pending = false;
+    this.failure = { error };
+    this.notify();
+  };
+
   consume(): IteratorResult<T> {
     if (this.failure) throw this.failure.error;
     const result = this.result!;
