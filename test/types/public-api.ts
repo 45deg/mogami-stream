@@ -1,5 +1,6 @@
 import {
   from,
+  defer,
   fromCallback,
   fromEvent,
   of,
@@ -33,6 +34,7 @@ import {
   type TimelineEvent,
   type Stream,
   type StreamIterator,
+  type ResourceContext,
 } from "../../dist/index.js";
 
 type Equal<A, B> =
@@ -41,6 +43,33 @@ type Equal<A, B> =
     : false;
 type Expect<T extends true> = T;
 type Value<T> = T extends Stream<infer U> ? U : never;
+
+const ownedSource = defer(async (context: ResourceContext) => {
+  const resource = await context.acquire(
+    async (signal) => ({ value: signal.aborted ? 0 : 1 }),
+    (resource) => {
+      const value: number = resource.value;
+      return Promise.resolve(value);
+    },
+  );
+  return [resource.value];
+});
+export type OwnedSource = Expect<Equal<Value<typeof ownedSource>, number>>;
+const ownedFallback = of(1).pipe(
+  catchError(async (_error, { acquire }) => {
+    const value = await acquire(
+      () => "fallback",
+      (resource) => {
+        const text: string = resource;
+        return text;
+      },
+    );
+    return [value];
+  }),
+);
+export type OwnedFallback = Expect<
+  Equal<Value<typeof ownedFallback>, number | string>
+>;
 
 const nonNullish = of(1).pipe(
   filterMap(async (value) => (value > 0 ? `${value}` : null)),

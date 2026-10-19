@@ -86,7 +86,7 @@ Both `stream.pipe(...ops)` and the standalone `pipe(source, ...ops)` infer types
 - Wrapping an array or `Set` (`from([1, 2, 3])`) produces a stream that can be iterated multiple times.
 - Wrapping a generator object (`from(myGenerator())`) produces a single-use stream because the generator is already instantiated and exhausted after one run.
 
-Use [`defer`](/mogami-stream/api/functions/defer.html){target="_self"} to create a fresh source for each execution and receive its `AbortSignal`. `defer` does not automatically close resources opened by your factory.
+Use [`defer`](/mogami-stream/api/functions/defer.html){target="_self"} to create a fresh source for each execution and receive its `AbortSignal`. For resources opened during asynchronous factory setup, use [`context.acquire(acquire, release)`](./lifecycle.md#owning-resources-during-asynchronous-setup) to register ownership even if cancellation occurs before setup finishes.
 
 ### Owning and releasing a resource
 
@@ -96,7 +96,7 @@ The following function accepts an application-provided `openCursor` adapter. Its
 
 Each consumption opens a fresh cursor on the first read. The async generator owns that cursor and releases it in `finally` on normal completion, failure, or early termination with `take(10)`. The two runs are sequential, and each `toArray` waits for its cursor to close before settling. An aborted signal also stops the execution, so the second run will not open a cursor if the signal is already aborted.
 
-The library calls the returned iterator's `return()` during cleanup and awaits it. It cannot infer that an unrelated session, file handle, or socket needs closing. Keep acquisition and release together in a generator's `try/finally`, as above, or register the appropriate teardown with [`finalize`](./lifecycle.md).
+The library calls the opened iterator's `return()` during early cleanup and awaits it. It cannot infer that an unrelated session, file handle, or socket needs closing. Keep acquisition and release together in a generator's `try/finally`, as above, or use `context.acquire` for resources opened before returning the source. A `finalize` attached to a returned source cannot protect resources allocated during setup if cancellation prevents that source from being opened.
 
 Pass the execution's `signal` through to the cursor's underlying I/O, including row reads where your driver supports it. If a pending read ignores cancellation, cleanup must wait for it to settle before `finally` can run. If `openCursor` fails before returning a cursor, the adapter is responsible for releasing any partially acquired resources.
 
