@@ -2,6 +2,12 @@
 
 TypeScript operators for standard `AsyncIterable` pipelines, with bounded concurrency, explicit cancellation, and zero runtime dependencies.
 
+- **Bounded work and buffering.** `map` limits concurrent work with `concurrency` and caps the total of pending reads, running callbacks, and buffered results with `capacity`. Results are emitted in input order or completion order.
+- **Demand-driven execution.** Pipelines start on the first read. Concurrent stages start new upstream reads only while downstream is waiting for a value; work already in flight may finish within the stage's bounds.
+- **Separate cancellation and cleanup completion.** `cancel()` rejects a pending `next()` immediately and passes the stop request to upstream stages through `AbortSignal`. Await `closed` for in-flight work and cleanup to finish.
+- **Awaited cleanup with error reports.** Async `finalize` callbacks run after upstream stages and in-flight work finish. Terminal consumers wait for cleanup before settling. `closed` reports completion, cancellation, or failure, preserving the primary reason and collecting additional errors in `suppressedErrors`.
+- **Standard iterable interop.** Wrap synchronous iterables and async generators, compose typed operators with `.pipe()`, and consume the result with `for await...of` or terminal methods such as `.toArray()`.
+
 ```ts
 import { from, map, rateLimit, take, toArray } from "mogami-stream";
 
@@ -323,3 +329,11 @@ Run `pnpm bench --json=/tmp/mogami-bench.json` to compare async stream libraries
 `pnpm test:browser` uses a local Google Chrome installation on macOS when available and falls back to Playwright Chromium (override with `PLAYWRIGHT_EXECUTABLE_PATH`). `pnpm test:cloudflare` runs locally in Miniflare/`workerd` without requiring a Cloudflare account.
 
 Supported runtimes include Node.js (>= 22), Bun, browser main threads, Dedicated Workers, Service Workers, and Cloudflare Workers. `pnpm build` compiles self-contained ESM JavaScript and TypeScript declarations to `dist/` with no side effects on import.
+
+## Related Projects
+
+- [aiostream](https://github.com/vxgmichel/aiostream) - Composable operators for Python async iterables; inspired mogami-stream's operator API.
+- [IxJS](https://github.com/ReactiveX/IxJS) - Operators for JavaScript synchronous and asynchronous iterables (included in this repository's benchmarks).
+- [iter-tools](https://github.com/iter-tools/iter-tools) - Utilities for synchronous and asynchronous iterables (included in this repository's benchmarks).
+- [p-map](https://github.com/sindresorhus/p-map) - Concurrent Promise mapping, including streaming with `pMapIterable` (included in this repository's benchmarks).
+- [RxJS](https://github.com/ReactiveX/rxjs) - Reactive event stream operators based on Observables.
