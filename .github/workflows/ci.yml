@@ -22,6 +22,7 @@ jobs:
       - run: pnpm test:package
   browser-and-workers:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -34,3 +35,4 @@ jobs:
       - run: pnpm docs:test
       - run: pnpm test:browser
       - run: pnpm test:cloudflare
+      - run: pnpm test:runtime-watchdog
