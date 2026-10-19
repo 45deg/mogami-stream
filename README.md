@@ -29,7 +29,15 @@ const results = await toArray(texts, { signal });
 
 In the example above, `rateLimit` paces how often upstream `next()` reads start within a single pipeline execution. It does not coordinate requests across separate executions or count retry attempts inside `map`.
 
-## Use from source
+## Installation
+
+```sh
+pnpm add mogami-stream
+```
+
+Requires Node.js 22 or later when running on Node.js. The package exports ESM JavaScript and TypeScript declarations.
+
+### Use from source
 
 Install Node.js 22 or later and pnpm 11.1.1, then clone and build the library:
 
