@@ -172,7 +172,7 @@ export async function runRepresentative(args = process.argv.slice(2)) {
         "maxActive counts active attempts; retries retain stage slots between attempts; maxAhead = yielded inputs minus sink receipts; maxReady = successful attempts minus sink receipts; logical bounds asserted per transition, not heap limits; includes at most one item handed to sink",
       comparison:
         "Ordered delayed/slow-sink/retry only, same lazy async numeric source, payload, timer function, concurrency, capacity/backpressure, validation and sink; retry is one retry after 2 ms, failing every fifth ID only on attempt 1; p-map uses a matching callback wrapper; cancellation and unordered/rate have no library ranking",
-      rate: "rateLimit counts source next() including final done; timestamp oracle observes inside source after admission, permits 1 ms observation skew at sliding-window boundaries; no per-attempt rate limiting claimed",
+      rate: "rateLimit counts source next() including final done; admission is bracketed by downstream request and source observation; the oracle rejects windows that violate the limit even with observation delays; strict observed window maxima are reported separately",
       statistics:
         "Every sample plus median/min/max; host-specific synthetic timers, not network/storage I/O; no confidence interval or causal queue comparison",
     },

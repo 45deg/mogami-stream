@@ -108,7 +108,8 @@ function theme(lang: keyof typeof labels): DefaultTheme.Config {
 
 export default defineConfig({
   title: "mogami-stream",
-  description: "Bounded, cancellable AsyncIterable pipelines for TypeScript.",
+  titleTemplate: "mogami-stream | :title",
+  description: "TypeScript operators for safe asynchronous stream processing",
   base: "/mogami-stream/",
   srcExclude: ["api/**"],
   cleanUrls: false,
@@ -118,8 +119,7 @@ export default defineConfig({
     ja: {
       label: "日本語",
       lang: "ja",
-      description:
-        "並行実行数とバッファを制御できる TypeScript の AsyncIterable ライブラリ。",
+      description: "安全な非同期ストリーム処理のための TypeScript オペレータ集",
       themeConfig: theme("ja"),
     },
   },

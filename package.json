@@ -1,7 +1,7 @@
 {
   "name": "mogami-stream",
   "version": "0.2.0",
-  "description": "Bounded, cancellable AsyncIterable pipelines with zero runtime dependencies.",
+  "description": "TypeScript operators for safe asynchronous stream processing",
   "keywords": [
     "async-iterable",
     "async-iterator",

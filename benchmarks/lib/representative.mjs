@@ -115,6 +115,16 @@ export function jitter(seed, id, attempt, span) {
   return ((value ^ (value >>> 15)) >>> 0) % (span + 1);
 }
 
+export function verifyRateWindows(requested, observed, count, perMs) {
+  for (let index = count; index < observed.length; index++) {
+    // Admission lies between the downstream request and source observation.
+    assert.ok(
+      observed[index] - requested[index - count] >= perMs,
+      "rate window exceeded between request and source observation",
+    );
+  }
+}
+
 export async function measureScenario(profile, library, seed, sampleMs = 5) {
   assert.ok(
     library === "mogami" || (library === "p-map-iterable" && profile.compare),
@@ -137,9 +147,9 @@ export async function measureScenario(profile, library, seed, sampleMs = 5) {
   let cancelTimer;
   const seen = new Uint8Array(profile.items);
   const starts = new Float64Array(profile.rateCount ? profile.items + 1 : 0);
+  const requestedStarts = new Float64Array(starts.length);
   let startCount = 0,
     rateHead = 0,
-    oracleHead = 0,
     maxRateWindow = 0;
   function recordBounds() {
     maxAhead = Math.max(maxAhead, pulled - received);
@@ -171,16 +181,6 @@ export async function measureScenario(profile, library, seed, sampleMs = 5) {
     while (rateHead < startCount && starts[rateHead] <= now - profile.perMs)
       rateHead++;
     maxRateWindow = Math.max(maxRateWindow, startCount - rateHead);
-    // Observation happens after the internal admission clock: allow 1 ms boundary skew.
-    while (
-      oracleHead < startCount &&
-      starts[oracleHead] <= now - profile.perMs + 1
-    )
-      oracleHead++;
-    assert.ok(
-      startCount - oracleHead <= profile.rateCount,
-      "rate window exceeded beyond 1 ms observation skew",
-    );
   }
   async function mapper(id, { signal, attempt = 1 } = {}) {
     active++;
@@ -276,6 +276,7 @@ export async function measureScenario(profile, library, seed, sampleMs = 5) {
     let cancelled = false;
     try {
       for (;;) {
+        if (profile.rateCount) requestedStarts[startCount] = performance.now();
         const result = await iterator.next();
         if (result.done) break;
         const { id, value } = profile.rateCount
@@ -322,8 +323,15 @@ export async function measureScenario(profile, library, seed, sampleMs = 5) {
             ? Math.ceil(profile.items / profile.retryEvery)
             : 0);
       assert.equal(attempts, expectedAttempts);
-      if (profile.rateCount) assert.equal(startCount, profile.items + 1);
-      else assert.equal(maxActive, profile.concurrency);
+      if (profile.rateCount) {
+        assert.equal(startCount, profile.items + 1);
+        verifyRateWindows(
+          requestedStarts,
+          starts,
+          profile.rateCount,
+          profile.perMs,
+        );
+      } else assert.equal(maxActive, profile.concurrency);
     }
     sampleMemory();
     return {

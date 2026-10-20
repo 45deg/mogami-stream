@@ -5,7 +5,7 @@
 [![Documentation](https://img.shields.io/badge/docs-English%20%7C%20日本語-blue)](https://45deg.github.io/mogami-stream/)
 [![MIT license](https://img.shields.io/npm/l/mogami-stream)](https://github.com/45deg/mogami-stream/blob/main/LICENSE)
 
-TypeScript operators for standard `AsyncIterable` pipelines, with bounded concurrency, explicit cancellation, and zero runtime dependencies.
+TypeScript operators for safe asynchronous stream processing
 
 - **Bounded work and buffering.** `map` limits concurrent work with `concurrency` and caps the total of pending reads, running callbacks, and buffered results with `capacity`. Results are emitted in input order or completion order.
 - **Demand-driven execution.** Pipelines start on the first read. Concurrent stages start new upstream reads only while downstream is waiting for a value; work already in flight may finish within the stage's bounds.

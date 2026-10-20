@@ -10,6 +10,7 @@ import {
   jitter,
   measureScenario,
   scenarios,
+  verifyRateWindows,
 } from "../benchmarks/lib/representative.mjs";
 
 test("representative options reject configurations that hide missing samples", () => {
@@ -98,6 +99,16 @@ test("rate profile checks sliding windows and the terminal upstream read", async
   assert.equal(result.maxActive, 0);
   assert.ok(result.maxRateWindow >= 10);
   assert.ok(result.elapsedMs >= 30);
+});
+
+test("rate verification accounts for delayed source observations and rejects definite violations", () => {
+  // Admission at 0 can be observed at 6, compressing the observed window.
+  verifyRateWindows([0, 6, 6], [6, 6, 10], 2, 10);
+  verifyRateWindows([0, 0, 10], [0, 0, 10], 2, 10);
+  assert.throws(
+    () => verifyRateWindows([0, 0, 8], [1, 1, 9], 2, 10),
+    /rate window exceeded/,
+  );
 });
 
 test("memory reports preserve reported zero and mark unavailable or unverified accounting", () => {

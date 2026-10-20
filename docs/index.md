@@ -1,10 +1,10 @@
 ---
-title: AsyncIterable pipelines with bounded concurrency
+title: TypeScript operators for safe asynchronous stream processing
 ---
 
 # mogami-stream
 
-TypeScript operators for safe asynchronous stream processing (zero dependencies / concurrency and buffer limits / cancellation / cleanup)
+TypeScript operators for safe asynchronous stream processing
 
 ## Usage
 
