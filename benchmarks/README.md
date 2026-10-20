@@ -34,7 +34,7 @@ Use `--name=value`:
 
 | Option        | Default | Description                                           |
 | ------------- | ------: | ----------------------------------------------------- |
-| `gc` | none | `none` or `between`; `between` requires `--expose-gc` |
+| `gc`          |    none | `none` or `between`; `between` requires `--expose-gc` |
 | `items`       |   10000 | Input count                                           |
 | `concurrency` |       8 | Mapper limit; serial map uses 1                       |
 | `capacity`    |      16 | Read-ahead capacity (`>= concurrency`); serial uses 1 |
