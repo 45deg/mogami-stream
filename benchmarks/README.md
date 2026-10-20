@@ -5,7 +5,7 @@ pnpm bench --json=/tmp/mogami-bench.json
 pnpm bench --case=async-pipeline --items=100000
 # Bun:
 pnpm build
-bun --expose-gc benchmarks/run.mjs --json=/tmp/mogami-bun.json
+bun benchmarks/run.mjs --json=/tmp/mogami-bun.json
 ```
 
 | Case                   | Workload                            | Libraries                              |
@@ -26,12 +26,15 @@ Every run checks output order, values, counts, source closure, and task completi
 
 JSON reports contain runtime/library versions, settings, raw samples, elapsed/CPU time, first-item latency, and observed concurrency/read-ahead. Read-ahead metrics are `null` for the filtering pipeline; these are not heap measurements.
 
+Normal GC (`--gc=none`) is the default, even when the runtime exposes `gc`. To request manual GC before each warmup and measured iteration, run `node --expose-gc benchmarks/run.mjs --gc=between` (or use Bun). Reports record the mode and manual call count. Compare changes under the same mode; keep manual-GC results separate.
+
 ## Options
 
 Use `--name=value`:
 
 | Option        | Default | Description                                           |
 | ------------- | ------: | ----------------------------------------------------- |
+| `gc` | none | `none` or `between`; `between` requires `--expose-gc` |
 | `items`       |   10000 | Input count                                           |
 | `concurrency` |       8 | Mapper limit; serial map uses 1                       |
 | `capacity`    |      16 | Read-ahead capacity (`>= concurrency`); serial uses 1 |
@@ -52,9 +55,9 @@ pnpm bench:svg
 pnpm bench:svg --reuse --png=/tmp/mogami-async.png
 ```
 
-The default command builds, measures Node.js then Bun, and plots all three cases: 100,000 inputs, 5 warmups, 7 samples, seed 42, concurrency 8, capacity 16, and GC between runs. Measurement options above can override these defaults; `--svg` and `--results-dir` change output paths. `--reuse` skips measurement and cannot change its settings.
+The default command builds, measures Node.js then Bun, and plots all three cases: 100,000 inputs, 5 warmups, 7 samples, seed 42, concurrency 8, capacity 16, and normal GC. Use `pnpm bench:svg --gc=between` for a separate manual-GC run; the renderer exposes GC in its child runtimes. Measurement options above can override these defaults; `--svg` and `--results-dir` change output paths. `--reuse` skips measurement and cannot change its settings.
 
-Raw samples are generated locally as `results/readme/node.json` and `bun.json` and excluded from Git. Only the README chart is tracked. Plotting checks matching settings, cases, library versions, and sample counts. Update the root README's environment caption when remeasuring.
+Raw samples are generated locally as `results/readme/node.json` and `bun.json` and excluded from Git. Only the README chart is tracked. Plotting labels the GC condition and rejects mixed conditions, including saved reports from before the explicit GC option. Plotting checks matching settings, cases, library versions, and sample counts. Update the root README's environment caption when remeasuring.
 
 ## Representative waits and cleanup
 

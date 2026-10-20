@@ -32,7 +32,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "prepack": "pnpm build && pnpm check:dist",
-    "bench": "pnpm build && node --expose-gc benchmarks/run.mjs",
+    "bench": "pnpm build && node benchmarks/run.mjs",
     "docs": "pnpm docs:build",
     "docs:api": "typedoc",
     "docs:prepare": "pnpm build && pnpm docs:api && node scripts/prepare-docs.mjs",
@@ -41,7 +41,7 @@
     "docs:preview": "vitepress preview docs",
     "docs:typecheck": "tsc -p docs/examples/tsconfig.json",
     "docs:test": "pnpm docs:build && node scripts/test-docs.mjs",
-    "bench:svg": "pnpm build && node --expose-gc benchmarks/render-svg.mjs",
+    "bench:svg": "pnpm build && node benchmarks/render-svg.mjs",
     "test:dist": "node scripts/test-dist.mjs"
   },
   "devDependencies": {

@@ -1,4 +1,8 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { test } from "node:test";
 import { adaptersFor } from "../benchmarks/compare/adapters.mjs";
 import {
@@ -122,3 +126,65 @@ for (const [name, libraries] of [
     }
   });
 }
+
+test("GC is explicit, validated, and independent of runtime exposure", () => {
+  for (const gcAvailable of [false, true]) {
+    assert.equal(parseOptions([], { gcAvailable }).gc, "none");
+    assert.equal(parseOptions(["--gc=none"], { gcAvailable }).gc, "none");
+  }
+  assert.throws(
+    () => parseOptions(["--gc=between"], { gcAvailable: false }),
+    /expose-gc/,
+  );
+  assert.equal(
+    parseOptions(["--gc=between"], { gcAvailable: true }).gc,
+    "between",
+  );
+  assert.throws(() => parseOptions(["--gc=invalid"]), /gc mode/);
+});
+
+test("benchmark workers honor explicit GC and count warmups separately from samples", () => {
+  const directory = mkdtempSync(join(tmpdir(), "mogami-gc-"));
+  try {
+    for (const exposed of [false, true]) {
+      for (const mode of ["none", "between"]) {
+        const file = join(directory, `${exposed}-${mode}.json`);
+        const child = spawnSync(
+          process.execPath,
+          [
+            ...(exposed ? ["--expose-gc"] : []),
+            "benchmarks/run.mjs",
+            "--case=async-map-concurrent",
+            "--items=5",
+            "--warmup=1",
+            "--samples=2",
+            `--gc=${mode}`,
+            `--json=${file}`,
+          ],
+          {
+            cwd: new URL("../", import.meta.url),
+            encoding: "utf8",
+            timeout: 10000,
+          },
+        );
+        assert.ifError(child.error);
+        if (mode === "between" && !exposed) {
+          assert.notEqual(child.status, 0);
+          assert.match(child.stderr, /expose-gc/);
+        } else {
+          assert.equal(child.status, 0, child.stderr);
+          const report = JSON.parse(readFileSync(file, "utf8"));
+          assert.equal(report.runtime.gc, mode);
+          assert.equal(report.configuration.gc, mode);
+          assert.equal(report.runtime.forcedGcBetweenRuns, mode === "between");
+          for (const row of report.results) {
+            assert.equal(row.manualGcCalls, mode === "between" ? 3 : 0);
+            assert.equal(row.samples.length, 2);
+          }
+        }
+      }
+    }
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});

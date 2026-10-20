@@ -29,11 +29,26 @@ rows = {
     name: {(row["case"], row["library"]): row for row in report["results"]}
     for name, report in reports.items()
 }
+gc_modes = set()
 for name, report in reports.items():
-    if report["runtime"]["name"] != name or not report["runtime"]["forcedGcBetweenRuns"]:
-        raise ValueError(f"Expected {name} with forced GC")
+    runtime = report["runtime"]
+    if runtime["name"] != name:
+        raise ValueError(f"Expected {name} runtime")
+    # Schema 2 reports predate the explicit option; retain their recorded mode.
+    forced = runtime["forcedGcBetweenRuns"]
+    if not isinstance(forced, bool):
+        raise ValueError("Missing or invalid GC condition")
+    mode = runtime.get("gc", "between" if forced else "none")
+    if mode not in ("none", "between") or forced != (mode == "between"):
+        raise ValueError("Inconsistent runtime GC condition")
+    if report["configuration"].get("gc", mode) != mode:
+        raise ValueError("Configuration and runtime GC conditions differ")
+    gc_modes.add(mode)
     if len(rows[name]) != len(report["results"]):
         raise ValueError("Duplicate benchmark results")
+if len(gc_modes) != 1:
+    raise ValueError("Node.js and Bun GC conditions differ")
+gc_mode = gc_modes.pop()
 if {key: row["version"] for key, row in rows["node"].items()} != {
     key: row["version"] for key, row in rows["bun"].items()
 }:
@@ -109,7 +124,8 @@ fig.legend(
     ncol=2,
     frameon=False,
 )
-fig.tight_layout(rect=(0, 0, 1, .96), h_pad=2)
+fig.text(.5, .01, "GC: normal" if gc_mode == "none" else "GC: manual before each iteration", ha="center")
+fig.tight_layout(rect=(0, .03, 1, .96), h_pad=2)
 fig.savefig(args.svg, metadata={"Date": None})
 # Matplotlib emits trailing spaces in multiline SVG path attributes.
 args.svg.write_text(

@@ -22,8 +22,9 @@ for (const argument of process.argv.slice(2)) {
 }
 if (reuse && benchmarkArgs.length)
   throw new Error("--reuse cannot change measurement settings");
-parseOptions(benchmarkArgs);
+parseOptions(benchmarkArgs, { gcAvailable: true });
 const options = new Map([
+  ["gc", "none"],
   ["items", "100000"],
   ["warmup", "5"],
   ["samples", "7"],
@@ -49,7 +50,7 @@ if (!reuse) {
     execFileSync(
       runtime,
       [
-        "--expose-gc",
+        ...(options.get("gc") === "between" ? ["--expose-gc"] : []),
         "benchmarks/run.mjs",
         ...args,
         `--json=${files[runtime]}`,
