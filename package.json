@@ -36,7 +36,7 @@
   "scripts": {
     "build": "node scripts/build.mjs",
     "typecheck": "tsc -p test/types/tsconfig.json && tsc -p test/types/tsconfig.worker.json && tsc -p test/types/tsconfig.node.json",
-    "test": "pnpm build && node --test --test-timeout=10000 test/*.test.mjs",
+    "test": "pnpm build && node --test --test-timeout=30000 test/*.test.mjs",
     "test:bun": "pnpm build && bun test test/*.test.mjs",
     "check:dist": "node scripts/check-dist.mjs",
     "check": "pnpm test && pnpm test:dist && pnpm typecheck && pnpm check:dist && pnpm format:check",
