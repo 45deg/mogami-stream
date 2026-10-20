@@ -564,3 +564,88 @@ fromEvent(new EventTarget(), "change", {
   // @ts-expect-error Returning a Promise is unsupported, even without async syntax.
   onDrop: () => Promise.resolve(undefined),
 });
+
+// Fluent methods preserve contextual inference across type changes and custom operators.
+const fluent = of(1, 2)
+  .map(
+    async (value, context) => {
+      const attempt: number = context.attempt;
+      return String(value + attempt);
+    },
+    { concurrency: 2 },
+  )
+  .pipe(
+    map((value) => value.length),
+    filter((value) => value > 0),
+  )
+  .filterMap(async (value) => (value ? value : null))
+  .dedupe((value) => String(value))
+  .scan(async (sum, value) => sum + value, Promise.resolve(0))
+  .skip(0)
+  .take(10)
+  .skipWhile(async (value) => value < 0)
+  .takeWhile(async (value) => value > 0)
+  .tap((value) => {
+    const number: number = value;
+    return number;
+  })
+  .finalize(async () => {})
+  .delayStart(0)
+  .spaceout(0)
+  .rateLimit({ count: 1, perMs: 1 })
+  .timeoutEach(100)
+  .deadline(100)
+  .chunks(2)
+  .bufferTime(1, { maxItems: 2 });
+export type Fluent = Expect<Equal<Value<typeof fluent>, number[][]>>;
+const fluentNarrowed = from<number | string>([1, "a"]).filter(
+  (value): value is string => typeof value === "string",
+);
+export type FluentNarrowed = Expect<
+  Equal<Value<typeof fluentNarrowed>, string>
+>;
+const fluentPrefix = from<number | string>([1, "a"]).takeWhile(
+  (value): value is number => typeof value === "number",
+);
+export type FluentPrefix = Expect<Equal<Value<typeof fluentPrefix>, number>>;
+const fluentInferredGuard = from<number | string>([1, "a"]).filter(
+  (value) => typeof value === "string",
+);
+export type FluentInferredGuard = Expect<
+  Equal<Value<typeof fluentInferredGuard>, string>
+>;
+const fluentSettled = of(1).mapSettled(async (value) => String(value));
+export type FluentSettled = Expect<
+  Equal<Value<typeof fluentSettled>, SettledResult<string>>
+>;
+const fluentRecovered = of(1).catchError(async (_error, context) => {
+  const signal: AbortSignal = context.signal;
+  return signal.aborted ? [] : ["fallback"];
+});
+export type FluentRecovered = Expect<
+  Equal<Value<typeof fluentRecovered>, number | string>
+>;
+const fluentFlattened = of([1], [2]).flatten({ concurrency: 2 });
+const fluentConcatenated = of(of("a"), of("b")).concat();
+const fluentFlatMapped = of(1).flatMap((value) => [String(value)]);
+const fluentConcatMapped = of(1).concatMap((value) => of(String(value)));
+export type FluentFlattened = Expect<
+  Equal<Value<typeof fluentFlattened>, number>
+>;
+export type FluentConcatenated = Expect<
+  Equal<Value<typeof fluentConcatenated>, string>
+>;
+export type FluentFlatMapped = Expect<
+  Equal<Value<typeof fluentFlatMapped>, string>
+>;
+export type FluentConcatMapped = Expect<
+  Equal<Value<typeof fluentConcatMapped>, string>
+>;
+// @ts-expect-error Scalars cannot be flattened.
+of(1).flatten();
+// @ts-expect-error Scalars cannot be concatenated as child sources.
+of(1).concat();
+// @ts-expect-error Mapper input follows the current stream type.
+of(1).map((value: string) => value.length);
+// @ts-expect-error Custom operators must accept the preceding stream type.
+of(1).pipe(map((value: string) => value.length));

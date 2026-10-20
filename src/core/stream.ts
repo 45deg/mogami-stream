@@ -48,6 +48,11 @@ export class Stream<T> implements AsyncIterable<T> {
   /** @internal */
   constructor(private readonly builder: Builder<T>) {}
 
+  /** Lets a fluent facade reuse the execution builder without adding a stage. @internal */
+  protected static builderFor<T>(source: Stream<T>): Builder<T> {
+    return source.builder;
+  }
+
   /** @internal */
   [openStream](scope: Scope): Reader<T> {
     let reader: Reader<T> | undefined;
