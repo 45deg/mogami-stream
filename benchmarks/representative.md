@@ -33,7 +33,18 @@ Each scenario/library pair runs in a fresh process, executed sequentially in a s
 
 `maxActive` counts callback attempts actually overlapping, rather than the configured limit. Retry slots remain occupied during backoff even though active-attempt count decreases. `maxAhead` is source values yielded minus values received by the sink; `maxReady` is successful callback completions minus sink receipts. Transition assertions enforce logical boundedness independently of the memory sampler. These external counters do not expose internal queue length, reserved pending reads, or exact retained bytes.
 
-Memory records baseline, independently sampled peak, and peak-minus-baseline for `heapUsed`, `heapTotal`, RSS, external memory, and ArrayBuffers. The sampler runs every 5 ms by default and once after cleanup; timer starvation and GC can hide transient peaks, and fields may peak at different times. RSS includes runtime code, allocator behavior, libraries, and instrumentation, and need not fall after cleanup. Preallocated uniqueness and timestamp oracles scale with input count and are included in the baseline rather than retained stream outputs. Logical item counters (`maxActive`, `maxAhead`, `maxReady`) are the primary evidence of boundedness; sampled process memory is observational.
+`memory.runtimeApi` records the runtime, version, `process.memoryUsage` method, per-field status, baseline, independently sampled peak, and peak-minus-baseline for `heapUsed`, `heapTotal`, RSS, external memory, and ArrayBuffers. The sampler runs every 5 ms by default and once after cleanup; timer starvation and GC can hide transient peaks, and fields may peak at different times. RSS includes runtime code, allocator behavior, libraries, and instrumentation, and need not fall after cleanup. Preallocated uniqueness and timestamp oracles scale with input count and are included in the baseline rather than retained stream outputs. Logical item counters (`maxActive`, `maxAhead`, `maxReady`) are the primary evidence of boundedness; sampled process memory is observational.
+
+`memory.os` records RSS from `ps -o rss= -p PID` on macOS/Linux before the workload and after cleanup, outside elapsed-time measurement. Values are converted from KiB to bytes. These two observations are not OS peak measurements or simultaneous API/OS snapshots. An unavailable command or unsupported platform produces `status: "unavailable"`, a reason, and `rssBytes: null`.
+
+API fields that are missing or invalid are `null` with `unavailable` status; reported zero remains zero. Bun's `external` and `arrayBuffers` values remain raw API reports with `unverified-accounting` status: controlled buffer allocations did not appear in these fields in the Bun 1.4.3 investigation. Do not infer zero buffer usage or aggregate them as Node-equivalent categories. Compare process RSS using the same OS method and sampling points; use retention tests separately to check whether closed executions release payloads.
+
+For a fresh Node/Bun comparison with normal GC, run both commands without `--expose-gc`:
+
+```sh
+node benchmarks/representative.mjs --json=/tmp/representative-node.json
+bun benchmarks/representative.mjs --json=/tmp/representative-bun.json
+```
 
 Cancellation measures from the actual abort callback to rejection of pending `next()` and, separately, to `iterator.closed`. The latter waits for outstanding work and the deliberately delayed source cleanup. A cancelled run delivers zero items, so its throughput is zero and should not be compared with completed workloads. These cases schedule cancellation only after full overlap and before any work timer should complete; assertions reject a run where that condition does not hold.
 

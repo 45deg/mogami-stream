@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { memorySnapshot, memoryFieldStatus, readOsRss } from "./memory.mjs";
 import { setTimeout as sleep } from "node:timers/promises";
 import { createRequire } from "node:module";
 import { from, map, rateLimit } from "../../dist/index.js";
@@ -222,13 +223,17 @@ export async function measureScenario(profile, library, seed, sampleMs = 5) {
       active--;
     }
   }
-  const baseline = process.memoryUsage();
+  const osBefore = readOsRss();
+  const baseline = memorySnapshot();
   const peak = { ...baseline };
   let memorySamples = 0;
   function sampleMemory() {
-    const memory = process.memoryUsage();
+    const memory = memorySnapshot();
     for (const key of Object.keys(peak))
-      peak[key] = Math.max(peak[key], memory[key]);
+      peak[key] =
+        peak[key] === null || memory[key] === null
+          ? null
+          : Math.max(peak[key], memory[key]);
     memorySamples++;
   }
   const memoryTimer = setInterval(sampleMemory, sampleMs);
@@ -338,13 +343,34 @@ export async function measureScenario(profile, library, seed, sampleMs = 5) {
         cancelAt === undefined ? null : settledAt - cancelAt,
       cancelToClosedMs: cancelAt === undefined ? null : closedAt - cancelAt,
       memory: {
-        sampleMs,
-        samples: memorySamples,
-        baseline,
-        peak,
-        delta: Object.fromEntries(
-          Object.keys(peak).map((key) => [key, peak[key] - baseline[key]]),
-        ),
+        runtimeApi: {
+          method: "process.memoryUsage",
+          runtime: process.versions.bun ? "bun" : process.release.name,
+          version: process.versions.bun ?? process.version,
+          sampleMs,
+          samples: memorySamples,
+          fieldStatus: memoryFieldStatus(
+            peak,
+            process.versions.bun ? "bun" : process.release.name,
+          ),
+          baseline,
+          peak,
+          delta: Object.fromEntries(
+            Object.keys(peak).map((key) => [
+              key,
+              peak[key] === null || baseline[key] === null
+                ? null
+                : peak[key] - baseline[key],
+            ]),
+          ),
+        },
+        os: {
+          method: "ps -o rss= -p PID (KiB converted to bytes)",
+          platform: process.platform,
+          scope: "before workload and after cleanup; not a peak measurement",
+          before: osBefore,
+          after: readOsRss(),
+        },
       },
     };
   } finally {
