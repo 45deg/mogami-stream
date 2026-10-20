@@ -1,5 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import {
+  memorySnapshot,
+  memoryFieldStatus,
+  readOsRss,
+} from "../benchmarks/lib/memory.mjs";
 import { parseOptions } from "../benchmarks/representative.mjs";
 import {
   jitter,
@@ -45,7 +50,21 @@ test("delayed and retry profiles verify equivalent ordered adapters and actual o
       assert.equal(result.received, 32);
       assert.equal(result.attempts, name === "retry" ? 39 : 32);
       assert.ok(result.maxAhead <= 9);
-      assert.ok(result.memory.samples > 1);
+      assert.ok(result.memory.runtimeApi.samples > 1);
+      assert.equal(result.memory.runtimeApi.method, "process.memoryUsage");
+      assert.equal(
+        result.memory.runtimeApi.runtime,
+        process.versions.bun ? "bun" : "node",
+      );
+      for (const observation of [
+        result.memory.os.before,
+        result.memory.os.after,
+      ]) {
+        assert.ok(observation.observedAt);
+        if (observation.status === "measured")
+          assert.ok(observation.rssBytes > 0);
+        else assert.equal(observation.rssBytes, null);
+      }
     }
 });
 
@@ -79,4 +98,29 @@ test("rate profile checks sliding windows and the terminal upstream read", async
   assert.equal(result.maxActive, 0);
   assert.ok(result.maxRateWindow >= 10);
   assert.ok(result.elapsedMs >= 30);
+});
+
+test("memory reports preserve reported zero and mark unavailable or unverified accounting", () => {
+  const snapshot = memorySnapshot({ rss: 1024, heapUsed: 0, external: NaN });
+  assert.equal(snapshot.heapUsed, 0);
+  assert.equal(snapshot.external, null);
+  assert.equal(snapshot.arrayBuffers, null);
+  assert.equal(memoryFieldStatus(snapshot, "node").heapUsed, "reported");
+  assert.equal(memoryFieldStatus(snapshot, "bun").arrayBuffers, "unavailable");
+  const reported = memorySnapshot({ arrayBuffers: 0, external: 100 });
+  assert.equal(
+    memoryFieldStatus(reported, "bun").arrayBuffers,
+    "unverified-accounting",
+  );
+  assert.equal(
+    memoryFieldStatus(reported, "bun").external,
+    "unverified-accounting",
+  );
+  assert.equal(reported.arrayBuffers, 0);
+  const os = readOsRss();
+  if (os.status === "measured") assert.ok(os.rssBytes > 0);
+  else {
+    assert.equal(os.rssBytes, null);
+    assert.ok(os.reason);
+  }
 });

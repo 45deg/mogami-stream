@@ -139,7 +139,7 @@ export async function runRepresentative(args = process.argv.slice(2)) {
     ),
   );
   const report = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     createdAt: new Date().toISOString(),
     runtime: {
       name: process.versions.bun ? "bun" : process.release.name,
@@ -167,7 +167,7 @@ export async function runRepresentative(args = process.argv.slice(2)) {
       timing:
         "Includes pipeline construction, timer waits, output validation, instrumentation, and cleanup; excludes process startup; cancellation next() settlement and iterator.closed measured separately from actual abort time",
       memory:
-        "process.memoryUsage() sampled every sampleMs and once after cleanup; independent peak for each field, not a simultaneous snapshot or guaranteed upper bound; event-loop delays can miss peaks; process RSS/heap includes runtime, library and instrumentation; preallocated oracle arrays scale with input count and are included in baseline; no memory ceiling or leak proof",
+        "runtimeApi records process.memoryUsage() with runtime/version and per-field accounting status; missing fields are null; Bun external/arrayBuffers accounting is unverified, not zero usage; OS ps RSS is observed before workload and after cleanup outside timing, not simultaneously with API readings and not as a peak; process.memoryUsage() sampled every sampleMs and once after cleanup; independent peak for each field, not a simultaneous snapshot or guaranteed upper bound; event-loop delays can miss peaks; process RSS/heap includes runtime, library and instrumentation; preallocated oracle arrays scale with input count and are included in baseline; no memory ceiling or leak proof",
       bounds:
         "maxActive counts active attempts; retries retain stage slots between attempts; maxAhead = yielded inputs minus sink receipts; maxReady = successful attempts minus sink receipts; logical bounds asserted per transition, not heap limits; includes at most one item handed to sink",
       comparison:
