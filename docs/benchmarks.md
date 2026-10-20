@@ -16,6 +16,8 @@ Inputs are numeric IDs yielded by an async generator, and mapper callbacks `awai
 
 Each library/workload pair executes in an isolated child process in a seeded shuffled order (`--seed=42`). Imports, input preparation, warmups, and manual GC occur outside timed regions. Every iteration validates output order, values, item counts, source closure, task completion, and concurrency/read-ahead bounds (`capacity + 1` including the item delivered to the consumer).
 
+The chart above used manual GC between iterations. New runs default to normal GC (`--gc=none`); use `pnpm bench:svg --gc=between` to reproduce the previous GC condition. Saved reports and new charts identify the condition, and plotting rejects mixed conditions.
+
 ## Reproducing the benchmarks
 
 ```sh

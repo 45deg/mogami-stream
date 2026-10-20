@@ -8,9 +8,15 @@ const workload = workloads.find((w) => w.name === job.case);
 const adapter = (await adaptersFor()).find((a) => a.name === job.library);
 if (!adapter?.supports(workload)) throw new Error("Unsupported case/library");
 const execution = prepareWorkload(workload, config);
+if (config.gc === "between" && typeof globalThis.gc !== "function")
+  throw new Error("Manual GC requires --expose-gc in the worker");
 const samples = [];
+let manualGcCalls = 0;
 for (let round = 0; round < config.warmup + config.samples; round++) {
-  globalThis.gc?.();
+  if (config.gc === "between") {
+    globalThis.gc();
+    manualGcCalls++;
+  }
   const context = execution();
   const watchdog = setTimeout(() => {
     console.error(`Run exceeded ${config.timeoutMs} ms`);
@@ -37,6 +43,7 @@ for (let round = 0; round < config.warmup + config.samples; round++) {
 const metric = (name) =>
   samples[0][name] === null ? null : summarize(samples.map((s) => s[name]));
 process.send({
+  manualGcCalls,
   case: job.case,
   library: job.library,
   version: adapter.version,

@@ -5,7 +5,10 @@ import { fileURLToPath } from "node:url";
 import { adaptersFor } from "../compare/adapters.mjs";
 import { workloads } from "./workloads.mjs";
 
-export function parseOptions(argv) {
+export function parseOptions(
+  argv,
+  { gcAvailable = typeof globalThis.gc === "function" } = {},
+) {
   const defaults = {
     items: 10_000,
     samples: 7,
@@ -20,11 +23,18 @@ export function parseOptions(argv) {
     const match = /^--([^=]+)=(.+)$/.exec(argument);
     if (!match) throw new Error(`Expected --name=value: ${argument}`);
     const [, name, value] = match;
-    if (!Object.hasOwn(defaults, name) && !["case", "json"].includes(name))
+    if (
+      !Object.hasOwn(defaults, name) &&
+      !["case", "json", "gc"].includes(name)
+    )
       throw new Error(`Unknown option: ${name}`);
     if (options.has(name)) throw new Error(`Duplicate option: ${name}`);
     options.set(name, value);
   }
+  const gc = options.get("gc") ?? "none";
+  if (!["none", "between"].includes(gc)) throw new Error("Invalid gc mode");
+  if (gc === "between" && !gcAvailable)
+    throw new Error("Manual GC requires --expose-gc");
   const numbers = {};
   for (const [name, fallback] of Object.entries(defaults)) {
     const value = Number(options.get(name) ?? fallback);
@@ -47,6 +57,7 @@ export function parseOptions(argv) {
       throw new Error(`Unknown or duplicate case: ${selectedCase}`);
   }
   return {
+    gc,
     items: numbers.items,
     samples: numbers.samples,
     warmup: numbers.warmup,
@@ -131,7 +142,8 @@ export async function runBenchmarks(argv = process.argv.slice(2)) {
     version: process.versions.bun
       ? `v${process.versions.bun}`
       : process.version,
-    forcedGcBetweenRuns: typeof globalThis.gc === "function",
+    gc: config.gc,
+    forcedGcBetweenRuns: config.gc === "between",
   };
   const adapters = await adaptersFor();
   const names = config.selectedCase?.split(",");
@@ -144,7 +156,7 @@ export async function runBenchmarks(argv = process.argv.slice(2)) {
   const order = shuffle(jobs, config.seed);
   const results = [];
   console.log(
-    `${runtime.name} ${runtime.version}; ${config.warmup} warmups + ${config.samples} samples; isolated processes; seed ${config.seed}`,
+    `${runtime.name} ${runtime.version}; ${config.warmup} warmups + ${config.samples} samples; isolated processes; GC ${config.gc}; seed ${config.seed}`,
   );
   for (const job of order) {
     const result = await runWorker(job, config);
@@ -159,7 +171,7 @@ export async function runBenchmarks(argv = process.argv.slice(2)) {
       jobs.findIndex((j) => j.case === b.case && j.library === b.library),
   );
   const report = {
-    schemaVersion: 2,
+    schemaVersion: 3,
     createdAt: new Date().toISOString(),
     runtime,
     configuration: Object.fromEntries(
