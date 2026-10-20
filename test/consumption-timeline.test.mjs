@@ -382,3 +382,52 @@ test("test clock advances chained timers in order and supports cancellation", as
   await assert.rejects(clock.advanceBy(1), TypeError);
   await advancing;
 });
+
+for (const terminal of ["forEach", "reduce"]) {
+  test(`${terminal} keeps saved contexts and Promise values independent across executions`, async () => {
+    const value = Promise.resolve(7);
+    const contexts = [];
+    const source = s.of(value, value);
+    const callback = (item, context) => {
+      assert.equal(item, value);
+      contexts.push(context);
+    };
+    const run = () =>
+      terminal === "forEach"
+        ? s.forEach(source, callback)
+        : s.reduce(
+            source,
+            (sum, item, context) => {
+              callback(item, context);
+              return Promise.resolve(sum + 1);
+            },
+            Promise.resolve(0),
+          );
+    const results = await Promise.all([run(), run()]);
+    assert.deepEqual(
+      results,
+      terminal === "forEach" ? [undefined, undefined] : [2, 2],
+    );
+    assert.equal(new Set(contexts).size, 4);
+    const signals = [...new Set(contexts.map((context) => context.signal))];
+    assert.equal(signals.length, 2);
+    for (const signal of signals)
+      assert.deepEqual(
+        contexts
+          .filter((context) => context.signal === signal)
+          .map((context) => context.index),
+        [0, 1],
+      );
+  });
+
+  test(`${terminal} caller cancellation prevents callback delivery`, async () => {
+    const controller = new AbortController();
+    const callback = () => assert.fail("callback started after cancellation");
+    const work =
+      terminal === "forEach"
+        ? s.forEach(s.range(0, 3), callback, { signal: controller.signal })
+        : s.reduce(s.range(0, 3), callback, 0, { signal: controller.signal });
+    controller.abort("stop");
+    await assert.rejects(work, (error) => error === "stop");
+  });
+}
