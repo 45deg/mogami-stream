@@ -241,3 +241,42 @@ async function check(name, create) {
 }
 
 for (const [name, create] of Object.entries(cases)) await check(name, create);
+
+// A live reader must release a completed delivery callback while idle.
+const { open } = await import("../../dist/core/stream.js");
+const { Scope } = await import("../../dist/core/scope.js");
+const { defaultScheduler } = await import("../../dist/core/scheduler.js");
+const deliveryRoot = new Scope({
+  scheduler: defaultScheduler,
+  fail(error) {
+    throw error;
+  },
+  suppress(error) {
+    throw error;
+  },
+});
+const idleReader = open(range(0, 3), deliveryRoot);
+function readWithPayload() {
+  const payload = { bytes: new Uint8Array(64 * 1024) };
+  const reference = new WeakRef(payload);
+  idleReader.read(
+    () => assert.equal(payload.bytes.length, 64 * 1024),
+    assert.fail,
+  );
+  return reference;
+}
+const deliveryReference = readWithPayload();
+for (let i = 0; i < 5; i++)
+  await new Promise((resolve) =>
+    setImmediate(() => {
+      global.gc();
+      resolve();
+    }),
+  );
+assert.equal(
+  deliveryReference.deref(),
+  undefined,
+  "idle reader retained its completed delivery callback",
+);
+assert.equal((await idleReader.next()).value, 1);
+await deliveryRoot.close();

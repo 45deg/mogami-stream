@@ -96,3 +96,56 @@ for (const operator of [filterMap(() => null), dedupe(), skip(50_000)]) {
     assert.equal(reads, 15_000);
   });
 }
+
+test("owned read routes an outer delivery failure after synchronous reentry to its original reject", async () => {
+  const { open } = await import("../dist/core/stream.js");
+  const { Scope } = await import("../dist/core/scope.js");
+  const { defaultScheduler } = await import("../dist/core/scheduler.js");
+  const reported = [];
+  const root = new Scope({
+    scheduler: defaultScheduler,
+    fail: (error) => reported.push(error),
+    suppress: (error) => reported.push(error),
+  });
+  const reader = open(readOnlySource([1, 2]), root);
+  const outerError = new Error("outer delivery");
+  const values = [];
+  const errors = [];
+  reader.read(
+    (result) => {
+      values.push(result.value);
+      reader.read(
+        (nested) => values.push(nested.value),
+        () => assert.fail("nested reject"),
+      );
+      throw outerError;
+    },
+    (error) => errors.push(error),
+  );
+  assert.deepEqual(values, [1, 2]);
+  assert.deepEqual(errors, [outerError]);
+  assert.deepEqual(reported, [outerError]);
+  await root.close();
+});
+
+test("owned read drains a late rejection after cancellation before closing", async () => {
+  const gate = deferred();
+  const late = new Error("late read");
+  const source = create(() => ({ next: () => gate.promise }));
+  const iterator = source
+    .pipe(tap(() => assert.fail("delivered after cancel")))
+    .iterate();
+  const pending = assert.rejects(iterator.next(), (error) => error === "stop");
+  await flush();
+  iterator.cancel("stop");
+  await pending;
+  let closed = false;
+  void iterator.closed.then(() => {
+    closed = true;
+  });
+  await flush();
+  assert.equal(closed, false);
+  gate.reject(late);
+  const report = await iterator.closed;
+  assert.deepEqual(report.suppressedErrors, [late]);
+});
