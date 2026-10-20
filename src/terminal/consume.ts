@@ -2,7 +2,8 @@ import type { OperatorContext, Source } from "../core/stream.js";
 import { from } from "../operators/creation.js";
 import { filter } from "../operators/transform.js";
 import { take } from "../operators/selection.js";
-import type { ExecutionOptions } from "./iterate.js";
+import { iterate, type ExecutionOptions } from "./iterate.js";
+import { tap } from "../operators/lifecycle.js";
 import { reduce } from "./reduce.js";
 
 /**
@@ -16,14 +17,14 @@ export async function forEach<T>(
   effect: (value: T, context: OperatorContext) => unknown,
   options: ExecutionOptions = {},
 ): Promise<void> {
-  await reduce<T, void>(
-    source,
-    async (_accumulator, value, context) => {
-      await effect(value, context);
-    },
-    undefined,
-    options,
-  );
+  const iterator = iterate(from(source).pipe(tap(effect)), options);
+  try {
+    while (!(await iterator.next()).done) {
+      // The tap stage owns each effect until it settles.
+    }
+  } finally {
+    await iterator.closed;
+  }
 }
 
 /**
