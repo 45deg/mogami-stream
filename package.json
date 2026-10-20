@@ -2,6 +2,17 @@
   "name": "mogami-stream",
   "version": "0.2.0",
   "description": "Bounded, cancellable AsyncIterable pipelines with zero runtime dependencies.",
+  "keywords": [
+    "async-iterable",
+    "async-iterator",
+    "stream",
+    "pipeline",
+    "concurrency",
+    "backpressure",
+    "cancellation",
+    "abortsignal",
+    "typescript"
+  ],
   "type": "module",
   "sideEffects": false,
   "files": [
