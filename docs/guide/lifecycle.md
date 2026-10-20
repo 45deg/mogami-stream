@@ -19,7 +19,7 @@ Only one `next()` call may be pending on a `StreamIterator` at a time; calling `
 
 ### Cooperative cancellation via `AbortSignal`
 
-JavaScript async iterators cannot forcibly preempt an arbitrary `await`. When `cancel()`, `return()`, `take(n)`, or an external `AbortSignal` stops a stage, `mogami-stream` aborts the `signal` passed into `defer` and operator callbacks (`map`, `filter`, `forEach`, etc.).
+JavaScript async iterators cannot forcibly preempt an arbitrary `await`. When `cancel()`, `return()`, [`take(n)`](../operators.md#operator-take), or an external `AbortSignal` stops a stage, `mogami-stream` aborts the `signal` passed into [`defer`](../operators.md#operator-defer) and operator callbacks ([`map`](../operators.md#operator-map), [`filter`](../operators.md#operator-filter), [`forEach`](../operators.md#operator-foreach), etc.).
 
 Always pass that `signal` into cancellable APIs (`fetch`, `fs.readFile`, database queries, timers). If an upstream read or callback ignores `signal` and never settles, `return()`, `closed`, and terminal consumers will continue waiting for that operation to finish before completing teardown.
 
@@ -29,13 +29,21 @@ Always pass that `signal` into cancellable APIs (`fetch`, `fs.readFile`, databas
 
 - The callback runs **once per execution** if the stage was actually started (i.e., received at least one `next()` read).
 - It runs **after** all upstream child stages have closed and all in-flight operations in the stage have settled, and its returned promise is awaited.
-- When multiple `finalize` stages are nested in a pipeline, they execute **from inner (upstream) stages outward (downstream)**.
+- When multiple [`finalize`](../operators.md#operator-finalize) stages are nested in a pipeline, they execute **from inner (upstream) stages outward (downstream)**.
 
-`take(n)` begins closing its upstream stage as soon as the `n`th item arrives—before delivering that `n`th item to downstream—while keeping downstream callback signals active so downstream operators can still process the final item.
+[`take(n)`](../operators.md#operator-take) begins closing its upstream stage as soon as the `n`th item arrives—before delivering that `n`th item to downstream—while keeping downstream callback signals active so downstream operators can still process the final item.
+
+## Owning resources in a generator
+
+Use [`defer`](../operators.md#operator-defer) to create a fresh generator per execution and keep acquisition and release together with `try/finally`.
+
+<<< @/examples/resources.ts
+
+Each execution opens a cursor on its first read and closes it on completion, failure, or early termination. Pass `signal` to row reads too. If acquisition fails partway through, `openCursor` must release any partial resources.
 
 ## Owning resources during asynchronous setup
 
-`defer` factories and `catchError` handlers receive a `ResourceContext` with `signal` and `acquire(acquire, release)`. Use `acquire` when setup opens a cursor, session, file, or another resource before returning its source:
+[`defer`](../operators.md#operator-defer) factories and [`catchError`](../operators.md#operator-catcherror) handlers receive a `ResourceContext` with `signal` and `acquire(acquire, release)`. Use `acquire` when setup opens a cursor, session, file, or another resource before returning its source:
 
 <<< @/examples/resource-ownership.ts
 
@@ -49,7 +57,7 @@ The stage calls each registered release exactly once, after its child sources cl
 
 ### Acquisition and release errors
 
-Acquisition failure fails the owning stage; an upstream `defer` failure can be handled by `catchError`. The acquisition callback remains responsible for any partially allocated resources when it throws.
+Acquisition failure fails the owning stage; an upstream [`defer`](../operators.md#operator-defer) failure can be handled by [`catchError`](../operators.md#operator-catcherror). The acquisition callback remains responsible for any partially allocated resources when it throws.
 
 Release failures follow the [cleanup error precedence rules](./errors.md#cleanup-errors).
 
@@ -60,8 +68,6 @@ Ownership applies to each successful `acquire` call. The returned source borrows
 To adapt an already-open iterator, register its `return()` as the release callback and expose its `next()` through a borrowing source instead of returning that same iterator directly.
 
 Ordinary returned sources retain their existing contract: the library owns an iterator only after opening the source. A plain source returned after cancellation is neither inspected nor opened nor closed, because obtaining its iterator could start unrelated work. Resources allocated directly by a factory or handler remain that callback's responsibility until ownership is explicitly registered.
-
-A lazy generator can instead acquire inside its own `try/finally` on the first read, as shown in [Getting started](./getting-started.md#replayability-from-vs-defer).
 
 ## Inspecting `CloseReport`
 

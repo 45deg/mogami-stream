@@ -4,7 +4,7 @@ title: AsyncIterable pipelines with bounded concurrency
 
 # mogami-stream
 
-Composable TypeScript operators for standard `AsyncIterable` pipelines, featuring bounded concurrency, explicit cancellation, deterministic cleanup, and zero runtime dependencies.
+TypeScript operators for safe asynchronous stream processing (zero dependencies / concurrency and buffer limits / cancellation / cleanup)
 
 ## Usage
 
@@ -58,8 +58,9 @@ Continue with [Getting started](./guide/getting-started.md) for the basic terms 
 
 ## Documentation map
 
-- **[Getting started](./guide/getting-started.md)** — A minimal pipeline, basic terms, concurrent requests, and resource ownership with `from` and `defer`.
+- **[Getting started](./guide/getting-started.md)** — Installation, a minimal pipeline, concurrent requests, and cancellation.
 - **[Building a pipeline](./guide/building-pipelines.md)** — Processing order, values and types, count limits, and consumption through one example.
+- **[Choosing operators](./guide/operators.md)** — Combination choices, accumulated state, and Promise-valued items.
 - **[Operators](./operators.md)** — Descriptions, examples, and output grouped by category.
 - **[Terminal consumers](./guide/consumers.md)** — Collecting, aggregating, processing each item, and stopping early.
 - **[Concurrency, capacity, and demand](./guide/concurrency.md)** — Interactive slot state machine, `ordered: true` vs. `false`, backpressure, and higher-order stream bounds.

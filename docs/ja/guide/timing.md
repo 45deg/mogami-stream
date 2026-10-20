@@ -15,55 +15,55 @@
 
 ## 読み取り回数を制限する
 
-`rateLimit({ count: 2, perMs: 1_000 })` は、どの1,000 ms の範囲でも上流の読み取り開始を最大2回に制限します。枠が空いていれば続けて読み取れるため、出力を等間隔にする用途とは異なります。
+[`rateLimit({ count: 2, perMs: 1_000 })`](../operators.md#operator-ratelimit) はどの1,000 ms の範囲でも上流の読み取り開始を最大2回に制限します。枠が空いていれば続けて読み取れるため、出力を等間隔にする用途とは異なります。
 
 <<< @/examples/timing/rate-limit.ts
 
-`map` への上流読み取りのペースを抑える場合は、その前に `rateLimit` を置きます。コールバック内の外部呼び出しを直接制御するものではないため、再試行（retry）や複数実行をまたいでリクエスト数を制限する場合は[共有リミッタのレシピ](../recipes/shared-rate-limiter.md)を使ってください。同時実行数は別途 `map` の `concurrency` で指定します。
+[`map`](../operators.md#operator-map) への上流読み取りのペースを抑える場合は、その前に [`rateLimit`](../operators.md#operator-ratelimit) を置きます。再試行（retry）や複数実行をまたいでリクエスト数を制限する場合は[共有リミッタのレシピ](../recipes/shared-rate-limiter.md)を使ってください。同時実行数は別途 [`map`](../operators.md#operator-map) の `concurrency` で指定します。
 
-制限は実行ごとに独立し、失敗した読み取りや完了を確認する読み取りも1回に数えます。`map` 内部の再試行は数えません。再試行も含めた制御は[リトライ](./errors.md#retry)を参照してください。
+制限は実行ごとに独立し、失敗した読み取りや完了を確認する読み取りも1回に数えます。[`map`](../operators.md#operator-map) 内部の再試行は数えません。再試行も含めた制御は[リトライ](./errors.md#retry)を参照してください。
 
 ## 出力の間隔を空ける
 
-`spaceout(500)` は最初の値に待ち時間を加えず、2件目以降は直前の出力から少なくとも500 ms 空けます。上流の読み取りや下流の処理に使った時間も間隔に含まれます。すでに500 ms 経過していれば、追加では待ちません。
+[`spaceout(500)`](../operators.md#operator-spaceout) は最初の値に待ち時間を加えず、2件目以降は直前の出力から少なくとも500 ms 空けます。上流の読み取りや下流の処理に使った時間も間隔に含まれます。すでに500 ms 経過していれば、追加では待ちません。
 
 <<< @/examples/timing/spacing.ts
 
 入力が即座に用意され、下流が続けて値を要求する場合の目安は次のとおりです。
 
-| 値  | `rateLimit` の読み取り開始 | `spaceout` の出力 |
-| --- | -------------------------- | ----------------- |
-| 1   | 0 ms                       | 0 ms              |
-| 2   | 0 ms                       | 500 ms            |
-| 3   | 1,000 ms                   | 1,000 ms          |
-| 4   | 1,000 ms                   | 1,500 ms          |
-| 5   | 2,000 ms                   | 2,000 ms          |
+| 値  | [`rateLimit`](../operators.md#operator-ratelimit) の読み取り開始 | [`spaceout`](../operators.md#operator-spaceout) の出力 |
+| --- | ---------------------------------------------------------------- | ------------------------------------------------------ |
+| 1   | 0 ms                                                             | 0 ms                                                   |
+| 2   | 0 ms                                                             | 500 ms                                                 |
+| 3   | 1,000 ms                                                         | 1,000 ms                                               |
+| 4   | 1,000 ms                                                         | 1,500 ms                                               |
+| 5   | 2,000 ms                                                         | 2,000 ms                                               |
 
-`spaceout` は上流から値を読み取った後で出力を待ちます。上流の処理開始回数を制限したい場合は `rateLimit` を使います。
+[`spaceout`](../operators.md#operator-spaceout) は上流から値を読み取った後で出力を待ちます。上流の処理開始回数を制限したい場合は [`rateLimit`](../operators.md#operator-ratelimit) を使います。
 
 ## 開始だけを遅らせる
 
-`delayStart(500)` は最初に読み取りを要求されてから500 ms 待ち、その後で上流を開きます。値ごとに待ち時間を加えることはありません。
+[`delayStart(500)`](../operators.md#operator-delaystart) は最初に読み取りを要求されてから500 ms 待ち、その後で上流を開きます。
 
 <<< @/examples/timing/delay-start.ts
 
 ## 読み取りのタイムアウトと全体の期限
 
-`timeoutEach` は1回の上流読み取りを待っている間だけ時間を測り、期限に達すると `TimeoutError` になります。下流が次の値を要求するまでの時間は含みません。値やストリームの終了を受け取った時点でも単調時計で経過時間を確認するため、タイマーの実行が遅れても、期限ちょうど・期限後の結果は受け入れません。`timeoutEach(0)` は最初の読み取り時に、上流を開かずに失敗します。
+[`timeoutEach`](../operators.md#operator-timeouteach) は1回の上流読み取りを待っている間だけ時間を測り、期限に達すると `TimeoutError` になります。下流が次の値を要求するまでの時間は含みません。値やストリームの終了を受け取った時点でも単調時計で経過時間を確認するため、タイマーの実行が遅れても、期限ちょうど・期限後の結果は受け入れません。[`timeoutEach(0)`](../operators.md#operator-timeouteach) は最初の読み取り時に、上流を開かずに失敗します。
 
-`deadline` はそのステージの最初の読み取りから時間を測り、期限に達すると `DeadlineExceededError` になります。下流が値を処理している間も時間が進みます。
+[`deadline`](../operators.md#operator-deadline) はそのステージの最初の読み取りから時間を測り、期限に達すると `DeadlineExceededError` になります。下流が値を処理している間も時間が進みます。
 
 <<< @/examples/timing/timeouts.ts
 
-この例では値が800 ms 間隔で到着するため、各読み取りの1,000 ms 制限内に収まります。一方、全体の1,500 ms の期限は、3件目が到着する前に切れます。ソースは再実行可能なので、2つの処理はそれぞれ最初から始まります。
+この例では値が800 ms 間隔で到着するため各読み取りの1,000 ms 制限内に収まりますが、一方で全体の1,500 ms の期限は3件目が到着する前に切れます。ソースは再実行可能なので、2つの処理はそれぞれ最初から始まります。
 
-タイムアウトの対象は、そのオペレータから見た上流です。`map` の後に `timeoutEach` を置くと、`map` から次の結果を得るまでの待ち時間を制限します。並行実行中の個々のリクエストに同じ制限を設けるには、コールバック内の I/O にもタイムアウトを指定します。
+タイムアウトの対象はそのオペレータから見た上流です。[`map`](../operators.md#operator-map) の後に [`timeoutEach`](../operators.md#operator-timeouteach) を置くと、[`map`](../operators.md#operator-map) から次の結果を得るまでの待ち時間を制限します。並行実行中の個々のリクエストに同じ制限を設けるには、コールバック内の I/O にもタイムアウトを指定します。
 
 エラーが起きると上流へ停止が伝わります。`fetch(url, { signal })` のようにコールバックの `signal` を I/O に渡してください。終端処理は後処理の完了を待つため、停止に対応しない I/O があると、期限に達しても直ちには完了しません。[キャンセルと後処理](./lifecycle.md)も参照してください。
 
 ## 時間または件数でまとめる
 
-`bufferTime` はバッチの最初の値が到着してから `windowMs` が経過するか、`maxItems` 件に達すると配列を出力します。
+[`bufferTime`](../operators.md#operator-buffertime) はバッチの最初の値が到着してから `windowMs` が経過するか、`maxItems` 件に達すると配列を出力します。
 
 <<< @/examples/timing/buffer.ts
 
@@ -71,4 +71,4 @@
 
 時間窓が切れたときに上流の読み取りが待機中なら、その1回だけを保持します。下流が次のバッチを要求するまで、新しい読み取りやバッチの蓄積を続けることはありません。件数だけで区切る場合は [`chunks`](../operators.md#operator-chunks) を使います。
 
-時間は実行環境のタイマー精度に従うため、例の時刻は目安です。`rateLimit` の `perMs` と `bufferTime` の `windowMs` は正の値、それ以外の時間は0以上の有限値を指定します。`count` と `maxItems` は正の安全な整数です。
+時間は実行環境のタイマー精度に従うため、例の時刻は目安です。[`rateLimit`](../operators.md#operator-ratelimit) の `perMs` と [`bufferTime`](../operators.md#operator-buffertime) の `windowMs` は正の値、それ以外の時間は0以上の有限値を指定します。`count` と `maxItems` は正の安全な整数です。

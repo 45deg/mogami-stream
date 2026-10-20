@@ -4,7 +4,10 @@ export async function readOne(signal: AbortSignal) {
   const source = defer(({ signal }) =>
     (async function* () {
       const response = await fetch("https://example.com/data", { signal });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      if (!response.ok) {
+        await response.body?.cancel();
+        throw new Error(`HTTP ${response.status}`);
+      }
       yield await response.text();
     })(),
   ).pipe(finalize(() => console.log("cleanup complete")));
@@ -13,9 +16,12 @@ export async function readOne(signal: AbortSignal) {
   try {
     return await iterator.next();
   } finally {
-    await iterator.return();
-    const report = await iterator.closed;
-    if (report.kind !== "completed") console.error(report.reason);
-    for (const error of report.suppressedErrors) console.error(error);
+    try {
+      await iterator.return();
+    } finally {
+      const report = await iterator.closed;
+      if (report.kind !== "completed") console.error(report.reason);
+      for (const error of report.suppressedErrors) console.error(error);
+    }
   }
 }

@@ -1,39 +1,29 @@
 # ベンチマーク
 
-## 非同期反復とオペレータのオーバーヘッド比較
+入力10万件で、非同期反復とオペレータのオーバーヘッドを比較します。グラフはウォームアップ5回の後に7回測定した所要時間の中央値（秒）で、短いほど高速です。目盛りはグラフごとに異なります。
 
-![Node.js と Bun での逐次非同期 map、並行・入力順の非同期 map、13段の非同期パイプラインの所要時間。短いほど高速。各パネルの目盛りは異なる。](/benchmarks.svg)
+![逐次非同期 map、並行・入力順の map、13ステージの map/filter パイプライン。Node.js と Bun の所要時間（秒）。](/benchmarks.svg)
 
-**測定環境:** 入力 100,000 件 · Node.js v26.5.0 / Bun v1.4.3 · Apple M1 Pro · ウォームアップ 5 回の後、7 回計測した中央値（単位は秒、短いほど高速、各パネルの横軸スケールは独立）。
+Node.js v24.22.0 / Bun v1.4.3 · Apple M1 Pro · 通常 GC。
 
-| ベンチマークケース     | ワークロード内容                                                                      | 比較対象ライブラリ                     |
-| ---------------------- | ------------------------------------------------------------------------------------- | -------------------------------------- |
-| `async-map-serial`     | 逐次非同期 map（`concurrency: 1`、`capacity: 1`）                                     | Mogami, IxJS, iter-tools, pMapIterable |
-| `async-map-concurrent` | 有界な並行非同期 map（`concurrency: 8`、`capacity: 16`、入力順出力）                  | Mogami, pMapIterable                   |
-| `async-pipeline`       | 13段の非同期 `map` / `filter` パイプライン（インクリメントと `x % 97 !== 0` の6ペア） | Mogami, IxJS, iter-tools               |
+| グラフ                                         | 処理内容                                                       |
+| ---------------------------------------------- | -------------------------------------------------------------- |
+| Sequential async map（逐次変換）               | `concurrency: 1`、`capacity: 1`                                |
+| Concurrent ordered map（並行変換・入力順出力） | `concurrency: 8`、`capacity: 16`                               |
+| 13-stage map/filter pipeline                   | ID の取り出しに続き、加算と97の倍数を除外するフィルタを6回適用 |
 
-入力は非同期ジェネレータから生成される数値 ID で、各 map コールバックは `await Promise.resolve()` の後に `{ id, value: id * 2 }` を返します。タイマー待機やネットワーク I/O を含めないことで、非同期イテレータのプロトコル処理とオペレータのスケジューリングオーバーヘッドを純粋に計測しています。
+入力は非同期ジェネレータから取得し、map コールバックは `Promise.resolve()` を await します。タイマーやネットワークの待機時間は含みません。
 
-各「ワークロード × ライブラリ」のペアは、乱数シード（`--seed=42`）でシャッフルされた順序で毎回新しい子プロセスとして実行されます。モジュールの import、入力準備、ウォームアップ、手動 GC は計測区間外で行われます。各イテレーションでは、出力順序・値・件数・ソースのクローズ・全タスク完了、および `map` の並行数と先読み上限（コンシューマへ引き渡し中の1件を含む `capacity + 1`）がすべて検証されます。
+## 再現手順
 
-上のグラフは各反復の間に手動 GC を実行した結果です。新しい測定は通常 GC（`--gc=none`）が既定です。以前の GC 条件を再現するには `pnpm bench:svg --gc=between` を使います。保存レポートと新しいグラフには GC 条件を記録し、条件が異なる結果の描画は拒否します。
-
-## ベンチマークの再現手順
+Node.js、Bun、pnpm、uv が必要です。
 
 ```sh
 pnpm install --frozen-lockfile
-
-# デフォルトのベンチマークスイート（10,000件）を実行し、JSON レポートを出力:
-pnpm bench --json=/tmp/mogami-bench.json
-
-# 特定のケースを 100,000 件で実行:
-pnpm bench --case=async-pipeline --items=100000
-
-# ビルド後、Node.js と Bun の両方で 100,000 件を測定して SVG チャートを生成（Bun と uv が必要）:
 pnpm bench:svg
 
-# 既存の JSON レポートを使って計測をスキップし、チャートだけを再描画:
+# 保存済みの結果を再描画:
 pnpm bench:svg --reuse
 ```
 
-すべての CLI オプション（`--items`、`--concurrency`、`--capacity`、`--warmup`、`--samples`、`--timeout-ms`）と JSON レポートの詳細は、リポジトリ内の [`benchmarks/README.md`](https://github.com/45deg/mogami-stream/blob/main/benchmarks/README.md) を参照してください。
+掲載グラフは既定の通常 GC（`--gc=none`）で測定しています。個別の測定や JSON 出力は[測定方法と CLI オプション](https://github.com/45deg/mogami-stream/blob/main/benchmarks/README.md)を参照してください。

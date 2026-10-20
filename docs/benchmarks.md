@@ -1,39 +1,29 @@
 # Benchmarks
 
-## Async iteration and operator overhead
+Async iteration and operator overhead for 100,000 inputs. Bars show median elapsed seconds across 7 runs after 5 warmups; shorter is faster. Each panel has its own scale.
 
-![Node.js and Bun elapsed times for sequential async map, bounded ordered async map, and a 13-stage async pipeline. Lower is faster; each panel has its own scale.](/benchmarks.svg)
+![Sequential async map; concurrent ordered map; 13-stage map/filter pipeline. Node.js and Bun elapsed times in seconds.](/benchmarks.svg)
 
-**Environment:** 100,000 inputs · Node.js v26.5.0 / Bun v1.4.3 · Apple M1 Pro · Median of 7 measured runs after 5 warmup runs (seconds; lower is faster; each panel has its own horizontal scale).
+Node.js v24.22.0 / Bun v1.4.3 · Apple M1 Pro · Normal GC.
 
-| Benchmark case         | Workload                                                                                     | Compared libraries                     |
-| ---------------------- | -------------------------------------------------------------------------------------------- | -------------------------------------- |
-| `async-map-serial`     | Sequential async map (`concurrency: 1`, `capacity: 1`)                                       | Mogami, IxJS, iter-tools, pMapIterable |
-| `async-map-concurrent` | Bounded concurrent async map (`concurrency: 8`, `capacity: 16`, ordered output)              | Mogami, pMapIterable                   |
-| `async-pipeline`       | 13-stage async `map` / `filter` pipeline (6 increment/filter pairs rejecting `x % 97 === 0`) | Mogami, IxJS, iter-tools               |
+| Chart                        | Workload                                                                        |
+| ---------------------------- | ------------------------------------------------------------------------------- |
+| Sequential async map         | `concurrency: 1`, `capacity: 1`                                                 |
+| Concurrent ordered map       | `concurrency: 8`, `capacity: 16`, input-order output                            |
+| 13-stage map/filter pipeline | ID projection followed by six increment/filter pairs, excluding multiples of 97 |
 
-Inputs are numeric IDs yielded by an async generator, and mapper callbacks `await Promise.resolve()` before returning `{ id, value: id * 2 }`. These workloads isolate async iterator protocol and operator scheduling overhead without timer or network I/O waits.
+Inputs come from an async generator. Map callbacks await `Promise.resolve()`; the workloads contain no timer or network waits.
 
-Each library/workload pair executes in an isolated child process in a seeded shuffled order (`--seed=42`). Imports, input preparation, warmups, and manual GC occur outside timed regions. Every iteration validates output order, values, item counts, source closure, task completion, and concurrency/read-ahead bounds (`capacity + 1` including the item delivered to the consumer).
+## Reproduction
 
-The chart above used manual GC between iterations. New runs default to normal GC (`--gc=none`); use `pnpm bench:svg --gc=between` to reproduce the previous GC condition. Saved reports and new charts identify the condition, and plotting rejects mixed conditions.
-
-## Reproducing the benchmarks
+Requires Node.js, Bun, pnpm, and uv.
 
 ```sh
 pnpm install --frozen-lockfile
-
-# Run the default benchmark suite (10,000 items) and write JSON results:
-pnpm bench --json=/tmp/mogami-bench.json
-
-# Run a single workload with 100,000 items:
-pnpm bench --case=async-pipeline --items=100000
-
-# Build, run 100,000-item suites on both Node.js and Bun, and render the SVG chart (requires Bun and uv):
 pnpm bench:svg
 
-# Re-render the chart from existing JSON results without re-running benchmarks:
+# Re-render saved results:
 pnpm bench:svg --reuse
 ```
 
-See [`benchmarks/README.md`](https://github.com/45deg/mogami-stream/blob/main/benchmarks/README.md) in the repository for all CLI flags (`--items`, `--concurrency`, `--capacity`, `--warmup`, `--samples`, `--timeout-ms`) and JSON schema details.
+The chart uses the default normal GC condition (`--gc=none`). See [benchmark methodology and CLI options](https://github.com/45deg/mogami-stream/blob/main/benchmarks/README.md) for individual workloads and JSON output.

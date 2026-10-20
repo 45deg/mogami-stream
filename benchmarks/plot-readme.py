@@ -92,7 +92,13 @@ fig, axes = plt.subplots(
     gridspec_kw={"height_ratios": [len(libraries) for _, libraries in panels]},
     squeeze=False,
 )
+titles = {
+    "async-map-serial": "Sequential async map",
+    "async-map-concurrent": "Concurrent ordered map",
+    "async-pipeline": "13-stage map/filter pipeline",
+}
 for ax, (case, libraries) in zip(axes.flat, panels):
+    ax.set_title(titles[case], loc="left", fontsize=12, fontweight="bold", pad=8)
     maximum = 0
     for runtime, offset, color, label in [
         ("node", -.18, "C0", "Node.js"),

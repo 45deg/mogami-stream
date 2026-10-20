@@ -5,3 +5,5 @@ Browse names and descriptions by category. Expand a row for a copyable example a
 See the [Timing guide](./guide/timing.md) for help choosing and combining timing operators.
 
 <OperatorCatalog />
+
+See [Choosing operators](./guide/operators.md) to select by task.

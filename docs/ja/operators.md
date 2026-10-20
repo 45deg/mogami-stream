@@ -5,3 +5,5 @@
 時間制御の使い分けは[時間制御ガイド](./guide/timing.md)を参照してください。
 
 <OperatorCatalog />
+
+用途から選ぶ場合は[オペレータの使い分け](./guide/operators.md)を参照してください。

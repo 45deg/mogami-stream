@@ -11,6 +11,7 @@ const labels = {
     lifecycle: "Cancellation & cleanup",
     timing: "Timing",
     operators: "Operators",
+    operatorGuide: "Choosing operators",
     errors: "Error handling",
     recipes: "Recipes",
     requests: "API requests",
@@ -32,6 +33,7 @@ const labels = {
     lifecycle: "キャンセルと後処理",
     timing: "時間制御",
     operators: "オペレータ",
+    operatorGuide: "オペレータの使い分け",
     errors: "エラー処理",
     recipes: "実践レシピ",
     requests: "API 取得",
@@ -62,6 +64,7 @@ function theme(lang: keyof typeof labels): DefaultTheme.Config {
         items: [
           { text: t.start, link: link("guide/getting-started") },
           { text: t.building, link: link("guide/building-pipelines") },
+          { text: t.operatorGuide, link: link("guide/operators") },
           { text: t.operators, link: link("operators") },
           { text: t.consumers, link: link("guide/consumers") },
           { text: t.concepts, link: link("guide/concurrency") },

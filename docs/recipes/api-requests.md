@@ -4,4 +4,4 @@ Pass URLs as an async iterable and fetch up to five concurrently. Consume result
 
 <<< @/examples/api-requests.ts
 
-`rateLimit` allows at most five upstream read starts per second in this execution. Pass the callback's `signal` to `fetch` for cancellation. See [Retries](../guide/errors.md#retry) to add retry handling.
+[`rateLimit`](../operators.md#operator-ratelimit) allows at most five upstream read starts per second in this execution. Pass the callback's `signal` to `fetch` for cancellation. See [Retries](../guide/errors.md#retry) to add retry handling.

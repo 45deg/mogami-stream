@@ -37,6 +37,7 @@ export const distributionTests = [
 ];
 export const repositoryTests = [
   "benchmarks.test.mjs",
+  "documentation-recipes.test.mjs",
   "event-loop-recipe.test.mjs",
   "representative-benchmarks.test.mjs",
   "shared-rate-limiter-recipe.test.mjs",

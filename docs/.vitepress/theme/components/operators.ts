@@ -55,7 +55,7 @@ export const operators = [
     "of",
     "sources",
     "Create a replayable stream that emits the provided values in order.",
-    "指定した値を順番に出力する、再実行可能なストリームを生成する。",
+    "指定した値を順番に出力する再実行可能なストリームを生成する。",
   ),
   entry(
     "empty",
@@ -73,7 +73,7 @@ export const operators = [
     "fromCallback",
     "sources",
     "Bridge push-based callbacks into a pull stream using a bounded queue and configurable overflow policy.",
-    "コールバック型のイベントソースを、上限付きキューとオーバーフロー方針（error / drop-oldest / drop-newest）でストリームに変換する。",
+    "コールバック型のイベントソースを上限付きキューとオーバーフロー方針（error / drop-oldest / drop-newest）でストリームに変換する。",
   ),
   entry(
     "fromEvent",
@@ -181,7 +181,7 @@ export const operators = [
     "flatten",
     "combination",
     "Flatten a stream of child sources concurrently up to the configured concurrency limit.",
-    "ストリームの要素として渡された子ストリームを、指定の concurrency 上限で並行して読み取り、1本にまとめる。",
+    "ストリームの要素として渡された子ストリームを指定の concurrency 上限で並行して読み取り、1本にまとめる。",
   ),
   entry(
     "concat",
@@ -211,7 +211,7 @@ export const operators = [
     "rateLimit",
     "timing",
     "Allow at most count upstream read starts per perMs sliding window within a single execution.",
-    "1つの実行内で、スライディングウィンドウ（perMs ミリ秒）あたりの上流読み取り開始回数を最大 count 回に制限する。",
+    "1つの実行内でスライディングウィンドウ（perMs ミリ秒）あたりの上流読み取り開始回数を最大 count 回に制限する。",
   ),
   entry(
     "spaceout",

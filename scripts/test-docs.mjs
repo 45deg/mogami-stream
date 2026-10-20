@@ -33,6 +33,7 @@ try {
     "",
     "guide/getting-started.html",
     "guide/building-pipelines.html",
+    "guide/operators.html",
     "guide/consumers.html",
     "guide/concurrency.html",
     "guide/lifecycle.html",
@@ -124,17 +125,20 @@ try {
         const examples = await page
           .locator(".vp-doc .language-ts pre")
           .allTextContents();
-        assert.equal(examples.length, 3);
+        assert.equal(examples.length, 5);
         assert.match(examples[0], /const titles = from\(tasks\)/);
         assert.match(examples[1], /const firstTwoInputs = from\(tasks\)/);
         assert.match(examples[2], /await titles\.forEach/);
+        assert.match(examples[3], /function trimTitles/);
+        assert.match(examples[4], /mogami-stream\/core/);
         assert.ok(examples.every((example) => !example.includes("#region")));
         const guideLinks = await page
           .locator(".VPSidebar a[href]")
           .evaluateAll((nodes) => nodes.map((node) => node.href));
-        assert.deepEqual(guideLinks.slice(0, 3), [
+        assert.deepEqual(guideLinks.slice(0, 4), [
           `${base}${locale.prefix}guide/getting-started.html`,
           `${base}${locale.prefix}guide/building-pipelines.html`,
+          `${base}${locale.prefix}guide/operators.html`,
           `${base}${locale.prefix}operators.html`,
         ]);
       }
@@ -365,6 +369,10 @@ try {
       "",
       "operators.html",
       "guide/concurrency.html",
+      "guide/getting-started.html",
+      "guide/operators.html",
+      "recipes/events.html",
+      "recipes/testing.html",
       "guide/timing.html",
     ]) {
       await page.goto(`${base}${prefix}${route}`);

@@ -8,7 +8,10 @@ const texts = from(urls)
   .map(
     async (url, { signal }) => {
       const response = await fetch(url, { signal });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      if (!response.ok) {
+        await response.body?.cancel();
+        throw new Error(`HTTP ${response.status}`);
+      }
       return response.text();
     },
     { concurrency: 5, capacity: 5, ordered: false },

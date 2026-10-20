@@ -1,3 +1,4 @@
+// #region sources
 import { catchError, fromTimeline, of, timeoutEach } from "mogami-stream";
 
 export function delayedResponse() {
@@ -14,3 +15,17 @@ export function fallbackOnFailure() {
     { at: 50, kind: "error", error: new Error("upstream offline") },
   ]).pipe(catchError(() => of("fallback")));
 }
+// #endregion sources
+
+// #region assertions
+import assert from "node:assert/strict";
+
+assert.deepEqual(await delayedResponse().toArray(), ["A", "B"]);
+assert.deepEqual(await fallbackOnFailure().toArray(), ["cached", "fallback"]);
+await assert.rejects(
+  fromTimeline([
+    { at: 50, kind: "error", error: new Error("offline") },
+  ]).toArray(),
+  /offline/,
+);
+// #endregion assertions

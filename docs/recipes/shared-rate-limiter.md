@@ -1,12 +1,12 @@
 # Sharing a request budget across executions
 
-To share a request budget across multiple executions and retry attempts, create a single limiter instance and call `limiter.run` inside `map`:
+To share a request budget across multiple executions and retry attempts, create a single limiter instance and call `limiter.run` inside [`map`](../operators.md#operator-map):
 
 <<< @/examples/shared-rate-limiter.ts#usage
 
 The two executions share a minimum 100 ms start interval and at most eight waiting callers.
 
-`processJob` must start its I/O immediately and pass `signal` to that I/O. The limiter paces start times; it does not wait for in-flight I/O to finish before admitting the next call. Each execution's `map` concurrency still bounds its own in-flight items.
+`processJob` must start its I/O immediately and pass `signal` to that I/O. The limiter paces start times; it does not wait for in-flight I/O to finish before admitting the next call. Each execution's [`map`](../operators.md#operator-map) concurrency still bounds its own in-flight items.
 
 ## Queue and cancellation
 

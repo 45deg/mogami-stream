@@ -1,3 +1,4 @@
+// #region adapters
 import { fromCallback, fromEvent } from "mogami-stream";
 
 export function websocketMessages(socket: WebSocket, signal: AbortSignal) {
@@ -28,3 +29,17 @@ export function sseMessages(events: EventSource, signal: AbortSignal) {
     },
   }).iterate({ signal });
 }
+// #endregion adapters
+
+// #region usage
+export async function receiveEvents(url: string, signal: AbortSignal) {
+  const connection = new EventSource(url);
+  try {
+    for await (const event of sseMessages(connection, signal)) {
+      console.log(event.data);
+    }
+  } finally {
+    connection.close();
+  }
+}
+// #endregion usage

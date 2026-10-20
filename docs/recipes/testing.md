@@ -1,20 +1,13 @@
 # Timeline testing
 
-For unit tests and mocks, [`fromTimeline(events)`](/mogami-stream/api/functions/fromTimeline.html){target="_self"} creates a replayable, pull-driven stream from a scripted array of [`TimelineEvent<T>`](/mogami-stream/api/types/TimelineEvent.html){target="_self"} records to simulate delayed arrivals, timeouts, or upstream failures at specific millisecond offsets.
+Use [`fromTimeline`](../operators.md#operator-fromtimeline) to script value and error arrivals and assert the results. Times are milliseconds from the first read.
 
-<<< @/examples/testing.ts
+<<< @/examples/testing.ts#sources
 
-## Schedule rules
+These checks use Node.js `assert`:
 
-| Offset (`at`) | Event (`kind`) | Meaning                                                                              |
-| ------------- | -------------- | ------------------------------------------------------------------------------------ |
-| `0`           | `"value"`      | Emits `"A"` immediately on the first read (`0 ms` offset from execution start).      |
-| `100`         | `"value"`      | Emits `"B"` once at least `100 ms` have elapsed since the execution's first read.    |
-| `150`         | `"complete"`   | Closes the stream at `150 ms` (or use `kind: "error", error` to simulate a failure). |
+<<< @/examples/testing.ts#assertions
 
-- Every `at` timestamp must be a finite, non-negative millisecond offset relative to the first `next()` read of that execution, listed in non-decreasing order.
-- Events with identical `at` timestamps are emitted in array order.
-- A `"complete"` or `"error"` event may only appear as the last element. If omitted, the stream completes immediately after its last `"value"` event (and `fromTimeline([])` completes immediately on the first read).
-- Invalid schedules throw `RangeError` or `TypeError` eagerly when `fromTimeline` is called. Event records are shallow-copied on construction while preserving value and error references.
+This is a pull-driven source with real waits. No timer runs while downstream is idle, and completion or errors wait for the next read too. Events requested after their scheduled time are processed immediately.
 
-[fromTimeline](/mogami-stream/api/functions/fromTimeline.html){target="_self"} · [TimelineEvent](/mogami-stream/api/types/TimelineEvent.html){target="_self"}
+Use finite, non-negative timestamps in non-decreasing order. Equal times follow array order; completion or error may appear only last. Without a terminal event, the source completes after its final value. Invalid schedules throw during construction. See [fromTimeline](/mogami-stream/api/functions/fromTimeline.html){target="_self"} for the full contract.

@@ -1,8 +1,8 @@
 # Yielding to the event loop
 
-In a long-running synchronous pipeline, an awaited `tap` callback can yield to the host event loop so timers, I/O, and timer-driven cancellation can run. Mogami does not insert yields by default; the helpers below build opt-in yielding from existing operators.
+In a long-running synchronous pipeline, an awaited [`tap`](../operators.md#operator-tap) callback can yield to the host event loop so timers, I/O, and timer-driven cancellation can run. Mogami does not insert yields by default; the helpers below build opt-in yielding from existing operators.
 
-Import `defer`, `from`, and `tap` from `mogami-stream` alongside these helpers.
+Import [`defer`](../operators.md#operator-defer), [`from`](../operators.md#operator-from), and [`tap`](../operators.md#operator-tap) from `mogami-stream` alongside these helpers.
 
 ## Usage
 
@@ -30,15 +30,15 @@ await range(0, 100_000)
 
 <<< @/examples/event-loop.mjs#count{js}
 
-`tap` awaits the callback sequentially and passes values through unchanged, including Promise-valued items. Its index starts at zero for each execution, so the same operator can be reused.
+[`tap`](../operators.md#operator-tap) awaits the callback sequentially and passes values through unchanged, including Promise-valued items. Its index starts at zero for each execution, so the same operator can be reused.
 
-The Nth item is read before the wait and delivered after it. There is no background producer or extra queue, and no timer is scheduled while downstream is idle. Existing upstream concurrency and capacity limits still apply.
+The Nth item is read before the wait and delivered after it. No timer is scheduled while downstream is idle.
 
 Place the yield stage before stages that may consume many inputs without emitting, such as a filter that rejects nearly everything. Adjust the count to the cost of your callbacks: 1,024 cheap items and 1,024 expensive items occupy very different amounts of time.
 
 ## Yield after a time budget
 
-For hosts with an advancing monotonic clock, the following alternative checks elapsed time per item. `defer` gives each execution its own timestamp.
+For hosts with an advancing monotonic clock, the following alternative checks elapsed time per item. [`defer`](../operators.md#operator-defer) gives each execution its own timestamp.
 
 <<< @/examples/event-loop.mjs#time{js}
 
