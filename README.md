@@ -389,6 +389,8 @@ pnpm test:runtime-watchdog
 
 Run `pnpm bench --json=/tmp/mogami-bench.json` to compare async stream libraries. See [`benchmarks/README.md`](benchmarks/README.md) for workload definitions, metrics, and CLI flags.
 
+`pnpm test:package` runs the distribution contract tests against an unpacked tarball in Node.js and Bun. Tests that need documentation examples, benchmark tools, or development dependencies run through `pnpm test` and `pnpm test:bun` in the repository. Classify new test files in `scripts/package-tests.mjs`; unclassified or missing files fail package validation.
+
 `pnpm test:browser` uses a local Google Chrome installation on macOS when available and falls back to Playwright Chromium (override with `PLAYWRIGHT_EXECUTABLE_PATH`). `pnpm test:cloudflare` runs locally in Miniflare/`workerd` without requiring a Cloudflare account.
 
 `test:browser` validates Chromium main threads, Dedicated Workers, and Service Workers; Firefox and WebKit have not been verified. The browser and local Cloudflare runners enforce a 120-second deadline from a separate Node process, including startup and cleanup (`MOGAMI_RUNTIME_TIMEOUT_MS` overrides it). On expiry they report the runtime and active stage, stop the runtime process groups, and force shutdown after at most five additional seconds. `pnpm test:runtime-watchdog` injects unresolved promises and synchronous infinite loops into isolated copies of those runners. The CI browser/worker job also has a 15-minute limit. Process cleanup is exercised on macOS and CI targets Linux; Windows cleanup uses `taskkill` and has not been verified.

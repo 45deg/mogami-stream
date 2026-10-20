@@ -1,11 +1,17 @@
 import assert from "node:assert/strict";
+import { selectPackageTests } from "./package-tests.mjs";
 import { checkSourceMap } from "./check-source-map.mjs";
-import { mkdtemp, cp, readdir, rm, readFile } from "node:fs/promises";
+import { mkdtemp, mkdir, cp, readdir, rm, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { execFileSync } from "node:child_process";
 
 const root = resolve(import.meta.dirname, "..");
+const selectedTests = selectPackageTests(
+  (await readdir(resolve(root, "test"))).filter((name) =>
+    name.endsWith(".test.mjs"),
+  ),
+);
 const temporary = await mkdtemp(resolve(tmpdir(), "mogami-package-"));
 try {
   execFileSync("pnpm", ["pack", "--pack-destination", temporary], {
@@ -51,13 +57,17 @@ try {
     stdio: "inherit",
   });
   execFileSync("bun", ["-e", publicImport], { cwd: packed, stdio: "inherit" });
-  await cp(resolve(root, "test"), resolve(packed, "test"), { recursive: true });
-  const tests = (await readdir(resolve(packed, "test")))
-    // Benchmark harness tests depend on repository tooling, not the distribution.
-    .filter(
-      (name) => name.endsWith(".test.mjs") && name !== "benchmarks.test.mjs",
-    )
-    .map((name) => resolve(packed, "test", name));
+  await mkdir(resolve(packed, "test"));
+  for (const name of [
+    "helpers.mjs",
+    "fuzz-helpers.mjs",
+    "fixtures",
+    ...selectedTests,
+  ])
+    await cp(resolve(root, "test", name), resolve(packed, "test", name), {
+      recursive: true,
+    });
+  const tests = selectedTests.map((name) => resolve(packed, "test", name));
   execFileSync(process.execPath, ["--test", "--test-timeout=10000", ...tests], {
     cwd: packed,
     stdio: "inherit",
