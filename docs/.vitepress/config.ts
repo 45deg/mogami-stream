@@ -114,6 +114,17 @@ export default defineConfig({
   srcExclude: ["api/**"],
   cleanUrls: false,
   sitemap: { hostname: "https://45deg.github.io/mogami-stream/" },
+  transformHead({ siteConfig }) {
+    return [
+      [
+        "link",
+        {
+          rel: "describedby",
+          href: `${siteConfig.site.base}llms.txt`,
+        },
+      ],
+    ];
+  },
   locales: {
     root: { label: "English", lang: "en", themeConfig: theme("en") },
     ja: {

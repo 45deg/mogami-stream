@@ -1,0 +1,42 @@
+# mogami-stream
+
+> TypeScript operators for asynchronous iterable pipelines with bounded concurrency, demand-driven execution, cancellation, and awaited cleanup.
+
+Install with `npm install mogami-stream`. The package provides ESM JavaScript and TypeScript declarations. Node.js requires version 22 or later.
+
+Import `from` from `mogami-stream` for fluent pipelines, or use `mogami-stream/core` for standalone operators. Pipelines start on the first read. Each consumption starts a separate execution; source replayability depends on the input.
+
+`concurrency` limits running callbacks; `capacity` bounds pending reads, running callbacks, and buffered results together. Pass callback `signal` values to asynchronous I/O. Cancellation requests stop work; await `closed` for cleanup completion. Terminal consumers wait for cleanup before settling.
+
+The links below point to the rendered documentation, including expanded code examples and operator descriptions.
+
+## Guides
+
+- [Getting started](https://45deg.github.io/mogami-stream/guide/getting-started.html): Installation, supported environments, and a first asynchronous pipeline.
+- [Building a pipeline](https://45deg.github.io/mogami-stream/guide/building-pipelines.html): Composition, execution, and fluent versus core entry points.
+- [Choosing operators](https://45deg.github.io/mogami-stream/guide/operators.html): Select operators by task.
+- [Terminal consumers](https://45deg.github.io/mogami-stream/guide/consumers.html): Collect, reduce, iterate, and stop consumption.
+- [Concurrency and demand](https://45deg.github.io/mogami-stream/guide/concurrency.html): Concurrency, capacity, ordering, and upstream reads.
+- [Cancellation and cleanup](https://45deg.github.io/mogami-stream/guide/lifecycle.html): Abort signals, resource ownership, finalizers, and close reports.
+- [Error handling](https://45deg.github.io/mogami-stream/guide/errors.html): Retries, settled results, recovery, and cleanup errors.
+- [Timing](https://45deg.github.io/mogami-stream/guide/timing.html): Rate limits, spacing, delays, timeouts, and time-based buffers.
+
+## API
+
+- [Operator catalog](https://45deg.github.io/mogami-stream/operators.html): Operator descriptions, executable examples, and expected outputs.
+- [API reference](https://45deg.github.io/mogami-stream/api/index.html): Generated function signatures, types, options, and lifecycle contracts.
+
+## Recipes
+
+- [API requests](https://45deg.github.io/mogami-stream/recipes/api-requests.html): Concurrent fetching and cancellation.
+- [WebSocket and SSE](https://45deg.github.io/mogami-stream/recipes/events.html): Adapt push events into streams.
+- [Database batches](https://45deg.github.io/mogami-stream/recipes/database.html): Batch writes and resource cleanup.
+- [Timeline testing](https://45deg.github.io/mogami-stream/recipes/testing.html): Replay timed inputs in tests.
+- [Shared request limits](https://45deg.github.io/mogami-stream/recipes/shared-rate-limiter.html): Coordinate request limits across executions and retries.
+- [Results and cleanup errors](https://45deg.github.io/mogami-stream/recipes/terminal-report.html): Inspect primary failures and suppressed cleanup errors.
+- [Event loop yielding](https://45deg.github.io/mogami-stream/recipes/event-loop.html): Yield during long synchronous pipelines.
+
+## Optional
+
+- [Benchmarks](https://45deg.github.io/mogami-stream/benchmarks.html): Workloads, measurement methods, and results.
+- [Repository](https://github.com/45deg/mogami-stream): Source code, tests, and development instructions.

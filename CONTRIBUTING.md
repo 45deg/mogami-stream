@@ -25,6 +25,8 @@ Edit matching pages under `docs/` and `docs/ja/` together. Shared snippets live 
 
 `pnpm docs:api` generates TypeDoc in `docs/api/`; the complete site is written to `docs/.vitepress/dist/`. Generated files are ignored by Git. Local search covers guides and the operator catalog; TypeDoc has its own search.
 
+The agent-facing index is `docs/public/llms.txt`. Keep its summary and links in sync when changing documentation. It follows the [llms.txt proposal](https://llmstxt.org/): a project heading, a blockquote summary, and sections of annotated links; `Optional` contains secondary resources. Links point to rendered pages so code includes and Vue-based operator descriptions are available. VitePress copies the file unchanged to the build output, and the existing GitHub Pages workflow publishes it at `/mogami-stream/llms.txt`. VitePress pages in both languages include a `rel="describedby"` link to this shared English index.
+
 ## Runtime checks
 
 ```sh
