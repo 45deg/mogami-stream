@@ -3,6 +3,59 @@ import { test } from "node:test";
 import * as stream from "../dist/index.js";
 import { deferred, flush } from "./helpers.mjs";
 
+for (const protocol of [Symbol.iterator, Symbol.asyncIterator]) {
+  for (const [route, iterate] of [
+    ["direct", (source, options) => stream.iterate(source, options)],
+    ["from", (source, options) => stream.from(source).iterate(options)],
+    ["chain", (source, options) => stream.chain(source).iterate(options)],
+  ]) {
+    test(`${String(protocol)} next getter cancellation prevents ${route} read invocation`, async () => {
+      const controller = new AbortController();
+      const cleanup = deferred();
+      const reason = new Error("cancel during next lookup");
+      const calls = [];
+      const iterator = iterate(
+        {
+          [protocol]() {
+            return {
+              get next() {
+                calls.push("lookup");
+                controller.abort(reason);
+                return () => {
+                  calls.push("next");
+                  return { done: false, value: 42 };
+                };
+              },
+              return() {
+                calls.push("return");
+                return cleanup.promise;
+              },
+            };
+          },
+        },
+        { signal: controller.signal },
+      );
+      await assert.rejects(iterator.next(), (error) => error === reason);
+      let closed = false;
+      void iterator.closed.then(() => {
+        closed = true;
+      });
+      await flush();
+      const beforeCleanup = [...calls];
+      const closedBeforeCleanup = closed;
+      cleanup.resolve({ done: true });
+      assert.deepEqual(await iterator.closed, {
+        kind: "cancelled",
+        reason,
+        suppressedErrors: [],
+      });
+      assert.equal(closedBeforeCleanup, false);
+      assert.deepEqual(beforeCleanup, ["lookup", "return"]);
+      assert.deepEqual(calls, ["lookup", "return"]);
+    });
+  }
+}
+
 for (const protocol of [Symbol.asyncIterator, Symbol.iterator]) {
   const label = protocol === Symbol.asyncIterator ? "async" : "sync";
 

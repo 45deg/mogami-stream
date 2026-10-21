@@ -113,7 +113,7 @@ export function iterateWithScheduler<T>(
     if (kind !== undefined) {
       if (
         nextKind === "failed" &&
-        !Object.is(error, reason) &&
+        (kind === "completed" || !Object.is(error, reason)) &&
         !Object.is(error, root.signal.reason)
       )
         host.suppress(error);
