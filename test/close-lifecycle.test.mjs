@@ -6,6 +6,43 @@ import { deferred, flush } from "./helpers.mjs";
 const rejectsWith = (promise, reason) =>
   assert.rejects(promise, (error) => Object.is(error, reason));
 
+for (const reason of [undefined, NaN, new Error("throw during return")]) {
+  test(`throw(${String(reason)}) during return promotes completion to failure`, async () => {
+    const cleanup = deferred();
+    const started = deferred();
+    const iterator = iterate(
+      from([1]).pipe(
+        finalize(() => {
+          started.resolve();
+          return cleanup.promise;
+        }),
+      ),
+    );
+    await iterator.next();
+    let returned = false;
+    const returning = iterator.return().then(
+      () => {
+        returned = true;
+        return { rejected: false };
+      },
+      (error) => {
+        returned = true;
+        return { rejected: true, reason: error };
+      },
+    );
+    await started.promise;
+    await rejectsWith(iterator.throw(reason), reason);
+    assert.equal(returned, false);
+    cleanup.resolve();
+    assert.deepEqual(await returning, { rejected: true, reason });
+    assert.deepEqual(await iterator.closed, {
+      kind: "failed",
+      reason,
+      suppressedErrors: [],
+    });
+  });
+}
+
 for (const pendingRead of [false, true]) {
   test(`throw rejects before gated cleanup finishes (pending read: ${pendingRead})`, async () => {
     const cleanup = deferred();
