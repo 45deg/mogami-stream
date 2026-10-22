@@ -70,3 +70,6 @@ export type {
   PushObserver,
   PushDropInfo,
 } from "../operators/push.js";
+
+export { fork } from "./fork.js";
+export type { Fork, ForkBranch, ForkOptions, ForkCloseReport } from "./fork.js";
