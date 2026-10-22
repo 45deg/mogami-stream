@@ -27,3 +27,5 @@ pnpm bench:svg --reuse
 ```
 
 掲載グラフは既定の通常 GC（`--gc=none`）で測定しています。個別の測定や JSON 出力は[測定方法と CLI オプション](https://github.com/45deg/mogami-stream/blob/main/benchmarks/README.md)を参照してください。
+
+`pnpm bench:fork` は、同期ソースと Promise を返すソースを使い、同じペースで読む分岐、読み取りが遅れる分岐、切り離した分岐がある場合の `fork` を測定します。各分岐の出力順と容量の上限も検証します。独立したプロセスでビルド間を比較する方法と、所要時間・CPU 時間の生データについては、[fork のベンチマーク手順](https://github.com/45deg/mogami-stream/blob/main/benchmarks/README.md#fork)を参照してください。

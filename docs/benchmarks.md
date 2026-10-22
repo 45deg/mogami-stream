@@ -27,3 +27,5 @@ pnpm bench:svg --reuse
 ```
 
 The chart uses the default normal GC condition (`--gc=none`). See [benchmark methodology and CLI options](https://github.com/45deg/mogami-stream/blob/main/benchmarks/README.md) for individual workloads and JSON output.
+
+`pnpm bench:fork` measures `fork` with balanced consumers, a lagging branch, and detached endpoints using synchronous and Promise-returning sources. It checks ordered delivery and per-branch capacity bounds. See the [fork benchmark instructions](https://github.com/45deg/mogami-stream/blob/main/benchmarks/README.md#fork) for independent-process comparisons between builds and raw wall/CPU samples.

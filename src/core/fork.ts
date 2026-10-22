@@ -152,6 +152,13 @@ export function fork<T>(source: Source<T>, options: ForkOptions): Fork<T> {
     } else pending.resolve(done());
   }
 
+  function takeQueued(b: Endpoint<T>): IteratorResult<T> {
+    const value = b.queue.get(b.head)!;
+    b.queue.delete(b.head);
+    b.head = (b.head + 1) % capacity;
+    return item(value);
+  }
+
   function end(
     b: Endpoint<T>,
     kind: CloseReport["kind"],
@@ -231,12 +238,9 @@ export function fork<T>(source: Source<T>, options: ForkOptions): Fork<T> {
     for (const b of endpoints) {
       if (b.report) continue;
       if (b.pending && b.queue.size) {
-        const value = b.queue.get(b.head)!;
-        b.queue.delete(b.head);
-        b.head = (b.head + 1) % capacity;
         const pending = b.pending;
         b.pending = undefined;
-        pending.resolve(item(value));
+        pending.resolve(takeQueued(b));
       }
       if (phase === "draining" && !b.queue.size) end(b, "completed");
     }
@@ -271,11 +275,19 @@ export function fork<T>(source: Source<T>, options: ForkOptions): Fork<T> {
           } else {
             for (const b of endpoints) {
               if (b.report) continue;
-              b.queue.set(b.tail, result.value);
-              b.tail = (b.tail + 1) % capacity;
+              // A waiting endpoint with no backlog can receive the reserved read directly.
+              if (b.pending && !b.queue.size) {
+                const pending = b.pending;
+                b.pending = undefined;
+                pending.resolve(item(result.value));
+              } else {
+                b.queue.set(b.tail, result.value);
+                b.tail = (b.tail + 1) % capacity;
+              }
             }
           }
-          wake();
+          // Direct delivery leaves no demand until a consumer requests again.
+          if (endpoints.some((b) => b.pending)) wake();
         },
         (error) => {
           flight = false;
@@ -323,6 +335,16 @@ export function fork<T>(source: Source<T>, options: ForkOptions): Fork<T> {
               return Promise.reject(
                 new TypeError("Only one next() may be pending at a time."),
               );
+            if (b.queue.size) {
+              const result = takeQueued(b);
+              if (phase === "draining" && !b.queue.size) {
+                end(b, "completed");
+                finishGroup();
+              }
+              // A dequeue can unblock a sibling waiting behind this branch's capacity.
+              if (endpoints.some((endpoint) => endpoint.pending)) wake();
+              return Promise.resolve(result);
+            }
             return new Promise<IteratorResult<T>>((resolve, reject) => {
               b.pending = { resolve, reject };
               if (b.report) settleStopped(b);

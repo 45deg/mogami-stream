@@ -62,3 +62,22 @@ Raw samples are generated locally as `results/readme/node.json` and `bun.json` a
 ## Representative waits and cleanup
 
 [`representative.mjs`](representative.mjs) adds seeded timer jitter, a slow sink, retries, cooperative/uncooperative cancellation, concurrency 1,024 and a 10,000-start rate window. See [loads, raw samples, sampled-memory limits and the decision to defer queue changes](representative.md). It runs separately from the Promise-only overhead cases and README chart.
+
+## Fork
+
+`pnpm bench:fork --json=/tmp/fork.json` measures bounded fan-out with two or eight balanced consumers, Promise-returning input, a sibling that drains in batches of 64, and seven detached endpoints. Each run checks every branch's output order and count, per-branch read-ahead bounds, EOF, and completion reports.
+
+Defaults are 100,000 inputs, three warmups, five measured samples and five independent processes per case. `--items`, `--warmup`, `--samples`, `--trials`, `--case` and `--json` override these settings. Each process has a 120-second watchdog. Reports include raw wall/CPU samples, runtime versions and CPU model; summaries show median/min/max of independent process medians. Timing includes construction, validation, consumption and cleanup with normal GC. Fork's fairness timer remains enabled.
+
+To compare builds, copy the baseline's entire `dist` directory before rebuilding, then pass its entry point with `--baseline`:
+
+```sh
+pnpm build
+cp -R dist /tmp/mogami-fork-baseline
+# Make the change, then rebuild and compare:
+pnpm bench:fork --baseline=/tmp/mogami-fork-baseline/index.js --json=/tmp/fork-comparison.json
+# Run the same comparison on Bun after building:
+bun benchmarks/fork.mjs --baseline=/tmp/mogami-fork-baseline/index.js --json=/tmp/fork-bun.json
+```
+
+`--module` selects the candidate entry point (default `dist/index.js`). Comparisons run each baseline/candidate pair sequentially and reverse their order on alternate trials. Cases also reverse order between trials. Runtime flags are forwarded to workers. Use separate runs for CPU profiling so sampling overhead stays out of the comparison; for example, `node --cpu-prof --cpu-prof-dir=/tmp benchmarks/fork.mjs --case=sync-eight --trials=1` creates profiles for the parent and its worker.
