@@ -179,3 +179,22 @@ test("cursor example opens and closes a fresh cursor for each execution", async 
   assert.equal(opened, 2);
   assert.equal(closed, 2);
 });
+
+test("broadcast example consumes every branch and joins shared cleanup", async (t) => {
+  const logs = t.mock.method(console, "log", () => {});
+  const errors = t.mock.method(console, "error", () => {});
+  await example("broadcast");
+  assert.deepEqual(logs.mock.calls[0].arguments[0], [
+    [1, 2, 3],
+    [1, 2, 3],
+  ]);
+  assert.equal(errors.mock.callCount(), 0);
+});
+
+test("route example consumes narrowed branches and joins shared cleanup", async (t) => {
+  const logs = t.mock.method(console, "log", () => {});
+  const errors = t.mock.method(console, "error", () => {});
+  await example("route");
+  assert.deepEqual(logs.mock.calls[0].arguments[0], [[640], ["hello"], []]);
+  assert.equal(errors.mock.callCount(), 0);
+});

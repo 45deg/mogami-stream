@@ -1,5 +1,10 @@
 import * as core from "../core/index.js";
-import { wrap, type Stream } from "./stream.js";
+import {
+  wrap,
+  wrapBranchGroup,
+  type FluentBranchGroup,
+  type Stream,
+} from "./stream.js";
 import type {
   Source,
   OperatorContext,
@@ -659,4 +664,38 @@ export function pipe(
   return wrap(
     operators.reduce((stream, operator) => operator(stream), core.from(source)),
   );
+}
+
+/** Shares each source value by reference with every active branch. */
+export function broadcast<T, const K extends readonly string[]>(
+  source: Source<T>,
+  options: core.KeyedBroadcastOptions<K[number]> & { readonly branches: K },
+): FluentBranchGroup<{ readonly [P in K[number]]: T }>;
+export function broadcast<T>(
+  source: Source<T>,
+  options: core.BroadcastOptions,
+): FluentBranchGroup<readonly T[]>;
+export function broadcast<T>(source: Source<T>, options: any): any {
+  return wrapBranchGroup(core.broadcast(source, options));
+}
+
+/** Routes each source item to at most one branch; predicates can narrow branch types. */
+export function route<
+  T,
+  const R extends Record<string, core.RoutePredicate<T>>,
+  const D extends (keyof R & string) | undefined = undefined,
+>(
+  source: Source<T>,
+  options: core.PredicateRouteOptions<T, R, D>,
+): FluentBranchGroup<core.RoutedValues<T, R, D>>;
+export function route<T, const K extends readonly string[]>(
+  source: Source<T>,
+  options: core.KeyedRouteOptions<T, K[number]> & { readonly branches: K },
+): FluentBranchGroup<{ readonly [P in K[number]]: T }>;
+export function route<T>(
+  source: Source<T>,
+  options: core.RouteOptions<T>,
+): FluentBranchGroup<readonly T[]>;
+export function route<T>(source: Source<T>, options: any): any {
+  return wrapBranchGroup(core.route(source, options));
 }

@@ -1,15 +1,16 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { fork, from, defer, finalize, range } from "../dist/index.js";
-import { fork as coreFork } from "../dist/core/index.js";
+import { broadcast, from, defer, finalize, range } from "../dist/index.js";
+import { broadcast as coreBroadcast } from "../dist/core/index.js";
 import { controlled, deferred, flush, turn } from "./helpers.mjs";
 
 const done = { done: true, value: undefined };
 const value = (value) => ({ done: false, value });
 const settings = { branches: 2, capacity: 1 };
 
-test("fork validates bounds before acquiring the source and exports both entries", async () => {
-  assert.equal(fork, coreFork);
+test("broadcast validates bounds before acquiring the source and exports both entries", async () => {
+  assert.equal(typeof broadcast, "function");
+  assert.equal(typeof coreBroadcast, "function");
   let opened = 0;
   const source = {
     [Symbol.iterator]() {
@@ -26,28 +27,28 @@ test("fork validates bounds before acquiring the source and exports both entries
     Number.MAX_SAFE_INTEGER + 1,
   ]) {
     assert.throws(
-      () => fork(source, { ...settings, branches: invalid }),
+      () => broadcast(source, { ...settings, branches: invalid }),
       RangeError,
     );
     assert.throws(
-      () => fork(source, { ...settings, capacity: invalid }),
+      () => broadcast(source, { ...settings, capacity: invalid }),
       RangeError,
     );
   }
   assert.throws(
-    () => fork(source, { branches: 2, capacity: Number.MAX_SAFE_INTEGER }),
+    () => broadcast(source, { branches: 2, capacity: Number.MAX_SAFE_INTEGER }),
     RangeError,
   );
-  const group = fork(source, settings);
+  const group = broadcast(source, settings);
   assert.equal(opened, 0);
   assert.equal((await group.close()).source.kind, "completed");
   assert.equal(opened, 0);
 });
 
-test("fork shares one execution, references, and Promise values without awaiting them", async () => {
+test("broadcast shares one execution, references, and Promise values without awaiting them", async () => {
   let opened = 0;
   const values = [{ id: 1 }, Promise.resolve(2), undefined];
-  const group = fork(
+  const group = broadcast(
     {
       [Symbol.iterator]() {
         opened++;
@@ -65,9 +66,9 @@ test("fork shares one execution, references, and Promise values without awaiting
   assert.equal((await group.closed).source.kind, "completed");
 });
 
-test("fork bounds an unstarted branch, does not prefetch, and detach wakes existing demand", async () => {
+test("broadcast bounds an unstarted branch, does not prefetch, and detach wakes existing demand", async () => {
   const upstream = controlled();
-  const group = fork(upstream.source, settings);
+  const group = broadcast(upstream.source, settings);
   const a = group.branches[0].iterate();
   const first = a.next();
   await flush();
@@ -91,7 +92,7 @@ test("fork bounds an unstarted branch, does not prefetch, and detach wakes exist
 
 test("capacity two preserves FIFO when a queued branch reads during another source read", async () => {
   const upstream = controlled();
-  const group = fork(upstream.source, { ...settings, capacity: 2 });
+  const group = broadcast(upstream.source, { ...settings, capacity: 2 });
   const [a, b] = group.branches.map((b) => b.iterate());
   let reading = a.next();
   await flush();
@@ -108,7 +109,7 @@ test("capacity two preserves FIFO when a queued branch reads during another sour
 });
 
 test("queued values drain independently of a full sibling", async () => {
-  const group = fork([0, 1, 2], { branches: 3, capacity: 2 });
+  const group = broadcast([0, 1, 2], { branches: 3, capacity: 2 });
   const [a, b] = group.branches.map((b) => b.iterate());
   assert.deepEqual(await a.next(), value(0));
   assert.deepEqual(await a.next(), value(1));
@@ -123,7 +124,7 @@ test("queued values drain independently of a full sibling", async () => {
 test("queued reads preserve payload identity, unblock siblings, and complete at EOF", async () => {
   const promise = Promise.resolve(2);
   let pulled = 0;
-  const group = fork(
+  const group = broadcast(
     (function* () {
       for (const entry of [undefined, promise, 3]) {
         pulled++;
@@ -153,7 +154,7 @@ test("queued reads preserve payload identity, unblock siblings, and complete at 
 
 test("one subscription and one pending next are enforced without disturbing demand", async () => {
   const upstream = controlled();
-  const group = fork(upstream.source, { branches: 1, capacity: 1 });
+  const group = broadcast(upstream.source, { branches: 1, capacity: 1 });
   const branch = group.branches[0];
   const iterator = branch.iterate();
   assert.equal(iterator[Symbol.asyncIterator](), iterator);
@@ -169,7 +170,7 @@ test("one subscription and one pending next are enforced without disturbing dema
 });
 
 test("from wrappers remain one-shot; take(0) requires owner detachment", async () => {
-  const group = fork([1, 2], settings);
+  const group = broadcast([1, 2], settings);
   const [unused, branch] = group.branches;
   assert.deepEqual(await from(unused).take(0).toArray(), []);
   unused.detach();
@@ -180,7 +181,7 @@ test("from wrappers remain one-shot; take(0) requires owner detachment", async (
 });
 
 test("early take and for-await break leave siblings running", async () => {
-  const group = fork(range(0, 5), { branches: 3, capacity: 1 });
+  const group = broadcast(range(0, 5), { branches: 3, capacity: 1 });
   const jobs = [
     from(group.branches[0]).take(1).toArray(),
     (async () => {
@@ -198,7 +199,7 @@ test("early take and for-await break leave siblings running", async () => {
 });
 
 test("branch cancellation rejects once and does not cancel siblings", async () => {
-  const group = fork([1, 2], settings);
+  const group = broadcast([1, 2], settings);
   const [a, b] = group.branches.map((b) => b.iterate());
   const reason = new Error("local");
   const pending = a.next();
@@ -211,7 +212,7 @@ test("branch cancellation rejects once and does not cancel siblings", async () =
 });
 
 test("branch throw fails locally, preserves its reason, and never forwards throw", async () => {
-  const group = fork([1, 2], settings);
+  const group = broadcast([1, 2], settings);
   const [a, b] = group.branches.map((b) => b.iterate());
   const error = new Error("failure");
   const pending = a.next();
@@ -235,14 +236,17 @@ test("already aborted group and branch signals avoid acquisition", async () => {
     },
   };
   const error = new Error("abort");
-  const group = fork(source, { ...settings, signal: AbortSignal.abort(error) });
+  const group = broadcast(source, {
+    ...settings,
+    signal: AbortSignal.abort(error),
+  });
   for (const branch of group.branches) {
     const iterator = branch.iterate();
     await assert.rejects(iterator.next(), (e) => e === error);
     assert.deepEqual(await iterator.next(), done);
   }
   assert.equal((await group.closed).source.kind, "cancelled");
-  const local = fork(source, { branches: 1, capacity: 1 });
+  const local = broadcast(source, { branches: 1, capacity: 1 });
   const iterator = local.branches[0].iterate({
     signal: AbortSignal.abort(error),
   });
@@ -255,7 +259,7 @@ test("return releases endpoints while a source read and cleanup remain blocked",
   const read = deferred();
   const cleanup = deferred();
   let returns = 0;
-  const group = fork(
+  const group = broadcast(
     {
       [Symbol.asyncIterator]() {
         return this;
@@ -295,7 +299,7 @@ test("group stop broadcasts all departures before reentrant source abort handler
   const read = deferred();
   let group;
   const reason = new Error("stop");
-  group = fork(
+  group = broadcast(
     defer(({ signal }) => {
       signal.addEventListener("abort", () => {
         // These later local failures must not replace the group cancellation.
@@ -329,7 +333,7 @@ test("reentrant cancellation during acquisition closes once without calling next
     reads = 0,
     returns = 0;
   const reason = new Error("acquisition");
-  group = fork(
+  group = broadcast(
     {
       [Symbol.asyncIterator]() {
         group.cancel(reason);
@@ -355,7 +359,7 @@ test("reentrant cancellation during acquisition closes once without calling next
 
 test("EOF completes endpoints before cleanup, including cleanup that awaits endpoints", async () => {
   let group;
-  group = fork(
+  group = broadcast(
     from([1]).pipe(
       finalize(async () => {
         await Promise.all(group.branches.map((b) => b.closed));
@@ -372,7 +376,7 @@ test("EOF completes endpoints before cleanup, including cleanup that awaits endp
 
 test("EOF drains unread queues while source cleanup is pending", async () => {
   const cleanup = deferred();
-  const group = fork(from([1]).pipe(finalize(() => cleanup.promise)), {
+  const group = broadcast(from([1]).pipe(finalize(() => cleanup.promise)), {
     ...settings,
     capacity: 2,
   });
@@ -395,7 +399,7 @@ test("EOF drains unread queues while source cleanup is pending", async () => {
 test("late cleanup failure stays observable without rewriting completed branch reports", async () => {
   const cleanup = deferred();
   const error = new Error("cleanup");
-  const group = fork(from([1]).pipe(finalize(() => cleanup.promise)), {
+  const group = broadcast(from([1]).pipe(finalize(() => cleanup.promise)), {
     ...settings,
     capacity: 2,
   });
@@ -416,7 +420,7 @@ test("source rejection discards queues and preserves secondary cleanup failures"
   const primary = new Error("read");
   const secondary = new Error("cleanup");
   let reads = 0;
-  const group = fork(
+  const group = broadcast(
     {
       [Symbol.asyncIterator]() {
         return this;
@@ -445,7 +449,7 @@ test("source rejection discards queues and preserves secondary cleanup failures"
 
 test("last failed endpoint cancels source; late read rejection is observed", async () => {
   const upstream = controlled();
-  const group = fork(upstream.source, { branches: 1, capacity: 1 });
+  const group = broadcast(upstream.source, { branches: 1, capacity: 1 });
   const iterator = group.branches[0].iterate();
   const pending = iterator.next();
   const reason = new Error("local");
@@ -462,7 +466,7 @@ test("last failed endpoint cancels source; late read rejection is observed", asy
 });
 
 test("sustained synchronous input yields to the event loop", async () => {
-  const group = fork(
+  const group = broadcast(
     (function* () {
       let n = 0;
       while (true) yield n++;
@@ -485,7 +489,7 @@ test("seeded demand and departure schedules preserve bounds and ordered delivery
     };
     const capacity = 1 + (seed % 3);
     const upstream = controlled();
-    const group = fork(upstream.source, { branches: 3, capacity });
+    const group = broadcast(upstream.source, { branches: 3, capacity });
     const state = group.branches.map((branch) => ({
       branch,
       iterator: branch.iterate(),
@@ -533,13 +537,15 @@ test("seeded demand and departure schedules preserve bounds and ordered delivery
   }
 });
 
-test("retained fork handles release delivered and detached payloads", async () => {
+test("retained broadcast handles release delivered and detached payloads", async () => {
   const { execFile } = await import("node:child_process");
   const { promisify } = await import("node:util");
   const { fileURLToPath } = await import("node:url");
   const args = [
     "--expose-gc",
-    fileURLToPath(new URL("./fixtures/fork-retention.mjs", import.meta.url)),
+    fileURLToPath(
+      new URL("./fixtures/broadcast-retention.mjs", import.meta.url),
+    ),
   ];
   await promisify(execFile)(process.execPath, args, { timeout: 8000 });
   await assert.rejects(
@@ -548,13 +554,13 @@ test("retained fork handles release delivered and detached payloads", async () =
     }),
     (error) =>
       error.code === 1 &&
-      /fork retained delivered or detached payloads/.test(error.stderr),
+      /broadcast retained delivered or detached payloads/.test(error.stderr),
   );
 });
 
 test("EOF preserves a scheduled yield that must drain a lagging endpoint", async () => {
   const upstream = controlled();
-  const group = fork(upstream.source, { branches: 2, capacity: 2 });
+  const group = broadcast(upstream.source, { branches: 2, capacity: 2 });
   const [a, b] = group.branches.map((branch) => branch.iterate());
   for (let i = 0; i < 1023; i++) {
     const pending = a.next();
@@ -573,7 +579,7 @@ test("EOF preserves a scheduled yield that must drain a lagging endpoint", async
 });
 
 test("throw after endpoint cancellation preserves the unobserved read rejection", async () => {
-  const group = fork([1], { branches: 1, capacity: 1 });
+  const group = broadcast([1], { branches: 1, capacity: 1 });
   const iterator = group.branches[0].iterate();
   const reason = new Error("cancelled");
   iterator.cancel(reason);
@@ -586,3 +592,28 @@ test("throw after endpoint cancellation preserves the unobserved read rejection"
   assert.deepEqual(await iterator.next(), done);
   await group.closed;
 });
+
+for (const [entry, create] of [
+  ["root", broadcast],
+  ["core", coreBroadcast],
+]) {
+  test(`${entry} broadcast preserves named branches and report keys`, async () => {
+    const payload = { id: 1 };
+    const group = create([payload], {
+      branches: ["__proto__", "constructor", "metrics"],
+      capacity: 1,
+    });
+    const keys = ["__proto__", "constructor", "metrics"];
+    assert.deepEqual(Object.keys(group.branches), keys);
+    assert.equal(Object.isFrozen(group.branches), true);
+    const results = await Promise.all(
+      keys.map((key) => from(group.branches[key]).toArray()),
+    );
+    for (const values of results) assert.equal(values[0], payload);
+    const report = await group.closed;
+    assert.deepEqual(Object.keys(report.branches), keys);
+    for (const key of keys)
+      assert.equal(report.branches[key].kind, "completed");
+    assert.equal(report.source.kind, "completed");
+  });
+}

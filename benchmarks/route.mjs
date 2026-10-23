@@ -6,11 +6,20 @@ import { resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const cases = [
-  { name: "sync-pair", branches: 2, capacity: 1 },
-  { name: "sync-eight", branches: 8, capacity: 16 },
-  { name: "async-pair", branches: 2, capacity: 1, async: true },
-  { name: "lagging", branches: 2, capacity: 64, batch: 64 },
-  { name: "detached", branches: 8, capacity: 16, detach: 7 },
+  { name: "numeric-pair", branches: 2, capacity: 1 },
+  { name: "keyed-eight", branches: 8, capacity: 16, keyed: true },
+  { name: "guards-eight", branches: 8, capacity: 16, guards: true },
+  { name: "async-source", branches: 2, capacity: 8, async: true },
+  { name: "async-select", branches: 2, capacity: 8, asyncSelect: true },
+  { name: "ignored", branches: 4, capacity: 16, guards: true, ignored: true },
+  {
+    name: "detached-default",
+    branches: 4,
+    capacity: 8,
+    keyed: true,
+    detached: true,
+  },
+  { name: "lagging", branches: 2, capacity: 64, pauseEvery: 64 },
 ];
 
 function parse(argv) {
@@ -60,23 +69,35 @@ function summary(values) {
   };
 }
 
-async function workload(fork, spec, items) {
+async function workload(route, spec, items) {
   let pulled = 0;
   let ended = 0;
   let returned = 0;
   const delivered = Array(spec.branches).fill(0);
+  const produced = Array(spec.branches).fill(0);
+  const checksums = Array(spec.branches).fill(0);
+  const keys = Array.from({ length: spec.branches }, (_, b) => `branch${b}`);
+  const period = spec.branches * (spec.ignored ? 2 : 1);
+  const destination = spec.detached
+    ? () => spec.branches - 1
+    : (value) => (value % period < spec.branches ? value % period : -1);
   const source = {
     [spec.async ? Symbol.asyncIterator : Symbol.iterator]() {
       return {
         next() {
-          // Include the reserved read in each branch's capacity check.
-          for (let b = spec.detach ?? 0; b < spec.branches; b++)
-            assert.ok(pulled - delivered[b] < spec.capacity);
-          if (pulled === items) ended++;
-          const result =
-            pulled < items
-              ? { done: false, value: pulled++ }
-              : { done: true, value: undefined };
+          // A handed-off item may still await its consumer's continuation.
+          for (let b = 0; b < spec.branches; b++)
+            assert.ok(produced[b] - delivered[b] <= spec.capacity + 1);
+          let result;
+          if (pulled === items) {
+            ended++;
+            result = { done: true, value: undefined };
+          } else {
+            const value = pulled++;
+            const target = destination(value);
+            if (target >= 0) produced[target]++;
+            result = { done: false, value };
+          }
           return spec.async ? Promise.resolve(result) : result;
         },
         return() {
@@ -86,49 +107,75 @@ async function workload(fork, spec, items) {
       };
     },
   };
-  const group = fork(source, spec);
-  for (let b = 0; b < (spec.detach ?? 0); b++) group.branches[b].detach();
-  const iterators = group.branches.map((b) => b.iterate());
-  async function read(b) {
-    const result = await iterators[b].next();
-    if (!result.done) assert.equal(result.value, delivered[b]++);
-    return result.done;
+  const branches = spec.guards
+    ? Object.fromEntries(
+        keys.map((key, b) => [key, (value) => value % period === b]),
+      )
+    : spec.keyed
+      ? keys
+      : spec.branches;
+  const options = { branches, capacity: spec.capacity };
+  if (!spec.guards) {
+    options.select = (value) => {
+      const target =
+        value % (spec.detached ? spec.branches - 1 : spec.branches);
+      const key = spec.keyed ? keys[target] : target;
+      return spec.asyncSelect ? Promise.resolve(key) : key;
+    };
   }
-  if (spec.batch) {
-    // Fill and drain a sibling's queue, including its wraparound path.
-    for (let start = 0; start < items; start += spec.batch) {
-      const count = Math.min(spec.batch, items - start);
-      for (let i = 0; i < count; i++) assert.equal(await read(0), false);
-      for (let i = 0; i < count; i++) assert.equal(await read(1), false);
-    }
-    await Promise.all(
-      iterators.map(async (_, b) => assert.equal(await read(b), true)),
-    );
-  } else {
-    await Promise.all(
-      iterators.slice(spec.detach ?? 0).map(async (_, index) => {
-        const b = index + (spec.detach ?? 0);
-        while (!(await read(b))) {}
-      }),
-    );
-  }
+  if (spec.detached) options.default = keys.at(-1);
+  const group = route(source, options);
+  const handles =
+    spec.keyed || spec.guards
+      ? keys.map((key) => group.branches[key])
+      : group.branches;
+  if (spec.detached) for (const branch of handles.slice(0, -1)) branch.detach();
+  const iterators = handles.map((branch) => branch.iterate());
+  await Promise.all(
+    iterators.map(async (iterator, b) => {
+      let expected = spec.detached ? 0 : b;
+      for (;;) {
+        const result = await iterator.next();
+        if (result.done) break;
+        assert.equal(result.value, expected);
+        expected += spec.detached ? 1 : period;
+        delivered[b]++;
+        checksums[b] += result.value;
+        if (spec.pauseEvery && b === 1 && delivered[b] % spec.pauseEvery === 0)
+          await new Promise((resolve) => setImmediate(resolve));
+      }
+    }),
+  );
   const report = await group.closed;
   assert.equal(report.source.kind, "completed");
   assert.deepEqual(report.source.suppressedErrors, []);
-  assert.ok(report.branches.every((b) => b.kind === "completed"));
+  for (const branch of Object.values(report.branches))
+    assert.equal(branch.kind, "completed");
   assert.equal(pulled, items);
   assert.equal(ended, 1);
   assert.equal(returned, 0);
-  assert.deepEqual(
-    delivered,
-    Array.from({ length: spec.branches }, (_, b) =>
-      b < (spec.detach ?? 0) ? 0 : items,
-    ),
-  );
+  assert.deepEqual(delivered, produced);
+  for (let b = 0; b < spec.branches; b++) {
+    const count = spec.detached
+      ? b === spec.branches - 1
+        ? items
+        : 0
+      : b < items
+        ? Math.floor((items - 1 - b) / period) + 1
+        : 0;
+    const first = spec.detached ? 0 : b;
+    const step = spec.detached ? 1 : period;
+    assert.equal(delivered[b], count);
+    assert.equal(
+      checksums[b],
+      count ? (count * (2 * first + (count - 1) * step)) / 2 : 0,
+    );
+  }
+  return { delivered, checksums };
 }
 
 async function worker(job) {
-  const { fork } = await import(job.options.module);
+  const { route } = await import(job.options.module);
   const samples = [];
   for (
     let round = 0;
@@ -137,11 +184,15 @@ async function worker(job) {
   ) {
     const cpu = process.cpuUsage();
     const start = performance.now();
-    await workload(fork, job.spec, job.options.items);
+    const verified = await workload(route, job.spec, job.options.items);
     const elapsedMs = performance.now() - start;
     const used = process.cpuUsage(cpu);
     if (round >= job.options.warmup)
-      samples.push({ elapsedMs, cpuMs: (used.user + used.system) / 1000 });
+      samples.push({
+        elapsedMs,
+        cpuMs: (used.user + used.system) / 1000,
+        ...verified,
+      });
   }
   return {
     case: job.spec.name,
@@ -159,7 +210,7 @@ function run(job) {
       process.execPath,
       [...process.execArgv, fileURLToPath(import.meta.url)],
       {
-        env: { ...process.env, MOGAMI_FORK_JOB: JSON.stringify(job) },
+        env: { ...process.env, MOGAMI_ROUTE_JOB: JSON.stringify(job) },
         stdio: ["ignore", "pipe", "pipe"],
       },
     );
@@ -191,9 +242,9 @@ function run(job) {
   });
 }
 
-if (process.env.MOGAMI_FORK_JOB) {
+if (process.env.MOGAMI_ROUTE_JOB) {
   console.log(
-    JSON.stringify(await worker(JSON.parse(process.env.MOGAMI_FORK_JOB))),
+    JSON.stringify(await worker(JSON.parse(process.env.MOGAMI_ROUTE_JOB))),
   );
 } else {
   const options = parse(process.argv.slice(2));
@@ -239,7 +290,7 @@ if (process.env.MOGAMI_FORK_JOB) {
     options,
     cases,
     methodology:
-      "Fresh process per case/variant/trial; sequential jobs, alternating case and variant order; normal GC; warmups excluded. Timing includes construction, per-value order/bounds assertions, consumption and cleanup. Summaries use independent process medians.",
+      "Fresh process per case/variant/trial; sequential jobs, alternating case and variant order; normal GC; warmups excluded. Timing includes construction, per-value order/bounds/checksum assertions, consumption and cleanup. Summaries use independent process medians.",
     results,
     summary: Object.fromEntries(
       cases

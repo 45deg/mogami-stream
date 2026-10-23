@@ -17,6 +17,8 @@ Use the [catalog](../operators.md) for individual examples and API links. Choose
 
 For pacing and deadlines, use the [timing guide](./timing.md). For retries and fallback sources, use [error handling](./errors.md). Choose a [terminal consumer](./consumers.md) to start reading.
 
+[`broadcast`](./branching.md#broadcast) sends the same values to every active branch; [`route`](./branching.md#route) sends each item to at most one branch. Both run the source once and bound each branch queue.
+
 ## Accumulated state
 
 [`scan`](../operators.md#operator-scan) emits each updated accumulator; [`reduce`](../operators.md#operator-reduce) returns only the final one. Both await the initial value and reducer results. An empty input emits nothing from [`scan`](../operators.md#operator-scan), while [`reduce`](../operators.md#operator-reduce) returns the initial value.

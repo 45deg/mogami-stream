@@ -17,6 +17,8 @@
 
 読み取りペースや期限は[時間制御](./timing.md)、再試行や代替ソースは[エラー処理](./errors.md)で説明しています。読み取りを始めるには[終端処理](./consumers.md)を選びます。
 
+[`broadcast`](./branching.md#broadcast) は離脱していない全分岐に同じ値を配り、[`route`](./branching.md#route) は各項目を最大 1 つの分岐に送ります。どちらもソースを 1 回だけ実行し、分岐ごとのキューに容量の上限を設けます。
+
 ## 集約する状態
 
 [`scan`](../operators.md#operator-scan) は更新のたびに累積値を出力し、[`reduce`](../operators.md#operator-reduce) は最後の値だけを返します。どちらも初期値と集約コールバックの結果を await し、入力が空なら [`scan`](../operators.md#operator-scan) は何も出力せず、[`reduce`](../operators.md#operator-reduce) は初期値を返します。

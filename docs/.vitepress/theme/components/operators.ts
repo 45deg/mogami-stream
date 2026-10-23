@@ -40,6 +40,18 @@ function entry(
 
 export const operators = [
   entry(
+    "broadcast",
+    "sources",
+    "Share one source execution across bounded branches, sending every item to every active branch by reference.",
+    "1 回のソース実行を容量制限付きの分岐で共有し、各項目を参加中の全分岐へ参照のまま配信する。",
+  ),
+  entry(
+    "route",
+    "sources",
+    "Choose at most one bounded branch per item with a selector or predicates; synchronous type guards narrow branch types.",
+    "セレクタや条件関数で各項目の配送先を最大 1 分岐に決める。同期の型ガードで分岐の型を絞り込める。",
+  ),
+  entry(
     "from",
     "sources",
     "Wrap a synchronous or asynchronous iterable into a Stream, preserving its replayability and Promise values.",

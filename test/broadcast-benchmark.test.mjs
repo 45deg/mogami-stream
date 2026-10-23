@@ -6,17 +6,21 @@ import { join } from "node:path";
 import { test } from "node:test";
 
 function run(args) {
-  const child = spawnSync(process.execPath, ["benchmarks/fork.mjs", ...args], {
-    cwd: new URL("../", import.meta.url),
-    encoding: "utf8",
-    timeout: 10_000,
-  });
+  const child = spawnSync(
+    process.execPath,
+    ["benchmarks/broadcast.mjs", ...args],
+    {
+      cwd: new URL("../", import.meta.url),
+      encoding: "utf8",
+      timeout: 10_000,
+    },
+  );
   assert.ifError(child.error);
   return child;
 }
 
-test("fork benchmark runs all workloads with independent alternating comparisons", () => {
-  const directory = mkdtempSync(join(tmpdir(), "mogami-fork-bench-"));
+test("broadcast benchmark runs all workloads with independent alternating comparisons", () => {
+  const directory = mkdtempSync(join(tmpdir(), "mogami-broadcast-bench-"));
   try {
     const json = join(directory, "results.json");
     const child = run([
@@ -43,15 +47,15 @@ test("fork benchmark runs all workloads with independent alternating comparisons
   }
 });
 
-test("fork benchmark rejects reordered output with the same count and checksum", () => {
-  const directory = mkdtempSync(join(tmpdir(), "mogami-fork-oracle-"));
+test("broadcast benchmark rejects reordered output with the same count and checksum", () => {
+  const directory = mkdtempSync(join(tmpdir(), "mogami-broadcast-oracle-"));
   try {
     const module = join(directory, "reordered.mjs");
     writeFileSync(
       module,
       `
-      import { fork as actual } from ${JSON.stringify(new URL("../dist/index.js", import.meta.url).href)};
-      export function fork(source, options) {
+      import { broadcast as actual } from ${JSON.stringify(new URL("../dist/index.js", import.meta.url).href)};
+      export function broadcast(source, options) {
         return actual((function* () {
           for (const value of source) yield value === 0 ? 1 : value === 1 ? 0 : value;
         })(), options);

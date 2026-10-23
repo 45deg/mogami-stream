@@ -2,6 +2,8 @@ export * from "./core/index.js";
 export type { Stream } from "./fluent/stream.js";
 export type { Operator } from "./fluent/functions.js";
 export {
+  broadcast,
+  route,
   from,
   defer,
   of,
@@ -44,3 +46,5 @@ export type {
   Stream as CoreStream,
   Operator as CoreOperator,
 } from "./core/stream.js";
+
+export type { FluentBranch, FluentBranchGroup } from "./fluent/stream.js";

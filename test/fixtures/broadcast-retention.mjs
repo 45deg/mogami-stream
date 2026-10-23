@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { fork } from "../../dist/index.js";
+import { broadcast } from "../../dist/index.js";
 
 const references = [];
 const retained = [];
@@ -11,7 +11,7 @@ function payload() {
 }
 
 async function exercise() {
-  const group = fork(
+  const group = broadcast(
     {
       *[Symbol.iterator]() {
         for (let i = 0; i < 4; i++) yield payload();
@@ -40,7 +40,7 @@ for (let i = 0; i < 5; i++) {
 assert.equal(
   references.filter((ref) => ref.deref()).length,
   0,
-  "fork retained delivered or detached payloads",
+  "broadcast retained delivered or detached payloads",
 );
 for (const { group, iterator, lagging } of handles) {
   assert.equal((await group.closed).source.kind, "completed");

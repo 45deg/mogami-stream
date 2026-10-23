@@ -71,5 +71,28 @@ export type {
   PushDropInfo,
 } from "../operators/push.js";
 
-export { fork } from "./fork.js";
-export type { Fork, ForkBranch, ForkOptions, ForkCloseReport } from "./fork.js";
+export { broadcast } from "./broadcast.js";
+export type {
+  Broadcast,
+  BroadcastBranch,
+  BroadcastOptions,
+  KeyedBroadcastOptions,
+  BroadcastCloseReport,
+} from "./broadcast.js";
+export { route } from "./route.js";
+export { RouteError } from "./route-error.js";
+export type {
+  RouteOptions,
+  RouteSettings,
+  KeyedRouteOptions,
+  PredicateRouteOptions,
+  RoutePredicate,
+  RoutedValues,
+} from "./route.js";
+export type {
+  Branch,
+  Branches,
+  BranchReports,
+  BranchGroup,
+  BranchGroupCloseReport,
+} from "./branch.js";
