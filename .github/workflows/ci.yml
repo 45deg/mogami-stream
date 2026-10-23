@@ -1,5 +1,18 @@
 name: CI
-on: [push, pull_request]
+on:
+  push:
+    branches: [main]
+    tags: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   contracts:
     runs-on: ubuntu-latest
@@ -18,8 +31,9 @@ jobs:
           bun-version: "1.4.3"
       - run: pnpm install --frozen-lockfile
       - run: pnpm check
-      - run: pnpm run docs
-      - run: pnpm test:package
+      - run: pnpm docs:typecheck
+        if: matrix.node == 22
+      - run: node scripts/test-package.mjs
   browser-and-workers:
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -33,6 +47,18 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm docs:test
-      - run: pnpm test:browser
-      - run: pnpm test:cloudflare
+      - run: node scripts/test-browser.mjs
+      - run: node scripts/test-cloudflare.mjs
+  runtime-watchdog:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm test:runtime-watchdog
