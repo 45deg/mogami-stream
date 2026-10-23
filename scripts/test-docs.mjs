@@ -36,6 +36,7 @@ try {
     "guide/operators.html",
     "guide/consumers.html",
     "guide/concurrency.html",
+    "guide/branching.html",
     "guide/lifecycle.html",
     "guide/timing.html",
     "guide/errors.html",
@@ -205,7 +206,7 @@ try {
     const snippets = await page
       .locator(".operator-snippet pre code")
       .allTextContents();
-    assert.equal(snippets.length, 44);
+    assert.equal(snippets.length, 46);
     assert.ok(
       snippets.every(
         (snippet) =>
@@ -216,7 +217,7 @@ try {
     assert.ok(
       snippets.every((snippet) => !snippet.includes("declare function")),
     );
-    assert.equal(await page.locator(".operator-output code").count(), 44);
+    assert.equal(await page.locator(".operator-output code").count(), 46);
     assert.deepEqual(
       JSON.parse(
         await page.locator("#operator-map .operator-output").textContent(),
@@ -242,7 +243,7 @@ try {
     assert.equal(await page.locator(".operator-navigation a").count(), 8);
     assert.equal(await page.locator(".operator-list details[open]").count(), 0);
     const names = await page.locator(".operator-name").allTextContents();
-    assert.equal(new Set(names).size, 44);
+    assert.equal(new Set(names).size, 46);
     const mapSummary = page.locator("#operator-map summary");
     await mapSummary.focus();
     await page.keyboard.press("Enter");
@@ -280,7 +281,7 @@ try {
       .click();
     await page.waitForFunction(
       () =>
-        document.querySelectorAll(".operator-list details[open]").length === 44,
+        document.querySelectorAll(".operator-list details[open]").length === 46,
     );
     await page
       .getByRole("button", { name: locale.collapse, exact: true })
@@ -369,6 +370,7 @@ try {
       "",
       "operators.html",
       "guide/concurrency.html",
+      "guide/branching.html",
       "guide/getting-started.html",
       "guide/operators.html",
       "recipes/events.html",

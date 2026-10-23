@@ -24,6 +24,7 @@ if (reuse && benchmarkArgs.length)
   throw new Error("--reuse cannot change measurement settings");
 parseOptions(benchmarkArgs, { gcAvailable: true });
 const options = new Map([
+  ["case", "async-map-serial,async-map-concurrent,async-pipeline"],
   ["gc", "none"],
   ["items", "100000"],
   ["warmup", "5"],

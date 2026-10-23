@@ -1,4 +1,5 @@
 import * as stream from "../../dist/index.js";
+import * as core from "../../dist/core/index.js";
 
 function equal(actual, expected) {
   if (JSON.stringify(actual) !== JSON.stringify(expected)) {
@@ -14,6 +15,64 @@ export async function runContracts() {
   async function check(name, run) {
     await run();
     passed.push(name);
+  }
+
+  for (const [entry, api] of [
+    ["root", stream],
+    ["core", core],
+  ]) {
+    await check(`${entry} named broadcast`, async () => {
+      const group = api.broadcast([1, 2], {
+        branches: ["a", "b"],
+        capacity: 1,
+      });
+      equal(
+        await Promise.all([
+          api.toArray(group.branches.a),
+          api.toArray(group.branches.b),
+        ]),
+        [
+          [1, 2],
+          [1, 2],
+        ],
+      );
+      equal((await group.closed).source.kind, "completed");
+    });
+    await check(`${entry} route with departed destination`, async () => {
+      const group = api.route([1, 2, 3], {
+        branches: {
+          odd: async (value) => value % 2 === 1,
+          even: (value) => value % 2 === 0,
+          rest: () => true,
+        },
+        capacity: 1,
+        default: "rest",
+        fallback: "error",
+      });
+      group.branches.odd.detach();
+      equal(
+        await Promise.all([
+          api.toArray(group.branches.even),
+          api.toArray(group.branches.rest),
+        ]),
+        [[2], [1, 3]],
+      );
+      equal((await group.closed).branches.rest.kind, "completed");
+    });
+    await check(`${entry} route rejects undeliverable items`, async () => {
+      const group = api.route([1], {
+        branches: { none: () => false },
+        capacity: 1,
+        fallback: "error",
+      });
+      try {
+        await api.toArray(group.branches.none);
+        throw new Error("Expected routing failure.");
+      } catch (error) {
+        if (!(error instanceof api.RouteError)) throw error;
+      }
+      equal((await group.closed).source.kind, "failed");
+    });
   }
 
   await check("sequential pipeline", async () => {

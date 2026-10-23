@@ -1,44 +1,26 @@
-import { defaultScheduler } from "./scheduler.js";
-import { Scope, type ExecutionHost } from "./scope.js";
-import { open, type OwnedReader, type Source } from "./stream.js";
-import { deferred, done, item } from "../internal/deferred.js";
-import { cancellationReason } from "../internal/errors.js";
+import { defaultScheduler } from "../core/scheduler.js";
+import { Scope, type ExecutionHost } from "../core/scope.js";
+import {
+  open,
+  type OwnedReader,
+  type Source,
+  type OperatorContext,
+} from "../core/stream.js";
 import type {
-  CloseReport,
-  ExecutionOptions,
-  StreamIterator,
-} from "../terminal/iterate.js";
+  Branch,
+  BranchGroup,
+  BranchGroupCloseReport,
+} from "../core/branch.js";
+import { deferred, done, item } from "./deferred.js";
+import { cancellationReason } from "./errors.js";
+import type { CloseReport } from "../terminal/iterate.js";
+import type { BranchLayout } from "./branch-layout.js";
+import { RouteError } from "../core/route-error.js";
 
-export interface ForkOptions extends ExecutionOptions {
-  /** Fixed number of one-shot branches; a positive safe integer. */
-  readonly branches: number;
-  /** Maximum queued values and reserved reads per branch; a positive safe integer. */
-  readonly capacity: number;
-}
-
-export interface ForkBranch<T> extends AsyncIterable<T> {
-  [Symbol.asyncIterator](): StreamIterator<T>;
-  /** Acquires this endpoint once. The signal cancels only this branch. */
-  iterate(options?: ExecutionOptions): StreamIterator<T>;
-  /** Releases unread values immediately, without waiting for shared cleanup. */
-  detach(): void;
-  cancel(reason?: unknown): void;
-  /** Endpoint completion, independent of siblings and shared source cleanup. */
-  readonly closed: Promise<CloseReport>;
-}
-
-export interface ForkCloseReport {
-  readonly source: CloseReport;
-  readonly branches: readonly CloseReport[];
-}
-
-export interface Fork<T> {
-  readonly branches: readonly ForkBranch<T>[];
-  cancel(reason?: unknown): void;
-  /** Detaches all endpoints and waits for source work and cleanup. Never rejects. */
-  close(): Promise<ForkCloseReport>;
-  /** Waits for every endpoint and shared cleanup; does not initiate a stop. */
-  readonly closed: Promise<ForkCloseReport>;
+export interface Routing<T> {
+  select(value: T, context: OperatorContext): number | PromiseLike<number>;
+  readonly defaultIndex: number;
+  readonly fallback: "error" | "ignore";
 }
 
 type Endpoint<T> = {
@@ -58,26 +40,15 @@ type Endpoint<T> = {
   removeSignal?: (() => void) | undefined;
 };
 
-/**
- * Shares one lazy source execution across fixed, bounded, one-shot branches.
- * A full branch stops source reads; detach unused branches to release capacity.
- * Consume branches concurrently and inspect `closed` for shared cleanup failures.
- * Bounds and their product must be positive safe integers. Values are shared by reference.
- * @category Sources
- */
-export function fork<T>(source: Source<T>, options: ForkOptions): Fork<T> {
-  const { branches: count, capacity, signal } = options;
-  if (
-    !Number.isSafeInteger(count) ||
-    count <= 0 ||
-    !Number.isSafeInteger(capacity) ||
-    capacity <= 0 ||
-    !Number.isSafeInteger(count * capacity)
-  ) {
-    throw new RangeError(
-      "branches, capacity, and their product must be positive safe integers.",
-    );
-  }
+/** Shared endpoint lifecycle for broadcast and single-destination routing. */
+export function createBranchHub<T>(
+  source: Source<T>,
+  layout: BranchLayout,
+  capacity: number,
+  signal?: AbortSignal,
+  routing?: Routing<T>,
+): BranchGroup<readonly T[]> {
+  const count = layout.keys.length;
   const endpoints: Endpoint<T>[] = Array.from({ length: count }, () => ({
     queue: new Map(),
     head: 0,
@@ -86,12 +57,15 @@ export function fork<T>(source: Source<T>, options: ForkOptions): Fork<T> {
     notified: false,
     completion: deferred<CloseReport>(),
   }));
-  const completion = deferred<ForkCloseReport>();
+  const completion = deferred<BranchGroupCloseReport<readonly T[]>>();
   let input: Source<T> | undefined = source;
   let reader: OwnedReader<T> | undefined;
   let phase: "idle" | "running" | "draining" | "stopping" | "closed" = "idle";
   let active = count;
   let flight = false;
+  let classifying = false;
+  let inputIndex = 0;
+  let routed: { value: T; target: number; redirected: boolean } | undefined;
   let scheduled = false;
   let reads = 0;
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -114,7 +88,9 @@ export function fork<T>(source: Source<T>, options: ForkOptions): Fork<T> {
     signal?.removeEventListener("abort", abort);
     completion.resolve({
       source: sourceReport,
-      branches: endpoints.map((b) => b.report!),
+      branches: layout.shape(
+        endpoints.map((b) => b.report!),
+      ) as readonly CloseReport[],
     });
   }
 
@@ -181,6 +157,7 @@ export function fork<T>(source: Source<T>, options: ForkOptions): Fork<T> {
   function stop(kind: CloseReport["kind"], reason?: unknown): void {
     if (phase === "closed" || phase === "stopping") return;
     phase = "stopping";
+    routed = undefined;
     sourceKind ??= kind;
     sourceReason = reason;
     // Commit every departure before abort handlers can reenter the group.
@@ -200,6 +177,7 @@ export function fork<T>(source: Source<T>, options: ForkOptions): Fork<T> {
     sourceReason = error;
     // Cleanup can fail after a normal stop or after some endpoints completed.
     phase = "stopping";
+    routed = undefined;
     for (const b of endpoints) end(b, "failed", error);
     root.stop(error);
     closeSource();
@@ -231,6 +209,88 @@ export function fork<T>(source: Source<T>, options: ForkOptions): Fork<T> {
     } else queueMicrotask(pump);
   }
 
+  function deliver(b: Endpoint<T>, value: T): void {
+    if (b.pending && !b.queue.size) {
+      const pending = b.pending;
+      b.pending = undefined;
+      pending.resolve(item(value));
+    } else {
+      b.queue.set(b.tail, value);
+      b.tail = (b.tail + 1) % capacity;
+    }
+  }
+
+  function deliverRouted(): void {
+    if (!routed || phase !== "running") return;
+    let target = endpoints[routed.target];
+    if (!target || target.report) {
+      if (!routed.redirected) {
+        routed.redirected = true;
+        routed.target = routing!.defaultIndex;
+        target = endpoints[routed.target];
+      }
+      if (!target || target.report) {
+        routed = undefined;
+        if (routing!.fallback === "error")
+          failSource(
+            new RouteError("No active route is available for the item."),
+          );
+        return;
+      }
+    }
+    if (target.queue.size >= capacity) return;
+    const value = routed.value;
+    routed = undefined;
+    deliver(target, value);
+  }
+
+  function classify(value: T): void {
+    classifying = true;
+    root.operationStarted();
+    const selected = (target: number) => {
+      classifying = false;
+      if (phase !== "running") return;
+      routed = { value, target, redirected: false };
+      deliverRouted();
+      if (endpoints.some((b) => b.pending)) wake();
+    };
+    const rejected = (error: unknown) => {
+      classifying = false;
+      root.reportError(error);
+    };
+    try {
+      const target = routing!.select(value, {
+        index: inputIndex++,
+        signal: root.signal,
+      });
+      if (typeof target === "number") selected(target);
+      else {
+        void Promise.resolve(target).then(
+          (index) => {
+            try {
+              selected(index);
+            } catch (error) {
+              rejected(error);
+            } finally {
+              root.operationFinished();
+            }
+          },
+          (error) => {
+            try {
+              rejected(error);
+            } finally {
+              root.operationFinished();
+            }
+          },
+        );
+        return;
+      }
+    } catch (error) {
+      rejected(error);
+    }
+    root.operationFinished();
+  }
+
   function pump(): void {
     scheduled = false;
     timer = undefined;
@@ -246,15 +306,19 @@ export function fork<T>(source: Source<T>, options: ForkOptions): Fork<T> {
     }
     finishGroup();
     if (phase !== "idle" && phase !== "running") return;
+    if (routed) deliverRouted();
+    if (phase !== "idle" && phase !== "running") return;
     if (
       flight ||
+      classifying ||
+      routed ||
       !active ||
       !endpoints.some((b) => !b.report && b.pending) ||
-      endpoints.some((b) => !b.report && b.queue.size >= capacity)
+      (!routing && endpoints.some((b) => !b.report && b.queue.size >= capacity))
     )
       return;
-    // The single flight reserves one slot in each active endpoint. No other
-    // producer can fill those slots, and departure immediately removes its slot.
+    // Broadcast reserves an endpoint slot in every active branch. Routing uses
+    // its single coordinator slot until the destination can accept the item.
     flight = true;
     phase = "running";
     reads++;
@@ -272,22 +336,16 @@ export function fork<T>(source: Source<T>, options: ForkOptions): Fork<T> {
             for (const b of endpoints)
               if (!b.report && !b.queue.size) end(b, "completed");
             closeSource();
+          } else if (routing) {
+            classify(result.value);
           } else {
             for (const b of endpoints) {
-              if (b.report) continue;
-              // A waiting endpoint with no backlog can receive the reserved read directly.
-              if (b.pending && !b.queue.size) {
-                const pending = b.pending;
-                b.pending = undefined;
-                pending.resolve(item(result.value));
-              } else {
-                b.queue.set(b.tail, result.value);
-                b.tail = (b.tail + 1) % capacity;
-              }
+              if (!b.report) deliver(b, result.value);
             }
           }
-          // Direct delivery leaves no demand until a consumer requests again.
-          if (endpoints.some((b) => b.pending)) wake();
+          // Classification wakes on completion; do not pump once more while
+          // an asynchronous selector is still pending.
+          if (!classifying && endpoints.some((b) => b.pending)) wake();
         },
         (error) => {
           flight = false;
@@ -302,8 +360,8 @@ export function fork<T>(source: Source<T>, options: ForkOptions): Fork<T> {
     }
   }
 
-  const handles: ForkBranch<T>[] = endpoints.map((b) => {
-    const branch: ForkBranch<T> = {
+  const handles: Branch<T>[] = endpoints.map((b) => {
+    const branch: Branch<T> = {
       closed: b.completion.promise,
       detach: () => depart(b, "completed"),
       cancel: (reason = cancellationReason()) => depart(b, "cancelled", reason),
@@ -313,7 +371,7 @@ export function fork<T>(source: Source<T>, options: ForkOptions): Fork<T> {
       iterate(options = {}) {
         if (b.subscribed)
           throw new TypeError(
-            "A fork branch permits only one iterator acquisition.",
+            "A branch permits only one iterator acquisition.",
           );
         b.subscribed = true;
         const localSignal = options.signal;
@@ -342,7 +400,8 @@ export function fork<T>(source: Source<T>, options: ForkOptions): Fork<T> {
                 finishGroup();
               }
               // A dequeue can unblock a sibling waiting behind this branch's capacity.
-              if (endpoints.some((endpoint) => endpoint.pending)) wake();
+              if (routed || endpoints.some((endpoint) => endpoint.pending))
+                wake();
               return Promise.resolve(result);
             }
             return new Promise<IteratorResult<T>>((resolve, reject) => {
@@ -368,8 +427,8 @@ export function fork<T>(source: Source<T>, options: ForkOptions): Fork<T> {
     };
     return branch;
   });
-  const group: Fork<T> = {
-    branches: Object.freeze(handles),
+  const group: BranchGroup<readonly T[]> = {
+    branches: Object.freeze(layout.shape(handles)) as readonly Branch<T>[],
     closed: completion.promise,
     cancel: (reason = cancellationReason()) => stop("cancelled", reason),
     close() {

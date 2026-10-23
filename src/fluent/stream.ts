@@ -36,6 +36,27 @@ import type { ResourceContext } from "../core/resource.js";
 import { Stream as CoreStream } from "../core/stream.js";
 import type { Source, Operator, OperatorContext } from "../core/stream.js";
 
+import { broadcast as coreBroadcast } from "../core/broadcast.js";
+import type {
+  BroadcastOptions,
+  KeyedBroadcastOptions,
+} from "../core/broadcast.js";
+import { route as coreRoute } from "../core/route.js";
+import type {
+  RouteOptions,
+  KeyedRouteOptions,
+  PredicateRouteOptions,
+  RoutePredicate,
+  RoutedValues,
+} from "../core/route.js";
+import type { Branch, BranchGroup } from "../core/branch.js";
+import { from as coreFrom } from "../operators/creation.js";
+
+export type FluentBranch<T> = Stream<T> & Branch<T>;
+export type FluentBranchGroup<V> = Omit<BranchGroup<V>, "branches"> & {
+  readonly branches: { readonly [K in keyof V]: FluentBranch<V[K]> };
+};
+
 /** A lazy stream with fluent operators, composition, and terminal methods. */
 export class Stream<T> extends CoreStream<T> {
   /** Reuses a core stream's builder without opening or wrapping its reader. @internal */
@@ -43,6 +64,28 @@ export class Stream<T> extends CoreStream<T> {
     return source instanceof Stream
       ? source
       : new Stream(Stream.builderFor(source));
+  }
+  /** Shares each input value with every active branch. */
+  broadcast<const K extends readonly string[]>(
+    options: KeyedBroadcastOptions<K[number]> & { readonly branches: K },
+  ): FluentBranchGroup<{ readonly [P in K[number]]: T }>;
+  broadcast(options: BroadcastOptions): FluentBranchGroup<readonly T[]>;
+  broadcast(options: any): any {
+    return wrapBranchGroup(coreBroadcast(this, options));
+  }
+  /** Routes each input item to at most one branch; predicates can narrow branch types. */
+  route<
+    const R extends Record<string, RoutePredicate<T>>,
+    const D extends (keyof R & string) | undefined = undefined,
+  >(
+    options: PredicateRouteOptions<T, R, D>,
+  ): FluentBranchGroup<RoutedValues<T, R, D>>;
+  route<const K extends readonly string[]>(
+    options: KeyedRouteOptions<T, K[number]> & { readonly branches: K },
+  ): FluentBranchGroup<{ readonly [P in K[number]]: T }>;
+  route(options: RouteOptions<T>): FluentBranchGroup<readonly T[]>;
+  route(options: any): any {
+    return wrapBranchGroup(coreRoute(this, options));
   }
   /** Maps values with the same concurrency, ordering, and retry options as {@link map}. */
   map<U>(
@@ -257,4 +300,30 @@ export class Stream<T> extends CoreStream<T> {
 
 export function wrap<T>(source: CoreStream<T>): Stream<T> {
   return Stream.fromCore(source);
+}
+
+/** Every fluent consumption path opens the same raw one-shot endpoint. @internal */
+export function wrapBranchGroup<V>(
+  group: BranchGroup<V>,
+): FluentBranchGroup<V> {
+  const branches = Array.isArray(group.branches) ? [] : Object.create(null);
+  for (const key of Object.keys(group.branches)) {
+    const branch = group.branches[key as keyof V];
+    const facade = wrap(coreFrom(branch)) as FluentBranch<V[keyof V]>;
+    facade.iterate = (options) => branch.iterate(options);
+    facade[Symbol.asyncIterator] = () => branch[Symbol.asyncIterator]();
+    facade.detach = branch.detach;
+    facade.cancel = branch.cancel;
+    Object.defineProperty(facade, "closed", {
+      value: branch.closed,
+      enumerable: true,
+    });
+    branches[key] = facade;
+  }
+  return {
+    branches: Object.freeze(branches),
+    cancel: group.cancel,
+    close: group.close,
+    closed: group.closed,
+  };
 }

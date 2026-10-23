@@ -64,6 +64,7 @@ Continue with [Getting started](./guide/getting-started.md) for the basic terms 
 - **[Operators](./operators.md)** — Descriptions, examples, and output grouped by category.
 - **[Terminal consumers](./guide/consumers.md)** — Collecting, aggregating, processing each item, and stopping early.
 - **[Concurrency, capacity, and demand](./guide/concurrency.md)** — Interactive slot state machine, `ordered: true` vs. `false`, backpressure, and higher-order stream bounds.
+- **[Branching a stream](./guide/branching.md)** — Broadcast to every branch or route each item to one destination, with shared capacity and lifecycle controls.
 - **[Timing](./guide/timing.md)** — Read rates, output spacing, timeouts, and time-based batching.
 - **[Error handling](./guide/errors.md)** — Stopping on errors, per-item results, retries, fallback sources, and cleanup errors.
 - **[Cancellation and cleanup](./guide/lifecycle.md)** — Stopping an execution, finalizer ordering, and resource ownership.

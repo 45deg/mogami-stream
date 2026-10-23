@@ -1,7 +1,7 @@
-import { fork, from } from "mogami-stream";
+import { broadcast, from } from "mogami-stream";
 
 const stop = new AbortController();
-const group = fork([1, 2, 3], {
+const group = broadcast([1, 2, 3], {
   branches: 2,
   capacity: 8,
   signal: stop.signal,

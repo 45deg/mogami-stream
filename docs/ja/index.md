@@ -64,6 +64,7 @@ bun add mogami-stream
 - [オペレータ](./operators.md): カテゴリ別の説明、使用例と出力結果。
 - [終端処理](./guide/consumers.md): 結果の収集・集約、1件ずつの処理、条件による早期終了。
 - [並行数・容量・需要](./guide/concurrency.md): スロットの状態遷移図、`ordered: true` と `false` の違い、バックプレッシャー、子ストリームの並行数。
+- [ストリームの分岐](./guide/branching.md): 全分岐への配信、条件での振り分け、容量制限と終了処理。
 - [時間制御](./guide/timing.md): 読み取り回数、出力間隔、タイムアウト、時間によるバッチ化。
 - [エラー処理](./guide/errors.md): エラーによる停止、項目ごとの結果、再試行、代替ソース、後処理のエラー。
 - [キャンセルと後処理](./guide/lifecycle.md): 実行の停止方法、`finalize` の実行順序、リソースの所有権。

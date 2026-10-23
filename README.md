@@ -8,6 +8,7 @@
 TypeScript operators for safe asynchronous stream processing
 
 - **Bounded work and buffering.** `map` limits concurrent work with `concurrency` and caps the total of pending reads, running callbacks, and buffered results with `capacity`. Results are emitted in input order or completion order.
+- **Bounded branching.** `broadcast` shares every item with all active branches; `route` selects one destination per item, with optional type guards, a default destination, and an explicit fallback policy.
 - **Demand-driven execution.** Pipelines start on the first read. Concurrent stages start new upstream reads only while downstream is waiting for a value; work already in flight may finish within the stage's bounds.
 - **Separate cancellation and cleanup completion.** `cancel()` rejects a pending `next()` immediately and passes the stop request to upstream stages through `AbortSignal`. Await `closed` for in-flight work and cleanup to finish.
 - **Awaited cleanup with error reports.** Async `finalize` callbacks run after upstream stages and in-flight work finish. Terminal consumers wait for cleanup before settling. `closed` reports completion, cancellation, or failure, preserving the primary reason and collecting additional errors in `suppressedErrors`.

@@ -54,7 +54,10 @@ for (const file of files) {
     `${file} must export its result after the example`,
   );
   const code = await format(
-    source.slice(0, exportStart) + "\nconsole.log(result);\n",
+    source
+      .slice(0, exportStart)
+      .replace(/^\/\/ #(?:end)?region[^\n]*\n/gm, "") +
+      "\nconsole.log(result);\n",
     { parser: "typescript" },
   );
   const executable = ts.transpileModule(source, {
