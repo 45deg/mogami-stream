@@ -1,0 +1,19 @@
+{
+  "$schema": "./node_modules/oxfmt/configuration_schema.json",
+  "printWidth": 80,
+  "sortImports": false,
+  "sortPackageJson": false,
+  "ignorePatterns": [
+    "node_modules/",
+    "dist/",
+    "pnpm-lock.yaml",
+    ".pnpm-store/",
+    "experiments/",
+    "docs/api/",
+    "docs/public/api/",
+    "docs/public/benchmarks.svg",
+    "docs/.vitepress/cache/",
+    "docs/.vitepress/generated/",
+    "docs/.vitepress/dist/"
+  ]
+}

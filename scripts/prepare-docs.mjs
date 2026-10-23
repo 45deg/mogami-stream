@@ -10,7 +10,7 @@ import {
 import assert from "node:assert/strict";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
-import { format } from "prettier";
+import { format } from "oxfmt";
 import { createMarkdownRenderer } from "vitepress";
 
 const root = new URL("../", import.meta.url);
@@ -54,12 +54,14 @@ for (const file of files) {
     `${file} must export its result after the example`,
   );
   const code = await format(
+    file,
     source
       .slice(0, exportStart)
       .replace(/^\/\/ #(?:end)?region[^\n]*\n/gm, "") +
       "\nconsole.log(result);\n",
-    { parser: "typescript" },
+    { printWidth: 80 },
   );
+  assert.deepEqual(code.errors, [], `Could not format example: ${name}`);
   const executable = ts.transpileModule(source, {
     compilerOptions: {
       target: ts.ScriptTarget.ES2022,
@@ -84,12 +86,21 @@ for (const file of files) {
       expected[name],
       `Incorrect example result: ${name}`,
     );
-    examples[name] = {
-      html: markdown.render(`\`\`\`ts\n${code}\n\`\`\``),
-      result: await format(JSON.stringify(result), {
-        parser: "json",
+    const formattedResult = await format(
+      "result.json",
+      JSON.stringify(result),
+      {
         printWidth: 72,
-      }),
+      },
+    );
+    assert.deepEqual(
+      formattedResult.errors,
+      [],
+      `Could not format result: ${name}`,
+    );
+    examples[name] = {
+      html: markdown.render(`\`\`\`ts\n${code.code}\n\`\`\``),
+      result: formattedResult.code,
     };
   } finally {
     clearTimeout(timer);
