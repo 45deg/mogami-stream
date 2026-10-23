@@ -17,6 +17,19 @@ export async function adaptersFor() {
       ),
       supports: () => true,
       async run(w, c) {
+        if (w.kind === "route") {
+          await c.consumeRoute(mogami.route(c.source, c.routeOptions));
+          return;
+        }
+        if (w.kind === "broadcast") {
+          await c.consumeBroadcast(
+            mogami.broadcast(c.source, {
+              branches: w.branches,
+              capacity: c.capacity,
+            }),
+          );
+          return;
+        }
         let output = mogami.from(c.source);
         if (w.kind === "pipeline") {
           for (const step of c.pipelineSteps)

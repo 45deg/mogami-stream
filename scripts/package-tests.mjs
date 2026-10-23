@@ -41,8 +41,6 @@ export const repositoryTests = [
   "benchmarks.test.mjs",
   "documentation-recipes.test.mjs",
   "event-loop-recipe.test.mjs",
-  "broadcast-benchmark.test.mjs",
-  "route-benchmark.test.mjs",
   "representative-benchmarks.test.mjs",
   "shared-rate-limiter-recipe.test.mjs",
   "terminal-report-recipe.test.mjs",

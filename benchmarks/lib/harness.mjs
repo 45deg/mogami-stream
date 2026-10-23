@@ -185,7 +185,7 @@ export async function runBenchmarks(argv = process.argv.slice(2)) {
       async:
         "async-* uses AsyncIterable inputs and Promise-returning transforms without timer waits; configured concurrency is an upper bound, not necessarily observed overlap",
       bounds:
-        "maxAhead = pulled minus received by sink, including in-flight work; maxReady = mapper completions minus received; neither is a heap measurement",
+        "maxAhead = pulled minus received by sink (slowest branch for broadcast); route uses the maximum produced minus received for any branch, including the coordinator's item; maxReady = mapper completions minus received, null without a mapper; neither is a heap measurement",
       statistics:
         "Median, min, max and every sample; no significance or cross-workload aggregate ranking",
     },
