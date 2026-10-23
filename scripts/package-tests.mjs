@@ -12,6 +12,7 @@ export const distributionTests = [
   "core.test.mjs",
   "execution-signal.test.mjs",
   "fluent.test.mjs",
+  "fork.test.mjs",
   "fuzz.test.mjs",
   "higher-order-cleanup.test.mjs",
   "higher-order-direct-cancellation.test.mjs",

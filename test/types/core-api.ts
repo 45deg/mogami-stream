@@ -1,4 +1,5 @@
 import {
+  fork,
   from,
   of,
   map,
@@ -71,3 +72,20 @@ of(1).map(String);
 of(1).take(1);
 // @ts-expect-error Operators must accept the preceding stream's type.
 of(1).pipe(map((value: string) => value.length));
+
+const forked = fork([Promise.resolve(1)], {
+  branches: 2,
+  capacity: 1,
+});
+const forkBranch = forked.branches[0]!;
+const forkIterator: import("mogami-stream/core").StreamIterator<
+  Promise<number>
+> = forkBranch.iterate();
+const forkReport: Promise<import("mogami-stream").ForkCloseReport> =
+  forked.closed;
+const forkEndpointReport: Promise<import("mogami-stream").CloseReport> =
+  forkIterator.closed;
+// @ts-expect-error Branch handles cannot be added after construction.
+forked.branches.push(forkBranch);
+void forkReport;
+void forkEndpointReport;
