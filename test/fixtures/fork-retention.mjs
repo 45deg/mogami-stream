@@ -21,9 +21,11 @@ async function exercise() {
   );
   const iterator = group.branches[0].iterate();
   while (!(await iterator.next()).done) {}
+  const lagging = group.branches[1].iterate();
+  await lagging.next();
   group.branches[1].detach();
   await group.closed;
-  return { group, iterator };
+  return { group, iterator, lagging };
 }
 const handles = [];
 for (let i = 0; i < 10; i++) handles.push(await exercise());
@@ -40,8 +42,9 @@ assert.equal(
   0,
   "fork retained delivered or detached payloads",
 );
-for (const { group, iterator } of handles) {
+for (const { group, iterator, lagging } of handles) {
   assert.equal((await group.closed).source.kind, "completed");
   assert.equal((await iterator.next()).done, true);
+  assert.equal((await lagging.next()).done, true);
 }
 assert.equal(retained.length, 0);

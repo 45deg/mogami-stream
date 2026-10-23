@@ -120,6 +120,37 @@ test("queued values drain independently of a full sibling", async () => {
   await group.close();
 });
 
+test("queued reads preserve payload identity, unblock siblings, and complete at EOF", async () => {
+  const promise = Promise.resolve(2);
+  let pulled = 0;
+  const group = fork(
+    (function* () {
+      for (const entry of [undefined, promise, 3]) {
+        pulled++;
+        yield entry;
+      }
+    })(),
+    { branches: 2, capacity: 2 },
+  );
+  const [a, b] = group.branches.map((branch) => branch.iterate());
+  assert.deepEqual(await a.next(), value(undefined));
+  assert.equal((await a.next()).value, promise);
+  const blocked = a.next();
+  await flush();
+  assert.equal(pulled, 2);
+  assert.deepEqual(await b.next(), value(undefined));
+  assert.deepEqual(await blocked, value(3));
+
+  const eof = a.next();
+  assert.equal((await b.next()).value, promise);
+  assert.deepEqual(await eof, done);
+  assert.deepEqual(await b.next(), value(3));
+  // Draining the last value completes the endpoint without another next().
+  assert.equal((await b.closed).kind, "completed");
+  assert.equal((await group.closed).source.kind, "completed");
+  assert.deepEqual(await b.next(), done);
+});
+
 test("one subscription and one pending next are enforced without disturbing demand", async () => {
   const upstream = controlled();
   const group = fork(upstream.source, { branches: 1, capacity: 1 });
