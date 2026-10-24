@@ -198,6 +198,8 @@ export function createBranchHub<T>(
   function wake(): void {
     if (scheduled || phase === "stopping" || phase === "closed") return;
     scheduled = true;
+    // Discard-only routes can synchronously reenter wake from an internal read.
+    // Queue the pump to bound the stack and accept cancellation (route.test.mjs).
     queueMicrotask(pump);
   }
 

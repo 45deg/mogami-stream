@@ -31,7 +31,8 @@ export async function reduce<T, A>(
       const accept = async (result: IteratorResult<T>): Promise<void> => {
         try {
           if (!result.done) {
-            // Preserve the read-to-callback cancellation window.
+            // Both turns preserve next()'s read-to-callback cancellation window
+            // (range-cancellation.test.mjs). One turn invokes the reducer too early.
             await undefined;
             await undefined;
             scope.check();

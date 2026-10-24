@@ -80,6 +80,8 @@ export function dedupe<T, K = T>(
                 index: index++,
                 signal: scope.signal,
               });
+            // Without a selector await, repeated keys can recurse synchronously.
+            // This turn also accepts queued cancellation (read-path.test.mjs).
             else await undefined;
             scope.check();
             if (!hasPrevious || !Object.is(previous, key)) {

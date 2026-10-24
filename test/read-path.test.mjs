@@ -9,6 +9,10 @@ import {
   take,
   skip,
   from,
+  chunks,
+  takeWhile,
+  skipWhile,
+  chain,
 } from "../dist/index.js";
 import { deferred, flush } from "./helpers.mjs";
 
@@ -76,8 +80,12 @@ for (const [name, operator] of [
   });
 }
 
-for (const operator of [filterMap(() => null), dedupe(), skip(50_000)]) {
-  test("discarding synchronous read sources yields to cancellation without stack growth", async () => {
+for (const [name, operator] of [
+  ["filterMap", filterMap(() => null)],
+  ["dedupe", dedupe()],
+  ["skip", skip(50_000)],
+]) {
+  test(`${name}: discarding synchronous read sources yields to cancellation without stack growth`, async () => {
     const controller = new AbortController();
     let reads = 0;
     const source = create(() => ({
@@ -149,3 +157,69 @@ test("owned read drains a late rejection after cancellation before closing", asy
   const report = await iterator.closed;
   assert.deepEqual(report.suppressedErrors, [late]);
 });
+
+for (const [name, build] of [
+  ["chunks", (source) => source.pipe(chunks(2))],
+  [
+    "takeWhile",
+    (source) =>
+      source.pipe(takeWhile(() => assert.fail("callback after cancellation"))),
+  ],
+  [
+    "skipWhile",
+    (source) =>
+      source.pipe(skipWhile(() => assert.fail("callback after cancellation"))),
+  ],
+  [
+    "chain",
+    (source) =>
+      chain(source, {
+        [Symbol.iterator]() {
+          assert.fail("next source opened after cancellation");
+        },
+      }),
+  ],
+]) {
+  for (const rejects of [false, true]) {
+    test(`${name}: next fallback drains a late ${rejects ? "failure" : "value"} before cleanup`, async () => {
+      const gate = deferred();
+      const started = deferred();
+      const late = new Error("late read");
+      let cleaned = 0;
+      const source = create((scope) => {
+        scope.finalizers.push(() => {
+          cleaned++;
+        });
+        return {
+          next() {
+            started.resolve();
+            return gate.promise;
+          },
+        };
+      });
+      const iterator = build(source).iterate();
+      const pending = assert.rejects(
+        iterator.next(),
+        (error) => error === "stop",
+      );
+      await started.promise;
+      iterator.cancel("stop");
+      await pending;
+      let closed = false;
+      void iterator.closed.then(() => {
+        closed = true;
+      });
+      await flush();
+      assert.equal(closed, false);
+      assert.equal(cleaned, 0);
+      if (rejects) gate.reject(late);
+      else gate.resolve({ done: false, value: 1 });
+      const report = await iterator.closed;
+      assert.equal(report.kind, "cancelled");
+      assert.equal(report.reason, "stop");
+      assert.deepEqual(report.suppressedErrors, rejects ? [late] : []);
+      assert.equal(cleaned, 1);
+      assert.deepEqual(await iterator.next(), { done: true, value: undefined });
+    });
+  }
+}
