@@ -393,11 +393,13 @@ for (const [entry, api] of [
     await assert.rejects(api.toArray(api.from(group.branches[1])), TypeError);
   });
 
-  test(`${entry} route yields while ignoring sustained synchronous input`, async () => {
+  test(`${entry} route honors explicit upstream waits while discarding input`, async () => {
     const group = api.route(
-      (function* () {
-        for (;;) yield 0;
-      })(),
+      api.tap((_, { index }) => (index % 1024 === 0 ? turn() : undefined))(
+        (function* () {
+          for (;;) yield 0;
+        })(),
+      ),
       {
         branches: { selected: () => false },
         capacity: 1,
@@ -462,4 +464,19 @@ test("keyed routes retain special property names without inheriting destinations
   const report = await group.closed;
   assert.equal(report.branches.__proto__.kind, "completed");
   assert.equal(report.branches.constructor.kind, "completed");
+});
+
+test("route does not insert host waits while discarding synchronous input", async () => {
+  let hostTurn = false;
+  const host = turn().then(() => {
+    hostTurn = true;
+  });
+  const group = fluent.route(fluent.range(0, 4096), {
+    branches: { none: () => false },
+    capacity: 1,
+  });
+  assert.deepEqual(await fluent.toArray(group.branches.none), []);
+  await group.closed;
+  assert.equal(hostTurn, false);
+  await host;
 });

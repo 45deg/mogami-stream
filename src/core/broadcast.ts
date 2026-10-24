@@ -28,7 +28,7 @@ export type BroadcastCloseReport = BranchGroupCloseReport<readonly unknown[]>;
  * Consume branches concurrently and inspect `closed` for shared cleanup failures.
  * Promise-valued items are not awaited. New reads require branch demand; existing
  * queues remain readable when a sibling is full. At most one source read is in flight.
- * Sustained reads periodically yield so timers and abort handlers can run.
+ * Reads do not automatically yield to host timers or I/O.
  * @throws {RangeError} If the branch count, capacity, or their product is not a positive safe integer, or named keys are empty or duplicated.
  * @category Sources
  */
