@@ -1,6 +1,14 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { finalize, from, iterate } from "../dist/index.js";
+import {
+  finalize,
+  from,
+  iterate,
+  defer,
+  take,
+  takeWhile,
+  broadcast,
+} from "../dist/index.js";
 import { deferred, flush } from "./helpers.mjs";
 
 const rejectsWith = (promise, reason) =>
@@ -196,5 +204,109 @@ test("throw after cancellation preserves its reason while cleanup is pending", a
     kind: "cancelled",
     reason: NaN,
     suppressedErrors: [secondary],
+  });
+});
+
+for (const mode of [
+  "take",
+  "takeWhile",
+  "return",
+  "detach",
+  "close",
+  "cancel",
+  "external",
+]) {
+  for (const sameReason of [true, false]) {
+    test(`${mode}: upstream abort preserves completion and suppresses only the identical reason (${sameReason})`, async () => {
+      const controller = new AbortController();
+      const externalReason = new Error("external stop");
+      const distinct = new Error("distinct abort failure");
+      distinct.name = "AbortError";
+      let upstreamSignal;
+      let cleanup = 0;
+      const source = defer(({ signal }) => {
+        upstreamSignal = signal;
+        return {
+          [Symbol.iterator]() {
+            return this;
+          },
+          next() {
+            return { done: false, value: 1 };
+          },
+          return() {
+            cleanup++;
+            assert.equal(signal.aborted, true);
+            throw sameReason ? signal.reason : distinct;
+          },
+        };
+      });
+      const grouped = mode === "detach" || mode === "close";
+      const group = grouped
+        ? broadcast(source, { branches: 1, capacity: 1 })
+        : undefined;
+      const pipeline =
+        mode === "take"
+          ? source.pipe(take(1))
+          : mode === "takeWhile"
+            ? source.pipe(takeWhile(() => false))
+            : source;
+      const iterator = group
+        ? group.branches[0].iterate()
+        : pipeline.iterate({ signal: controller.signal });
+      if (mode === "take" || mode === "takeWhile") {
+        const consuming = (async () => {
+          for await (const value of iterator) assert.equal(value, 1);
+        })();
+        if (sameReason) await consuming;
+        else await rejectsWith(consuming, distinct);
+      } else {
+        await iterator.next();
+        if (mode === "return") {
+          const returning = iterator.return();
+          if (sameReason) await returning;
+          else await rejectsWith(returning, distinct);
+        } else if (mode === "detach") group.branches[0].detach();
+        else if (mode === "close") await group.close();
+        else if (mode === "cancel") iterator.cancel();
+        else controller.abort(externalReason);
+      }
+      const report = group
+        ? (await group.closed).source
+        : await iterator.closed;
+      assert.equal(upstreamSignal.aborted, true);
+      if (mode === "external")
+        assert.equal(upstreamSignal.reason, externalReason);
+      else assert.equal(upstreamSignal.reason.name, "AbortError");
+      const cancelled = mode === "cancel" || mode === "external";
+      assert.equal(
+        report.kind,
+        cancelled ? "cancelled" : sameReason ? "completed" : "failed",
+      );
+      if (cancelled) assert.equal(report.reason, upstreamSignal.reason);
+      else if (!sameReason) assert.equal(report.reason, distinct);
+      assert.deepEqual(
+        report.suppressedErrors,
+        cancelled && !sameReason ? [distinct] : [],
+      );
+      assert.equal(cleanup, 1);
+      if (group)
+        assert.equal((await group.branches[0].closed).kind, "completed");
+    });
+  }
+}
+
+test("an upstream signal passed directly to fetch aborts I/O without failing normal return", async () => {
+  let signal;
+  const iterator = defer((context) => {
+    signal = context.signal;
+    return [1, 2];
+  }).iterate();
+  await iterator.next();
+  await iterator.return();
+  // A pre-aborted signal exercises fetch's rejection contract without network I/O.
+  await rejectsWith(fetch("http://127.0.0.1:1/", { signal }), signal.reason);
+  assert.deepEqual(await iterator.closed, {
+    kind: "completed",
+    suppressedErrors: [],
   });
 });

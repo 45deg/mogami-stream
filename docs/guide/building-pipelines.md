@@ -60,4 +60,4 @@ Use [`.pipe(a, b)`](../operators.md#operator-pipe) for multiple custom operators
 
 Both entries share execution and cleanup. Pass a core stream to the default entry's [`from()`](../operators.md#operator-from) to use fluent transformations; importing that entry alone does not change existing streams.
 
-Fluent chains have no stage limit. Each [`.pipe()`](../operators.md#operator-pipe) or standalone [`pipe`](../operators.md#operator-pipe) call infers up to eight operators; split longer pipelines across calls. Value-independent operators such as `const first = take(1)` remain reusable across element types.
+Fluent chains have no stage limit. Each [`.pipe()`](../operators.md#operator-pipe) or standalone [`pipe`](../operators.md#operator-pipe) call infers up to sixteen operators; split longer pipelines across calls. Value-independent operators such as `const first = take(1)` remain reusable across element types.
