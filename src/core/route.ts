@@ -78,8 +78,8 @@ export type RoutedValues<T, R, D> = {
  *
  * Invalid selector results (including `undefined`) and callback errors fail the group
  * regardless of fallback, with the failure reported in `report.source`.
- * Discarding an item leaves demand pending. Sustained reads yield periodically,
- * including discard-only runs. Configuration is validated before source acquisition.
+ * Discarding an item leaves demand pending. Reads do not automatically yield to
+ * host timers or I/O. Configuration is validated before source acquisition.
  * @throws {RangeError} If bounds or their product are invalid, keys are empty or duplicated, or `default` does not name an existing branch.
  * @category Sources
  */
