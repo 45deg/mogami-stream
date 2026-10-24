@@ -1,0 +1,38 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "ignorePatterns": [
+    "dist/",
+    ".pnpm-store/",
+    "experiments/",
+    "docs/api/",
+    "docs/public/api/",
+    "docs/.vitepress/cache/",
+    "docs/.vitepress/generated/",
+    "docs/.vitepress/dist/"
+  ],
+  "rules": {
+    "no-unused-expressions": ["warn", { "allowTernary": true }]
+  },
+  "overrides": [
+    {
+      "files": ["test/**/*.mjs"],
+      "rules": { "unicorn/no-thenable": "off" }
+    },
+    {
+      "files": [
+        "test/iterator-acquisition.test.mjs",
+        "test/resource-ownership.test.mjs",
+        "test/push.test.mjs"
+      ],
+      "rules": { "getter-return": "off" }
+    },
+    {
+      "files": ["test/resilient-map.test.mjs"],
+      "rules": { "require-yield": "off" }
+    },
+    {
+      "files": ["test/types/**/*.ts"],
+      "rules": { "no-unused-expressions": "off" }
+    }
+  ]
+}

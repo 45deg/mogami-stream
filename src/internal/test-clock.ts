@@ -66,6 +66,8 @@ export function createTestClock(): TestClock {
           for (const timer of timers) next = Math.min(next, timer.at);
           if (next > timeMs) break;
           time = next;
+          // Snapshot timers because resolving them mutates the set.
+          // oxlint-disable-next-line unicorn/no-useless-spread
           for (const timer of [...timers])
             if (timer.at <= time) timer.resolve();
           await settle();

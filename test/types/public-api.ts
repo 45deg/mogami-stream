@@ -346,6 +346,7 @@ export type SettledRetry = Expect<
 
 // @ts-expect-error mapRetry was removed in favor of map's retry option.
 import { mapRetry } from "../../dist/index.js";
+void mapRetry;
 
 // Promise initializers are resolved before every accumulator callback.
 const promiseReduced = reduce(

@@ -56,7 +56,7 @@ export interface PredicateRouteOptions<
 export type RoutedValues<T, R, D> = {
   readonly [K in keyof R]: K extends D
     ? T
-    : R[K] extends (value: any, ...args: any[]) => value is infer S
+    : R[K] extends ((value: any, ...args: any[]) => value is infer S)
       ? T & S
       : T;
 };
@@ -103,7 +103,9 @@ export function route<T>(
   source: Source<T>,
   options: RouteSettings & {
     readonly branches:
-      number | readonly string[] | Record<string, RoutePredicate<T>>;
+      | number
+      | readonly string[]
+      | Record<string, RoutePredicate<T>>;
     readonly select?: (value: T, context: OperatorContext) => unknown;
     readonly default?: string | number;
   },
