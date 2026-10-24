@@ -141,7 +141,7 @@ export class Stream<T> implements AsyncIterable<T> {
   ): Promise<boolean> {
     return every(this, predicate, options);
   }
-  /** Composes up to eight operators from left to right without starting execution. */
+  /** Composes up to sixteen operators from left to right without starting execution. */
   pipe(): Stream<T>;
   pipe<A>(op1: Operator<T, A>): Stream<A>;
   pipe<A, B>(op1: Operator<T, A>, op2: Operator<A, B>): Stream<B>;
@@ -190,6 +190,122 @@ export class Stream<T> implements AsyncIterable<T> {
     op7: Operator<F, G>,
     op8: Operator<G, H>,
   ): Stream<H>;
+  pipe<A, B, C, D, E, F, G, H, I>(
+    op1: Operator<T, A>,
+    op2: Operator<A, B>,
+    op3: Operator<B, C>,
+    op4: Operator<C, D>,
+    op5: Operator<D, E>,
+    op6: Operator<E, F>,
+    op7: Operator<F, G>,
+    op8: Operator<G, H>,
+    op9: Operator<H, I>,
+  ): Stream<I>;
+  pipe<A, B, C, D, E, F, G, H, I, J>(
+    op1: Operator<T, A>,
+    op2: Operator<A, B>,
+    op3: Operator<B, C>,
+    op4: Operator<C, D>,
+    op5: Operator<D, E>,
+    op6: Operator<E, F>,
+    op7: Operator<F, G>,
+    op8: Operator<G, H>,
+    op9: Operator<H, I>,
+    op10: Operator<I, J>,
+  ): Stream<J>;
+  pipe<A, B, C, D, E, F, G, H, I, J, K>(
+    op1: Operator<T, A>,
+    op2: Operator<A, B>,
+    op3: Operator<B, C>,
+    op4: Operator<C, D>,
+    op5: Operator<D, E>,
+    op6: Operator<E, F>,
+    op7: Operator<F, G>,
+    op8: Operator<G, H>,
+    op9: Operator<H, I>,
+    op10: Operator<I, J>,
+    op11: Operator<J, K>,
+  ): Stream<K>;
+  pipe<A, B, C, D, E, F, G, H, I, J, K, L>(
+    op1: Operator<T, A>,
+    op2: Operator<A, B>,
+    op3: Operator<B, C>,
+    op4: Operator<C, D>,
+    op5: Operator<D, E>,
+    op6: Operator<E, F>,
+    op7: Operator<F, G>,
+    op8: Operator<G, H>,
+    op9: Operator<H, I>,
+    op10: Operator<I, J>,
+    op11: Operator<J, K>,
+    op12: Operator<K, L>,
+  ): Stream<L>;
+  pipe<A, B, C, D, E, F, G, H, I, J, K, L, M>(
+    op1: Operator<T, A>,
+    op2: Operator<A, B>,
+    op3: Operator<B, C>,
+    op4: Operator<C, D>,
+    op5: Operator<D, E>,
+    op6: Operator<E, F>,
+    op7: Operator<F, G>,
+    op8: Operator<G, H>,
+    op9: Operator<H, I>,
+    op10: Operator<I, J>,
+    op11: Operator<J, K>,
+    op12: Operator<K, L>,
+    op13: Operator<L, M>,
+  ): Stream<M>;
+  pipe<A, B, C, D, E, F, G, H, I, J, K, L, M, N>(
+    op1: Operator<T, A>,
+    op2: Operator<A, B>,
+    op3: Operator<B, C>,
+    op4: Operator<C, D>,
+    op5: Operator<D, E>,
+    op6: Operator<E, F>,
+    op7: Operator<F, G>,
+    op8: Operator<G, H>,
+    op9: Operator<H, I>,
+    op10: Operator<I, J>,
+    op11: Operator<J, K>,
+    op12: Operator<K, L>,
+    op13: Operator<L, M>,
+    op14: Operator<M, N>,
+  ): Stream<N>;
+  pipe<A, B, C, D, E, F, G, H, I, J, K, L, M, N, O>(
+    op1: Operator<T, A>,
+    op2: Operator<A, B>,
+    op3: Operator<B, C>,
+    op4: Operator<C, D>,
+    op5: Operator<D, E>,
+    op6: Operator<E, F>,
+    op7: Operator<F, G>,
+    op8: Operator<G, H>,
+    op9: Operator<H, I>,
+    op10: Operator<I, J>,
+    op11: Operator<J, K>,
+    op12: Operator<K, L>,
+    op13: Operator<L, M>,
+    op14: Operator<M, N>,
+    op15: Operator<N, O>,
+  ): Stream<O>;
+  pipe<A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P>(
+    op1: Operator<T, A>,
+    op2: Operator<A, B>,
+    op3: Operator<B, C>,
+    op4: Operator<C, D>,
+    op5: Operator<D, E>,
+    op6: Operator<E, F>,
+    op7: Operator<F, G>,
+    op8: Operator<G, H>,
+    op9: Operator<H, I>,
+    op10: Operator<I, J>,
+    op11: Operator<J, K>,
+    op12: Operator<K, L>,
+    op13: Operator<L, M>,
+    op14: Operator<M, N>,
+    op15: Operator<N, O>,
+    op16: Operator<O, P>,
+  ): Stream<P>;
   pipe(...operators: Array<(source: any) => any>): Stream<any> {
     return operators.reduce((source, operator) => operator(source), this);
   }
