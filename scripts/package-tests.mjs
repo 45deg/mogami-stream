@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 // Distribution tests may import dist and test helpers, but no repository tools.
 export const distributionTests = [
   "boundaries.test.mjs",
+  "branch-completion.test.mjs",
   "cancellation-races.test.mjs",
   "close-lifecycle.test.mjs",
   "concurrency-fuzz.test.mjs",
