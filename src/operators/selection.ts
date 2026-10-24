@@ -109,7 +109,8 @@ export function skip(
               return;
             }
             remaining--;
-            // Yield before another read, even for synchronous internal sources.
+            // Break synchronous discard recursion and accept queued cancellation
+            // before reading again (read-path.test.mjs).
             await undefined;
             scope.check();
             upstream.read(accept, reject);

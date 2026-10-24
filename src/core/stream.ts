@@ -34,6 +34,9 @@ export type Read<T> = (
 ) => void;
 export type Reader<T> = {
   next(): Promise<IteratorResult<T>>;
+  // Optional fast path for measured per-item overhead, not a requirement for operators.
+  // Preserve cancellation before callbacks, bounded synchronous reentry, and cleanup ordering.
+  // next() remains suitable for batching, predicate loops, and source switching.
   read?: Read<T>;
 };
 export type Builder<T> = (scope: Scope) => Reader<T>;
