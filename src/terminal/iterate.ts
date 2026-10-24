@@ -32,6 +32,8 @@ export type CloseReport = {
 );
 /**
  * An `AsyncIterableIterator` with explicit cancellation control and a `closed` lifecycle promise.
+ * Completion covers work owned by this iterator. A branch iterator owns only its endpoint;
+ * shared source work and cleanup belong to its `BranchGroup`.
  */
 export interface StreamIterator<T> extends AsyncIterableIterator<
   T,
@@ -40,11 +42,11 @@ export interface StreamIterator<T> extends AsyncIterableIterator<
 > {
   /** Immediately requests cancellation without waiting for cleanup. Track teardown completion via {@link closed}. */
   cancel(reason?: unknown): void;
-  /** Stops the execution and waits for cleanup before resolving `{ done: true, value: undefined }`. Rejects with the primary reason if the execution failed, including cleanup-only failure. After cancellation, resolves even if cleanup fails; inspect closed for suppressed errors. */
+  /** Stops the owned execution and waits for its cleanup before resolving `{ done: true, value: undefined }`. Rejects with the primary reason if the execution failed, including cleanup-only failure. After cancellation, resolves even if cleanup fails; inspect closed for suppressed errors. */
   return(value?: unknown): Promise<IteratorResult<T, unknown>>;
   /** Requests failure without forwarding the throw into the upstream iterator and rejects immediately, without waiting for cleanup. Preserves an existing failure or cancellation reason; await closed for teardown completion. */
   throw(error?: unknown): Promise<IteratorResult<T, unknown>>;
-  /** Resolves with a {@link CloseReport} once all upstream iterators and finalizers have finished. Never rejects, and awaiting it does not trigger cancellation. */
+  /** Resolves with a {@link CloseReport} once owned upstream iterators and finalizers have finished. Branch iterators resolve when their endpoint finishes, without waiting for shared source cleanup. Never rejects, and awaiting it does not trigger cancellation. */
   readonly closed: Promise<CloseReport>;
 }
 

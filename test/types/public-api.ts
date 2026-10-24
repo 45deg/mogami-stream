@@ -1,3 +1,4 @@
+import "./branch-completion.js";
 import "./route-api.js";
 import {
   from,
