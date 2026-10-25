@@ -28,6 +28,7 @@ export const distributionTests = [
   "push.test.mjs",
   "range-cancellation.test.mjs",
   "route.test.mjs",
+  "route-model.test.mjs",
   "read-path.test.mjs",
   "recovery-selection.test.mjs",
   "resilient-map.test.mjs",
