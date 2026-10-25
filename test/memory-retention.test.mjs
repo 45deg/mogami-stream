@@ -57,3 +57,14 @@ test("timeline input remains replayable after failed and early executions close"
   assert.deepEqual(await source.pipe(take(1)).toArray(), [values[0]]);
   assert.deepEqual(await source.toArray(), values);
 });
+
+test("queue storage releases payloads at small and large capacity boundaries", async () => {
+  await promisify(execFile)(
+    process.execPath,
+    [
+      "--expose-gc",
+      fileURLToPath(new URL("./fixtures/queue-retention.mjs", import.meta.url)),
+    ],
+    { timeout: 8_000 },
+  );
+});

@@ -26,6 +26,7 @@ export const distributionTests = [
   "operator-performance-contracts.test.mjs",
   "performance-contracts.test.mjs",
   "push.test.mjs",
+  "queue-storage.test.mjs",
   "range-cancellation.test.mjs",
   "route.test.mjs",
   "route-model.test.mjs",
