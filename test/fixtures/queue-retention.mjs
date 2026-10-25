@@ -3,9 +3,11 @@ import { fromCallback, broadcast, route } from "../../dist/index.js";
 assert.equal(typeof globalThis.gc, "function");
 const handles = [];
 const references = [];
+const retained = [];
 const payload = () => {
   const value = { bytes: new Uint8Array(64 * 1024) };
   references.push(new WeakRef(value));
+  if (process.argv.includes("--retain-payloads")) retained.push(value);
   return value;
 };
 for (const capacity of [1, 16, 256, 257, 1024, Number.MAX_SAFE_INTEGER]) {
@@ -41,13 +43,26 @@ for (const capacity of [1, 16, 256, 257, 1024, Number.MAX_SAFE_INTEGER]) {
   }
 }
 assert.ok(references.length > 0);
-if (globalThis.gc) {
-  for (let i = 0; i < 5; i++) {
-    await new Promise((resolve) => setImmediate(resolve));
-    globalThis.gc();
-  }
-  assert.equal(references.filter((ref) => ref.deref()).length, 0);
+for (let i = 0; i < 5; i++) {
+  // Collect outside promise reactions, which can still hold the last delivery.
+  await new Promise((resolve) => {
+    setImmediate(() => {
+      globalThis.gc();
+      resolve();
+    });
+  });
 }
+assert.equal(
+  references.filter((ref) => ref.deref()).length,
+  0,
+  "queue payloads retained after close",
+);
+for (const { iterator, observer, group } of handles) {
+  assert.equal((await iterator.next()).done, true);
+  if (observer) assert.equal(observer.signal.aborted, true);
+  if (group) assert.equal((await group.closed).source.kind, "completed");
+}
+assert.equal(retained.length, 0);
 assert.equal(handles.length, 24);
 console.log(
   "capacity boundaries and close passed; WeakRef release checked:",

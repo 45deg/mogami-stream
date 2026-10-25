@@ -68,3 +68,22 @@ test("queue storage releases payloads at small and large capacity boundaries", a
     { timeout: 8_000 },
   );
 });
+
+test("queue retention check rejects explicitly retained payloads", async () => {
+  await assert.rejects(
+    promisify(execFile)(
+      process.execPath,
+      [
+        "--expose-gc",
+        fileURLToPath(
+          new URL("./fixtures/queue-retention.mjs", import.meta.url),
+        ),
+        "--retain-payloads",
+      ],
+      { timeout: 8_000 },
+    ),
+    (error) =>
+      error.code === 1 &&
+      /queue payloads retained after close/.test(error.stderr),
+  );
+});
