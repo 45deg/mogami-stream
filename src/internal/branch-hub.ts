@@ -1,3 +1,4 @@
+import { slotQueue } from "./slot-queue.js";
 import { defaultScheduler } from "../core/scheduler.js";
 import { Scope, type ExecutionHost } from "../core/scope.js";
 import {
@@ -24,7 +25,7 @@ export interface Routing<T> {
 }
 
 type Endpoint<T> = {
-  queue: Map<number, T>;
+  queue: ReturnType<typeof slotQueue<T>>;
   head: number;
   tail: number;
   subscribed: boolean;
@@ -50,7 +51,7 @@ export function createBranchHub<T>(
 ): BranchGroup<readonly T[]> {
   const count = layout.keys.length;
   const endpoints: Endpoint<T>[] = Array.from({ length: count }, () => ({
-    queue: new Map(),
+    queue: routing ? new Map<number, T>() : slotQueue<T>(capacity),
     head: 0,
     tail: 0,
     subscribed: false,

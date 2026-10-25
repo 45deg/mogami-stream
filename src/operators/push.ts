@@ -1,3 +1,4 @@
+import { slotQueue } from "../internal/slot-queue.js";
 import { create, type Read, type Stream } from "../core/stream.js";
 import { done, item } from "../internal/deferred.js";
 import { integer } from "../internal/errors.js";
@@ -65,7 +66,7 @@ export function fromCallback<T>(
     throw new TypeError("onDrop must be a function.");
   return create<T>((scope) => {
     // Allocate only occupied slots, even when capacity is a large safe integer.
-    const queue = new Map<number, T>();
+    const queue = slotQueue<T>(capacity);
     let head = 0;
     let size = 0;
     let ended = false;
