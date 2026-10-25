@@ -3,7 +3,6 @@
   "ignorePatterns": [
     "dist/",
     ".pnpm-store/",
-    "experiments/",
     "docs/api/",
     "docs/public/api/",
     "docs/.vitepress/cache/",
