@@ -15,6 +15,7 @@ export interface Branch<T> extends AsyncIterable<T> {
    * Overlapping `next()` calls reject with `TypeError`. The signal cancels only this branch.
    * Iterator `return()` or a `for await` break detaches immediately; iterator `throw(error)`
    * fails only this endpoint without forwarding `throw` to the source.
+   * Its `closed` is this branch's report; neither `return()` nor `closed` waits for shared cleanup.
    */
   iterate(options?: ExecutionOptions): StreamIterator<T>;
   /** Discards unread values immediately, without waiting for siblings or shared cleanup. */
@@ -54,7 +55,9 @@ export interface BranchGroup<V> {
   close(): Promise<BranchGroupCloseReport<V>>;
   /**
    * Waits for every endpoint, outstanding source work and routing callbacks, and shared cleanup.
-   * Never rejects and does not initiate a stop. Unread queues or work that ignores
+   * Never rejects; inspect `report.source` even when downstream consumers succeed.
+   * Downstream callbacks and finalizers belong to their consumers and must be awaited separately.
+   * Does not initiate a stop. Unread queues or work that ignores
    * cancellation can keep it pending while detached endpoints finish earlier.
    * Never await it from a source finalizer, since the group waits for that finalizer.
    */

@@ -60,4 +60,4 @@
 
 実行と後処理の仕組みはどちらのエントリでも共通です。core のストリームで変換メソッドを使うには、`mogami-stream` から読み込んだ [`from()`](../operators.md#operator-from) に渡します。import するだけでは、既存のストリームにメソッドは追加されません。
 
-メソッドチェーンの段数に上限はありません。[`.pipe()`](../operators.md#operator-pipe) と関数形式の [`pipe`](../operators.md#operator-pipe) は1回につき最大8個のオペレータまで型推論するため、長いパイプラインは [`.pipe()`](../operators.md#operator-pipe) を分けます。`const first = take(1)` のような値の型に依存しないオペレータは、異なる要素型でも再利用できます。
+メソッドチェーンの段数に上限はありません。[`.pipe()`](../operators.md#operator-pipe) と関数形式の [`pipe`](../operators.md#operator-pipe) は1回につき最大16個のオペレータまで型推論するため、長いパイプラインは [`.pipe()`](../operators.md#operator-pipe) を分けます。`const first = take(1)` のような値の型に依存しないオペレータは、異なる要素型でも再利用できます。

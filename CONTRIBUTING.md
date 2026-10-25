@@ -12,6 +12,8 @@ pnpm check
 
 To use the checkout in another project, run `npm install /absolute/path/to/mogami-stream`. Rebuild after changing source files; package exports point to `dist/`.
 
+`pnpm check` runs Oxlint, tests, type checks, distribution checks, and Oxfmt. Use `pnpm lint:fix` to apply lint fixes and `pnpm format` to format files. Generated files are excluded from linting and formatting. Lint overrides allow intentional thenables, throwing getters, empty generators, and property accesses in contract and type tests.
+
 ## Documentation
 
 ```sh

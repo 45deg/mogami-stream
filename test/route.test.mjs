@@ -393,11 +393,13 @@ for (const [entry, api] of [
     await assert.rejects(api.toArray(api.from(group.branches[1])), TypeError);
   });
 
-  test(`${entry} route yields while ignoring sustained synchronous input`, async () => {
+  test(`${entry} route honors explicit upstream waits while discarding input`, async () => {
     const group = api.route(
-      (function* () {
-        for (;;) yield 0;
-      })(),
+      api.tap((_, { index }) => (index % 1024 === 0 ? turn() : undefined))(
+        (function* () {
+          for (;;) yield 0;
+        })(),
+      ),
       {
         branches: { selected: () => false },
         capacity: 1,
@@ -463,3 +465,64 @@ test("keyed routes retain special property names without inheriting destinations
   assert.equal(report.branches.__proto__.kind, "completed");
   assert.equal(report.branches.constructor.kind, "completed");
 });
+
+test("route does not insert host waits while discarding synchronous input", async () => {
+  let hostTurn = false;
+  const host = turn().then(() => {
+    hostTurn = true;
+  });
+  const group = fluent.route(fluent.range(0, 4096), {
+    branches: { none: () => false },
+    capacity: 1,
+  });
+  assert.deepEqual(await fluent.toArray(group.branches.none), []);
+  await group.closed;
+  assert.equal(hostTurn, false);
+  await host;
+});
+
+for (const cancel of [false, true]) {
+  test(`route handles synchronous owned reads without recursive growth (cancel=${cancel})`, async () => {
+    const { create } = await import("../dist/core/stream.js");
+    const controller = new AbortController();
+    let reads = 0;
+    let depth = 0;
+    let maxDepth = 0;
+    let cleanup = 0;
+    const source = create((scope) => {
+      scope.finalizers.push(() => {
+        cleanup++;
+      });
+      return {
+        next() {
+          throw new Error("Unexpected next fallback");
+        },
+        read(receive) {
+          depth++;
+          maxDepth = Math.max(maxDepth, depth);
+          try {
+            if (cancel && reads === 100)
+              queueMicrotask(() => controller.abort("stop"));
+            receive(reads < 20000 ? { done: false, value: reads++ } : done);
+          } finally {
+            depth--;
+          }
+        },
+      };
+    });
+    const group = fluent.route(source, {
+      branches: { none: () => false },
+      capacity: 1,
+      signal: controller.signal,
+    });
+    const pending = fluent.toArray(group.branches.none);
+    if (cancel) await assert.rejects(pending, (error) => error === "stop");
+    else assert.deepEqual(await pending, []);
+    const report = await group.closed;
+    assert.equal(report.source.kind, cancel ? "cancelled" : "completed");
+    assert.deepEqual(report.source.suppressedErrors, []);
+    assert.equal(maxDepth, 1);
+    assert.equal(reads, cancel ? 101 : 20000);
+    assert.equal(cleanup, 1);
+  });
+}

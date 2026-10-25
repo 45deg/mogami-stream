@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { from, range, takeWhile, tap } from "../dist/index.js";
+import { from, range, takeWhile, skipWhile, tap } from "../dist/index.js";
 
-for (const name of ["takeWhile", "tap", "reduce", "forEach"]) {
+for (const name of ["takeWhile", "skipWhile", "tap", "reduce", "forEach"]) {
   test(`${name} does not invoke its callback after cancellation between read and delivery`, async () => {
     const controller = new AbortController();
     const reason = new Error("cancel between read and callback");
@@ -36,7 +36,7 @@ for (const name of ["takeWhile", "tap", "reduce", "forEach"]) {
       await assert.rejects(work, (error) => error === reason);
     } else {
       const iterator = stream
-        .pipe((name === "tap" ? tap : takeWhile)(callback))
+        .pipe({ tap, takeWhile, skipWhile }[name](callback))
         .iterate(options);
       await assert.rejects(iterator.next(), (error) => error === reason);
       const report = await iterator.closed;

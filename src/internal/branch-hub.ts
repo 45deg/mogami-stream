@@ -67,8 +67,6 @@ export function createBranchHub<T>(
   let inputIndex = 0;
   let routed: { value: T; target: number; redirected: boolean } | undefined;
   let scheduled = false;
-  let reads = 0;
-  let timer: ReturnType<typeof setTimeout> | undefined;
   let closing = false;
   let sourceReport: CloseReport | undefined;
   let sourceKind: CloseReport["kind"] | undefined;
@@ -96,8 +94,6 @@ export function createBranchHub<T>(
 
   function closeSource(): void {
     if (phase === "stopping") {
-      if (timer !== undefined) clearTimeout(timer);
-      timer = undefined;
       scheduled = false;
     }
     if (closing) return;
@@ -202,11 +198,9 @@ export function createBranchHub<T>(
   function wake(): void {
     if (scheduled || phase === "stopping" || phase === "closed") return;
     scheduled = true;
-    // Bound synchronous-source bursts so timers and abort handlers get a turn.
-    if (reads >= 1024) {
-      reads = 0;
-      timer = setTimeout(pump, 0);
-    } else queueMicrotask(pump);
+    // Discard-only routes can synchronously reenter wake from an internal read.
+    // Queue the pump to bound the stack and accept cancellation (route.test.mjs).
+    queueMicrotask(pump);
   }
 
   function deliver(b: Endpoint<T>, value: T): void {
@@ -293,7 +287,6 @@ export function createBranchHub<T>(
 
   function pump(): void {
     scheduled = false;
-    timer = undefined;
     if (phase === "stopping" || phase === "closed") return;
     for (const b of endpoints) {
       if (b.report) continue;
@@ -321,7 +314,6 @@ export function createBranchHub<T>(
     // its single coordinator slot until the destination can accept the item.
     flight = true;
     phase = "running";
-    reads++;
     root.operationStarted();
     try {
       reader ??= open(input!, root);

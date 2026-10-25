@@ -22,7 +22,8 @@ export function tap<T>(
         upstream.read(async (result) => {
           try {
             if (!result.done) {
-              // Preserve the read-to-effect cancellation window of next() delivery.
+              // Both turns preserve next()'s read-to-effect cancellation window
+              // (range-cancellation.test.mjs). One turn invokes the effect too early.
               await undefined;
               await undefined;
               scope.check();

@@ -44,6 +44,8 @@ export class VirtualScheduler {
   }
   async advance(ms) {
     this.time += ms;
+    // Snapshot timers because resolving them mutates the set.
+    // oxlint-disable-next-line unicorn/no-useless-spread
     for (const timer of [...this.timers])
       if (timer.at <= this.time) timer.resolve();
     await flush();

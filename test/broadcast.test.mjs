@@ -465,12 +465,14 @@ test("last failed endpoint cancels source; late read rejection is observed", asy
   assert.deepEqual(report.source.suppressedErrors, [late]);
 });
 
-test("sustained synchronous input yields to the event loop", async () => {
+test("explicit upstream waits let sustained input yield to the event loop", async () => {
   const group = broadcast(
-    (function* () {
-      let n = 0;
-      while (true) yield n++;
-    })(),
+    from(
+      (function* () {
+        let n = 0;
+        while (true) yield n++;
+      })(),
+    ).tap((_, { index }) => (index % 1024 === 0 ? turn() : undefined)),
     settings,
   );
   const jobs = group.branches.map((b) => from(b).forEach(() => {}));
@@ -558,7 +560,7 @@ test("retained broadcast handles release delivered and detached payloads", async
   );
 });
 
-test("EOF preserves a scheduled yield that must drain a lagging endpoint", async () => {
+test("EOF drains a lagging endpoint after sustained reads", async () => {
   const upstream = controlled();
   const group = broadcast(upstream.source, { branches: 2, capacity: 2 });
   const [a, b] = group.branches.map((branch) => branch.iterate());
@@ -617,3 +619,22 @@ for (const [entry, create] of [
     assert.equal(report.source.kind, "completed");
   });
 }
+
+test("broadcast does not insert host waits during synchronous reads", async () => {
+  let hostTurn = false;
+  const host = turn().then(() => {
+    hostTurn = true;
+  });
+  const group = broadcast(range(0, 4096), { branches: 2, capacity: 16 });
+  const values = await Promise.all(
+    group.branches.map((b) => from(b).toArray()),
+  );
+  await group.closed;
+  assert.equal(hostTurn, false);
+  for (const entries of values)
+    assert.deepEqual(
+      entries,
+      Array.from({ length: 4096 }, (_, i) => i),
+    );
+  await host;
+});
