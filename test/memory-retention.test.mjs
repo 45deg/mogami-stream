@@ -87,3 +87,39 @@ test("queue retention check rejects explicitly retained payloads", async () => {
       /queue payloads retained after close/.test(error.stderr),
   );
 });
+
+test("open queues release consumed and dropped payloads while retaining buffered values", async () => {
+  await promisify(execFile)(
+    process.execPath,
+    [
+      "--expose-gc",
+      fileURLToPath(
+        new URL("./fixtures/active-queue-retention.mjs", import.meta.url),
+      ),
+    ],
+    { timeout: 8_000 },
+  );
+});
+
+for (const kind of ["consumed", "dropped"]) {
+  test(`open queue retention check rejects retained ${kind} payloads`, async () => {
+    await assert.rejects(
+      promisify(execFile)(
+        process.execPath,
+        [
+          "--expose-gc",
+          fileURLToPath(
+            new URL("./fixtures/active-queue-retention.mjs", import.meta.url),
+          ),
+          `--retain-${kind}`,
+        ],
+        { timeout: 8_000 },
+      ),
+      (error) =>
+        error.code === 1 &&
+        error.stderr.includes(
+          `${kind} payloads retained while queues are open`,
+        ),
+    );
+  });
+}
