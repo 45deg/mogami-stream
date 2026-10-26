@@ -1,6 +1,6 @@
 {
   "name": "mogami-stream",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "TypeScript operators for safe asynchronous stream processing",
   "keywords": [
     "async-iterable",
