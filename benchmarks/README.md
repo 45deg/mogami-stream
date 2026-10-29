@@ -74,3 +74,7 @@ Raw samples are generated locally as `results/readme/node.json` and `bun.json` a
 ## Representative waits and cleanup
 
 [`representative.mjs`](representative.mjs) adds seeded timer jitter, a slow sink, retries, cooperative/uncooperative cancellation, concurrency 1,024 and a 10,000-start rate window. It runs separately from the Promise-only overhead cases and README chart.
+
+## Selection and collection
+
+Run `pnpm build` followed by `node benchmarks/selection-collection.mjs /tmp/selection-collection.json` to compare the specialized consumers and selection operators with equivalent compositions. The benchmark uses 20,000 integer items and a 16-item sliding window, checks each output, and records three independent processes per variant with three warmups and five timed samples per process. Results include runtime and CPU metadata, raw timings, and the range of process medians in milliseconds.

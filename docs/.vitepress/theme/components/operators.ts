@@ -40,6 +40,49 @@ function entry(
 
 export const operators = [
   entry(
+    "slidingWindow",
+    "selection",
+    "Emit overlapping full windows, advancing one item at a time.",
+    "1 件ずつずらしながら、指定件数の揃った窓を配列で出力する。",
+  ),
+  entry(
+    "slice",
+    "selection",
+    "Select a range with an exclusive end; negative bounds count from the end.",
+    "終端を含まない範囲を選択する。負の位置は末尾から数える。",
+  ),
+  entry(
+    "drain",
+    "consumers",
+    "Consume all values without retaining output and wait for cleanup.",
+    "出力を保持せずに全件を消費し、クリーンアップを待つ。",
+  ),
+  entry(
+    "count",
+    "consumers",
+    "Count all items without collecting them.",
+    "値を蓄積せずに全件数を数える。",
+  ),
+  entry(
+    "at",
+    "consumers",
+    "Get one value by position; negative indices count from the end.",
+    "指定位置の値を取得する。負の位置は末尾から数える。",
+  ),
+  entry(
+    "toSet",
+    "consumers",
+    "Collect distinct values into a Set.",
+    "重複を除いて Set に収集する。",
+  ),
+  entry(
+    "toMap",
+    "consumers",
+    "Collect values by awaited keys, keeping the last value per key.",
+    "キーを逐次 await して Map に収集し、同じキーには最後の値を残す。",
+  ),
+
+  entry(
     "broadcast",
     "sources",
     "Share one source execution across bounded branches, sending every item to every active branch by reference.",

@@ -1,12 +1,21 @@
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
-import { mkdir } from "node:fs/promises";
+import { mkdir, readFile } from "node:fs/promises";
 import { once } from "node:events";
 import { resolve } from "node:path";
 import { chromium } from "playwright";
 import { serve } from "vitepress";
 
 const root = resolve(import.meta.dirname, "..");
+const expectedOperatorNames = Object.keys(
+  JSON.parse(
+    await readFile(
+      resolve(root, "docs/examples/operators/expected.json"),
+      "utf8",
+    ),
+  ),
+).sort();
+const operatorCount = expectedOperatorNames.length;
 const server = await serve({ root: resolve(root, "docs"), port: 0 });
 if (!server.server.listening) await once(server.server, "listening");
 const origin = `http://localhost:${server.server.address().port}`;
@@ -206,7 +215,7 @@ try {
     const snippets = await page
       .locator(".operator-snippet pre code")
       .allTextContents();
-    assert.equal(snippets.length, 46);
+    assert.equal(snippets.length, operatorCount);
     assert.ok(
       snippets.every(
         (snippet) =>
@@ -217,7 +226,10 @@ try {
     assert.ok(
       snippets.every((snippet) => !snippet.includes("declare function")),
     );
-    assert.equal(await page.locator(".operator-output code").count(), 46);
+    assert.equal(
+      await page.locator(".operator-output code").count(),
+      operatorCount,
+    );
     assert.deepEqual(
       JSON.parse(
         await page.locator("#operator-map .operator-output").textContent(),
@@ -243,7 +255,10 @@ try {
     assert.equal(await page.locator(".operator-navigation a").count(), 8);
     assert.equal(await page.locator(".operator-list details[open]").count(), 0);
     const names = await page.locator(".operator-name").allTextContents();
-    assert.equal(new Set(names).size, 46);
+    assert.deepEqual(
+      names.map((name) => name.trim()).sort(),
+      expectedOperatorNames,
+    );
     const mapSummary = page.locator("#operator-map summary");
     await mapSummary.focus();
     await page.keyboard.press("Enter");
@@ -280,8 +295,10 @@ try {
       .getByRole("button", { name: locale.expand, exact: true })
       .click();
     await page.waitForFunction(
-      () =>
-        document.querySelectorAll(".operator-list details[open]").length === 46,
+      (expectedCount) =>
+        document.querySelectorAll(".operator-list details[open]").length ===
+        expectedCount,
+      operatorCount,
     );
     await page
       .getByRole("button", { name: locale.collapse, exact: true })

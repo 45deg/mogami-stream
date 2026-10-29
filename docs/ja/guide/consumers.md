@@ -12,6 +12,11 @@
 | 条件に合う最初の値を得る      | [`find`](/mogami-stream/api/functions/find.html){target="_self"}       | 最初の一致。なければ `undefined` |
 | 条件に合う値があるか調べる    | [`some`](/mogami-stream/api/functions/some.html){target="_self"}       | 1件でも一致すれば `true`         |
 | 全件が条件に合うか調べる      | [`every`](/mogami-stream/api/functions/every.html){target="_self"}     | 全件が一致すれば `true`          |
+| 出力を集めず完了を待つ        | [`drain`](/mogami-stream/api/functions/drain.html){target="_self"}     | `Promise<void>`                  |
+| 全件数を数える                | [`count`](/mogami-stream/api/functions/count.html){target="_self"}     | `Promise<number>`                |
+| 指定位置の値を得る            | [`at`](/mogami-stream/api/functions/at.html){target="_self"}           | 値。範囲外なら `undefined`       |
+| 重複を除いて集める            | [`toSet`](/mogami-stream/api/functions/toSet.html){target="_self"}     | `Set<T>`                         |
+| キーごとに値を集める          | [`toMap`](/mogami-stream/api/functions/toMap.html){target="_self"}     | `Map<K, T>`                      |
 
 これらは Promise を返し、[`stream.toArray({ signal })`](../operators.md#operator-toarray) のようなメソッドと [`toArray(source, { signal })`](../operators.md#operator-toarray) のような同名の関数の両方を使えます。関数形式は通常の同期・非同期 Iterable も受け取ります。
 
@@ -32,6 +37,14 @@
 <<< @/examples/consumers.ts#match
 
 [`find`](../operators.md#operator-find) は最初の一致、[`some`](../operators.md#operator-some) は最初の一致、[`every`](../operators.md#operator-every) は最初の不一致で上流を閉じます。入力が空の場合は、[`find`](../operators.md#operator-find) が `undefined`、[`some`](../operators.md#operator-some) が `false`、[`every`](../operators.md#operator-every) が `true` を返します。
+
+## 位置で選ぶ・数える・収集する
+
+`at(0)` は先頭の値を読んだ時点で上流を閉じ、`at(-1)` は最後まで読んで末尾の値を返します。範囲外なら `undefined` を返します。位置には安全な整数を指定し、小数・`NaN`・無限大は `RangeError` で拒否されます。負の位置では末尾からの距離を上限に値を保持し、入力の完了を待ちます。`find` と同様、`at` は選択した値を await します。クリーンアップの待機中にキャンセルした場合は、その後クリーンアップが失敗しても、キャンセル理由で拒否されます。
+
+`drain()` は出力を保持せずにパイプラインを実行し、`count()` は件数を返します（空なら 0）。条件に合う件数は `filter(predicate).count()`、件数を制限した実行は `take(n).drain()` と書けます。
+
+`toSet()` は SameValueZero による比較で重複を除きます。`toMap(keySelector)` はキーを 1 件ずつ await し、元の項目を格納します。同じキーには最後の値を残し、キーの挿入順は変えません。セレクタは `{ index, signal }` を受け取るので、キャンセル可能な I/O にも signal を渡してください。どちらも Promise の項目をそのまま保持し、入力が空なら空のコレクションを返します。
 
 ## キャンセルと後処理
 

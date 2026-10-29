@@ -34,3 +34,22 @@ Objects are passed by reference, not copied. Use immutable updates for snapshots
 <<< @/examples/value-semantics.ts#promises
 
 [`find`](../operators.md#operator-find) receives the original item in its predicate, but awaits a matched Promise when returning it.
+
+## Select ranges and moving windows
+
+`slice(start, end)` selects a range with an inclusive start and exclusive end. Omitting `start` uses zero; omitting `end` reads to completion. Bounds must be safe integers: fractions, `NaN`, and infinities throw `RangeError`. With non-negative bounds, `slice(2, 5)` skips two items, emits three, and closes upstream before delivering the final selected item. Ranges known to be empty, such as `slice(5, 2)`, do not open upstream.
+
+Negative bounds count from the end. `slice(2, -3)` emits after a three-item delay while retaining only those three trailing items. `slice(-5)` and `slice(-5, -2)` wait for input completion and retain at most five items. A negative start therefore requires finite input.
+
+`slidingWindow(size)` emits overlapping arrays, advancing one item at a time. It waits for a full window and omits incomplete windows; `size` must be a positive safe integer. Unlike `chunks`, adjacent windows share items. Each output array is independent, although its elements retain their original identities. Internal storage is bounded by `size`; producing each snapshot takes O(size) work.
+
+```ts
+const averages = await from([1, 2, 3, 4, 5])
+  .slidingWindow(3)
+  .map(
+    (window) => window.reduce((sum, value) => sum + value, 0) / window.length,
+  )
+  .toArray(); // [2, 3, 4]
+```
+
+Use [`at`](./consumers.md) when only one position is needed, or finish a selected range with `toArray()`, `count()`, or `drain()`.

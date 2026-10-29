@@ -1,3 +1,5 @@
+import { slidingWindow } from "../operators/window.js";
+import { slice } from "../operators/slice.js";
 import {
   map,
   mapSettled,
@@ -134,6 +136,14 @@ export class Stream<T> extends CoreStream<T> {
   /** Groups values into arrays of at most size items. */
   chunks(size: number): Stream<T[]> {
     return wrap(chunks<T>(size)(this));
+  }
+  /** Emits overlapping full windows, advancing one item at a time. */
+  slidingWindow(size: number): Stream<T[]> {
+    return wrap(slidingWindow<T>(size)(this));
+  }
+  /** Selects a range with an exclusive end; negative bounds count from the end. */
+  slice(start = 0, end?: number): Stream<T> {
+    return wrap(slice<T>(start, end)(this));
   }
   /** Emits each updated accumulator after reducing a value. */
   scan<A>(

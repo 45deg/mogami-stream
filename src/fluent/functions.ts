@@ -823,3 +823,41 @@ export function route<T>(
 export function route<T>(source: Source<T>, options: any): any {
   return wrapBranchGroup(core.route(source, options));
 }
+
+/**
+ * Emits a fresh array of the latest `size` values after each input, once a full window is available.
+ *
+ * Windows overlap by `size - 1` items. Incomplete windows are omitted. Retains at most `size` values; emitted arrays can be mutated without affecting later windows.
+ * @throws {RangeError} If `size` is not a positive safe integer.
+ * @category Transformation
+ */
+export function slidingWindow(
+  size: number,
+): <T>(source: AsyncIterable<T>) => Stream<T[]>;
+export function slidingWindow<T>(size: number): Operator<T, T[]>;
+export function slidingWindow(
+  size: number,
+): <T>(source: AsyncIterable<T>) => Stream<T[]> {
+  const operator = core.slidingWindow(size);
+  return (source) => wrap(operator(source));
+}
+
+/**
+ * Emits values from `start` (inclusive) to `end` (exclusive); omitted `end` reads to completion.
+ *
+ * Negative bounds count from the end. A negative start waits for completion and retains at most `-start` values. With a non-negative start and negative end, output trails input by `-end` values. Non-negative bounds close upstream at `end`; ranges known to be empty never open upstream.
+ * @throws {RangeError} If a supplied bound is not a safe integer.
+ * @category Selection
+ */
+export function slice(
+  start?: number,
+  end?: number,
+): <T>(source: AsyncIterable<T>) => Stream<T>;
+export function slice<T>(start?: number, end?: number): Operator<T, T>;
+export function slice(
+  start?: number,
+  end?: number,
+): <T>(source: AsyncIterable<T>) => Stream<T> {
+  const operator = core.slice(start, end);
+  return (source) => wrap(operator(source));
+}

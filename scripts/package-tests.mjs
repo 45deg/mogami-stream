@@ -36,6 +36,7 @@ export const distributionTests = [
   "resource-ownership.test.mjs",
   "scan-state.test.mjs",
   "scope-drain.test.mjs",
+  "selection-collection.test.mjs",
   "sequential-delivery.test.mjs",
   "timing.test.mjs",
   "type-modeling.test.mjs",

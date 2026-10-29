@@ -6,6 +6,8 @@ import {
   type ExecutionOptions,
   type StreamIterator,
 } from "../terminal/iterate.js";
+import { drain, count, toSet, toMap } from "../terminal/collect.js";
+import { at } from "../terminal/at.js";
 import { toArray } from "../terminal/to-array.js";
 import { reduce } from "../terminal/reduce.js";
 import { forEach, find, some, every } from "../terminal/consume.js";
@@ -83,6 +85,32 @@ export class Stream<T> implements AsyncIterable<T> {
   /** Collects all emitted values into an array and waits for cleanup before resolving. */
   toArray(options: ExecutionOptions = {}): Promise<T[]> {
     return toArray(this, options);
+  }
+  /** Consumes values without retaining them and waits for cleanup. */
+  drain(options: ExecutionOptions = {}): Promise<void> {
+    return drain(this, options);
+  }
+  /** Counts all values and waits for cleanup. */
+  count(options: ExecutionOptions = {}): Promise<number> {
+    return count(this, options);
+  }
+  /** Selects a zero-based position; negative indices count from the end. */
+  at(
+    index: number,
+    options: ExecutionOptions = {},
+  ): Promise<Awaited<T> | undefined> {
+    return at(this, index, options);
+  }
+  /** Collects distinct values without unwrapping Promise-valued items. */
+  toSet(options: ExecutionOptions = {}): Promise<Set<T>> {
+    return toSet(this, options);
+  }
+  /** Collects values by awaited keys, keeping the last value for each key. */
+  toMap<K>(
+    keySelector: (value: T, context: OperatorContext) => K,
+    options: ExecutionOptions = {},
+  ): Promise<Map<Awaited<K>, T>> {
+    return toMap(this, keySelector, options);
   }
   /** Reduces values sequentially from `initial` and returns the final accumulator after cleanup. */
   reduce<A>(
