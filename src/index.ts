@@ -42,6 +42,7 @@ export {
   mapSettled,
   fromCallback,
   fromEvent,
+  fromReadableStream,
   pipe,
 } from "./fluent/functions.js";
 export type {

@@ -1,3 +1,4 @@
+import { toReadableStream } from "../terminal/web-streams.js";
 import { done } from "../internal/deferred.js";
 import { acquireIterator } from "./iterator.js";
 import { Scope } from "./scope.js";
@@ -81,6 +82,10 @@ export class Stream<T> implements AsyncIterable<T> {
   /** Returns a controlled iterator for this stream. Equivalent to {@link iterate | `iterate(this, options)`}. */
   iterate(options: ExecutionOptions = {}): StreamIterator<T> {
     return iterate(this, options);
+  }
+  /** Exposes one execution as a Web Stream without output prefetch. */
+  toReadableStream(options: ExecutionOptions = {}): ReadableStream<T> {
+    return toReadableStream(this, options);
   }
   /** Collects all emitted values into an array and waits for cleanup before resolving. */
   toArray(options: ExecutionOptions = {}): Promise<T[]> {

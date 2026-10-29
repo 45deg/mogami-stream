@@ -861,3 +861,8 @@ export function slice(
   const operator = core.slice(start, end);
   return (source) => wrap(operator(source));
 }
+
+/** Reads a Web Stream lazily and cancels it on early termination. @category Sources */
+export function fromReadableStream<T>(source: ReadableStream<T>): Stream<T> {
+  return wrap(core.fromReadableStream(source));
+}
