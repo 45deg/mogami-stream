@@ -81,6 +81,7 @@ function theme(lang: keyof typeof labels): DefaultTheme.Config {
         items: [
           { text: t.requests, link: link("recipes/api-requests") },
           { text: t.events, link: link("recipes/events") },
+          { text: "Web Streams", link: link("recipes/web-streams") },
           { text: t.database, link: link("recipes/database") },
           { text: t.testing, link: link("recipes/testing") },
           { text: t.eventLoop, link: link("recipes/event-loop") },

@@ -39,6 +39,7 @@ export const distributionTests = [
   "sequential-delivery.test.mjs",
   "timing.test.mjs",
   "type-modeling.test.mjs",
+  "web-streams.test.mjs",
 ];
 export const repositoryTests = [
   "benchmarks.test.mjs",

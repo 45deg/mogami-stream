@@ -50,12 +50,21 @@ export interface StreamIterator<T> extends AsyncIterableIterator<
   readonly closed: Promise<CloseReport>;
 }
 
+/** Internal delivery path used by Web Stream pulls. */
+export const readExecution = Symbol("readExecution");
+type ExecutionIterator<T> = StreamIterator<T> & {
+  [readExecution](
+    receive: (result: IteratorResult<T, unknown>) => void,
+    reject: (error: unknown) => void,
+  ): void;
+};
+
 /** Internal test seam: Scheduler is deliberately absent from the package entry point. */
 export function iterateWithScheduler<T>(
   source: Source<T>,
   options: ExecutionOptions,
   scheduler: Scheduler,
-): StreamIterator<T> {
+): ExecutionIterator<T> {
   const completion = deferred<CloseReport>();
   let wakePending: (() => void) | undefined;
   const suppressedErrors: unknown[] = [];
@@ -136,7 +145,68 @@ export function iterateWithScheduler<T>(
     return done();
   }
 
-  const iterator: StreamIterator<T> = {
+  let receiveRead: ((result: IteratorResult<T, unknown>) => void) | undefined;
+  let rejectRead: ((error: unknown) => void) | undefined;
+  const settleRead = (result: IteratorResult<T, unknown>) => {
+    if (!pending) return;
+    pending = false;
+    const receive = receiveRead!;
+    const reject = rejectRead!;
+    receiveRead = undefined;
+    rejectRead = undefined;
+    wakePending = undefined;
+    try {
+      receive(kind === undefined ? result : stoppedResult());
+    } catch (error) {
+      reject(error);
+    }
+  };
+  const stopRead = () => settleRead(done());
+  const failRead = (error: unknown) => {
+    if (kind === undefined) stop("failed", error);
+    settleRead(done());
+  };
+  const acceptRead = (result: IteratorResult<T>) => {
+    if (!pending) return;
+    try {
+      if (kind === undefined && result.done) {
+        void close().then(() => settleRead(result));
+      } else settleRead(result);
+    } catch (error) {
+      failRead(error);
+    }
+  };
+
+  function readResult(
+    resolve: (result: IteratorResult<T, unknown>) => void,
+    reject: (error: unknown) => void,
+  ): void {
+    if (pending)
+      return reject(new TypeError("Only one next() may be pending at a time."));
+    if (signal?.aborted && kind === undefined) abort();
+    if (kind !== undefined) {
+      try {
+        return resolve(stoppedResult());
+      } catch (error) {
+        return reject(error);
+      }
+    }
+    pending = true;
+    receiveRead = resolve;
+    rejectRead = reject;
+    // Once cancelled, the execution cannot start another read; late results
+    // see pending=false and cannot consume a later execution's callbacks.
+    wakePending = stopRead;
+    try {
+      reader ??= open(source, root);
+      if (!pending) return;
+      reader.read(acceptRead, failRead);
+    } catch (error) {
+      failRead(error);
+    }
+  }
+
+  const iterator: ExecutionIterator<T> = {
     closed: completion.promise,
     [Symbol.asyncIterator]() {
       return this;
@@ -145,58 +215,9 @@ export function iterateWithScheduler<T>(
       stop("cancelled", error);
     },
     next() {
-      if (pending)
-        return Promise.reject(
-          new TypeError("Only one next() may be pending at a time."),
-        );
-      if (signal?.aborted && kind === undefined) abort();
-      if (kind !== undefined) {
-        try {
-          return Promise.resolve(stoppedResult());
-        } catch (error) {
-          return Promise.reject(error);
-        }
-      }
-      pending = true;
-      return new Promise<IteratorResult<T, unknown>>((resolve, reject) => {
-        let settled = false;
-        const settle = (result: IteratorResult<T, unknown>) => {
-          // A cancelled read may finish after a later public next().
-          if (settled) return;
-          settled = true;
-          pending = false;
-          wakePending = undefined;
-          try {
-            resolve(kind === undefined ? result : stoppedResult());
-          } catch (error) {
-            reject(error);
-          }
-        };
-        const failed = (error: unknown) => {
-          if (kind === undefined) stop("failed", error);
-          settle(done());
-        };
-        // Register before opening: source acquisition may synchronously stop us.
-        wakePending = () => settle(done());
-        try {
-          reader ??= open(source, root);
-          if (settled) return;
-          reader.read((result) => {
-            if (settled) return;
-            try {
-              if (kind === undefined && result.done) {
-                // Keep wakePending active while normal exhaustion awaits cleanup.
-                void close().then(() => settle(result));
-              } else settle(result);
-            } catch (error) {
-              failed(error);
-            }
-          }, failed);
-        } catch (error) {
-          failed(error);
-        }
-      });
+      return new Promise<IteratorResult<T, unknown>>(readResult);
     },
+    [readExecution]: readResult,
     async return() {
       if (kind === undefined) {
         kind = "completed";

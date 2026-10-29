@@ -96,3 +96,6 @@ export type {
   BranchGroup,
   BranchGroupCloseReport,
 } from "./branch.js";
+
+export { fromReadableStream } from "../operators/web-streams.js";
+export { toReadableStream } from "../terminal/web-streams.js";
