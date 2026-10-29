@@ -97,5 +97,10 @@ export type {
   BranchGroupCloseReport,
 } from "./branch.js";
 
+export { slidingWindow } from "../operators/window.js";
+export { slice } from "../operators/slice.js";
+export { drain, count, toSet, toMap } from "../terminal/collect.js";
+export { at } from "../terminal/at.js";
+
 export { fromReadableStream } from "../operators/web-streams.js";
 export { toReadableStream } from "../terminal/web-streams.js";

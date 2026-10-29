@@ -13,6 +13,8 @@ export {
   dedupe,
   filter,
   chunks,
+  slidingWindow,
+  slice,
   scan,
   skipWhile,
   take,

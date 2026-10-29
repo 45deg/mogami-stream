@@ -75,5 +75,18 @@
   "forEach": [2, 4, 6],
   "find": 2,
   "some": true,
-  "every": true
+  "every": true,
+  "slidingWindow": [
+    [1, 2, 3],
+    [2, 3, 4]
+  ],
+  "slice": [2, 3, 4],
+  "drain": 6,
+  "count": 3,
+  "at": 3,
+  "toSet": [1, 2],
+  "toMap": [
+    [1, 3],
+    [0, 2]
+  ]
 }

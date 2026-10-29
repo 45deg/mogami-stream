@@ -60,6 +60,12 @@ function source(payload, fails = false) {
 
 const cases = {
   mapReturn: (payload) => range(0, 100).pipe(map(payload, { concurrency: 8 })),
+  windowComplete: (payload) => source(payload).slidingWindow(3),
+  windowEarlyComplete: (payload) => source(payload).slidingWindow(3).take(1),
+  windowUpstreamFailure: (payload) => source(payload, true).slidingWindow(3),
+  sliceTailComplete: (payload) => source(payload).slice(-3),
+  sliceDelayComplete: (payload) => source(payload).slice(1, -3),
+  sliceTailUpstreamFailure: (payload) => source(payload, true).slice(-3),
   dedupeComplete: (payload) => range(0, 4).pipe(map(payload), dedupe()),
   scanComplete: (payload) => range(0, 4).pipe(scan(payload, null)),
   deferComplete: (payload) => defer(() => [payload()]),

@@ -4,14 +4,19 @@ A pipeline built with [`.pipe()`](../operators.md#operator-pipe) starts executin
 
 ## Choose a consumer
 
-| Goal                                        | API                                                                    | Result                          |
-| ------------------------------------------- | ---------------------------------------------------------------------- | ------------------------------- |
-| Collect every item into an array            | [`toArray`](/mogami-stream/api/functions/toArray.html){target="_self"} | An array of all items           |
-| Compute a sum or another aggregate          | [`reduce`](/mogami-stream/api/functions/reduce.html){target="_self"}   | The final accumulator           |
-| Process each item without collecting output | [`forEach`](/mogami-stream/api/functions/forEach.html){target="_self"} | `Promise<void>`                 |
-| Find the first matching value               | [`find`](/mogami-stream/api/functions/find.html){target="_self"}       | The first match, or `undefined` |
-| Check whether any item matches              | [`some`](/mogami-stream/api/functions/some.html){target="_self"}       | `true` if any item matches      |
-| Check whether every item matches            | [`every`](/mogami-stream/api/functions/every.html){target="_self"}     | `true` if all items match       |
+| Goal                                          | API                                                                    | Result                          |
+| --------------------------------------------- | ---------------------------------------------------------------------- | ------------------------------- |
+| Collect every item into an array              | [`toArray`](/mogami-stream/api/functions/toArray.html){target="_self"} | An array of all items           |
+| Compute a sum or another aggregate            | [`reduce`](/mogami-stream/api/functions/reduce.html){target="_self"}   | The final accumulator           |
+| Process each item without collecting output   | [`forEach`](/mogami-stream/api/functions/forEach.html){target="_self"} | `Promise<void>`                 |
+| Find the first matching value                 | [`find`](/mogami-stream/api/functions/find.html){target="_self"}       | The first match, or `undefined` |
+| Check whether any item matches                | [`some`](/mogami-stream/api/functions/some.html){target="_self"}       | `true` if any item matches      |
+| Check whether every item matches              | [`every`](/mogami-stream/api/functions/every.html){target="_self"}     | `true` if all items match       |
+| Wait for completion without collecting output | [`drain`](/mogami-stream/api/functions/drain.html){target="_self"}     | `Promise<void>`                 |
+| Count all items                               | [`count`](/mogami-stream/api/functions/count.html){target="_self"}     | `Promise<number>`               |
+| Get a value by position                       | [`at`](/mogami-stream/api/functions/at.html){target="_self"}           | A value or `undefined`          |
+| Collect distinct values                       | [`toSet`](/mogami-stream/api/functions/toSet.html){target="_self"}     | `Set<T>`                        |
+| Collect values by key                         | [`toMap`](/mogami-stream/api/functions/toMap.html){target="_self"}     | `Map<K, T>`                     |
 
 These consumers return promises. Each is available as a method, such as [`stream.toArray({ signal })`](../operators.md#operator-toarray), and as a standalone function, such as [`toArray(source, { signal })`](../operators.md#operator-toarray). Standalone functions also accept ordinary synchronous and asynchronous iterables.
 
@@ -32,6 +37,14 @@ These consumers return promises. Each is available as a method, such as [`stream
 <<< @/examples/consumers.ts#match
 
 [`find`](../operators.md#operator-find) and [`some`](../operators.md#operator-some) close upstream on the first match; [`every`](../operators.md#operator-every) closes it on the first non-match. For empty inputs, [`find`](../operators.md#operator-find) returns `undefined`, [`some`](../operators.md#operator-some) returns `false`, and [`every`](../operators.md#operator-every) returns `true`.
+
+## Select, count, or collect
+
+`at(0)` reads the first item and closes upstream; `at(-1)` reads to completion and returns the last. Out-of-range indices return `undefined`. Indices must be safe integers; fractions, `NaN`, and infinities reject with `RangeError`. Negative indices retain at most the requested distance from the end and require the input to finish. Like `find`, `at` awaits the selected value. Cancellation during the cleanup wait rejects with the cancellation reason, even if cleanup subsequently fails.
+
+`drain()` runs the pipeline without retaining output, and `count()` returns its item count (zero for empty inputs). Use `filter(predicate).count()` to count matches, or `take(n).drain()` to limit consumption.
+
+`toSet()` collects unique values using SameValueZero equality. `toMap(keySelector)` awaits each key sequentially and stores the original item. Duplicate keys keep the last value without changing key insertion order. The selector receives `{ index, signal }`; forward the signal to cancellable I/O. Both collections preserve Promise-valued items and return empty collections for empty inputs.
 
 ## Cancellation and cleanup
 

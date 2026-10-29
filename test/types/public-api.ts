@@ -20,6 +20,13 @@ import {
   flatMap,
   concatMap,
   chunks,
+  slidingWindow,
+  slice,
+  drain,
+  count,
+  at,
+  toSet,
+  toMap,
   flatten,
   concat,
   reduce,
@@ -652,3 +659,42 @@ of(1).concat();
 of(1).map((value: string) => value.length);
 // @ts-expect-error Custom operators must accept the preceding stream type.
 of(1).pipe(map((value: string) => value.length));
+
+const savedWindow = slidingWindow(2);
+const savedSlice = slice(-3, -1);
+const windows = of(1, 2).pipe(savedWindow);
+const sliced = of("a", "b").pipe(savedSlice);
+const fluentWindow = of(1).slidingWindow(1).slice(0, 1);
+const collectedSet = of(Promise.resolve(1)).toSet();
+const collectedMap = toMap([Promise.resolve(1)], async (_value, context) =>
+  String(context.index),
+);
+const selectedValue = at([Promise.resolve(1)], -1);
+const drained = drain([1, 2]);
+const counted = count([1, 2]);
+const standaloneSet = toSet([1]);
+const fluentMap = of(1).toMap(async (value) => String(value));
+export type WindowValues = Expect<Equal<Value<typeof windows>, number[]>>;
+export type SliceValues = Expect<Equal<Value<typeof sliced>, string>>;
+export type FluentWindowValues = Expect<
+  Equal<Value<typeof fluentWindow>, number[]>
+>;
+export type CollectedSet = Expect<
+  Equal<typeof collectedSet, Promise<Set<Promise<number>>>>
+>;
+export type CollectedMap = Expect<
+  Equal<typeof collectedMap, Promise<Map<string, Promise<number>>>>
+>;
+export type SelectedValue = Expect<
+  Equal<typeof selectedValue, Promise<number | undefined>>
+>;
+export type Drained = Expect<Equal<typeof drained, Promise<void>>>;
+export type Counted = Expect<Equal<typeof counted, Promise<number>>>;
+export type StandaloneSet = Expect<
+  Equal<typeof standaloneSet, Promise<Set<number>>>
+>;
+export type FluentMap = Expect<
+  Equal<typeof fluentMap, Promise<Map<string, number>>>
+>;
+// @ts-expect-error Selector input follows source values.
+of(1).toMap((value: string) => value.length);
