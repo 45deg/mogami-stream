@@ -823,3 +823,8 @@ export function route<T>(
 export function route<T>(source: Source<T>, options: any): any {
   return wrapBranchGroup(core.route(source, options));
 }
+
+/** Reads a Web Stream lazily and cancels it on early termination. @category Sources */
+export function fromReadableStream<T>(source: ReadableStream<T>): Stream<T> {
+  return wrap(core.fromReadableStream(source));
+}
