@@ -14,5 +14,6 @@ docs/.vitepress/dist/
 *.heapprofile
 *.heapsnapshot
 benchmarks/results/**
+benchmarks/*-results.json
 !benchmarks/results/readme/
 !benchmarks/results/readme/comparison.svg
