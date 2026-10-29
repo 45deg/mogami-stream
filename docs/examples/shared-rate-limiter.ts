@@ -1,5 +1,4 @@
 // #region limiter
-// Application recipe: not an export of mogami-stream.
 export class LimiterQueueFullError extends Error {
   constructor() {
     super("Shared limiter waiting queue is full");
@@ -13,16 +12,31 @@ export function createSharedLimiter(intervalMs: number, maxWaiting: number) {
   if (!Number.isSafeInteger(maxWaiting) || maxWaiting < 0)
     throw new RangeError("maxWaiting must be a non-negative safe integer");
 
-  type Waiter = { grant(): void };
-  const waiting: Waiter[] = [];
+  type Waiter = {
+    grant(): void;
+    previous: Waiter | undefined;
+    next: Waiter | undefined;
+  };
+  let first: Waiter | undefined;
+  let last: Waiter | undefined;
+  let waiting = 0;
   let nextStart = -Infinity;
   let starting = false; // A granted caller has not resumed yet.
   let timer: ReturnType<typeof setTimeout> | undefined;
 
+  function remove(waiter: Waiter) {
+    if (waiter.previous) waiter.previous.next = waiter.next;
+    else first = waiter.next;
+    if (waiter.next) waiter.next.previous = waiter.previous;
+    else last = waiter.previous;
+    waiter.previous = waiter.next = undefined;
+    waiting--;
+  }
+
   function drain() {
     if (timer !== undefined) clearTimeout(timer);
     timer = undefined;
-    if (starting || waiting.length === 0) return;
+    if (starting || waiting === 0) return;
     const remaining = nextStart - performance.now();
     if (remaining > 0) {
       // Long waits must not overflow the host's signed 32-bit timer delay.
@@ -31,30 +45,36 @@ export function createSharedLimiter(intervalMs: number, maxWaiting: number) {
     }
     starting = true;
     nextStart = performance.now() + intervalMs;
-    waiting.shift()!.grant();
+    const waiter = first!;
+    remove(waiter);
+    waiter.grant();
   }
 
   function acquire(signal: AbortSignal): Promise<void> {
     return new Promise((resolve, reject) => {
       signal.throwIfAborted();
       const canStart =
-        !starting && waiting.length === 0 && performance.now() >= nextStart;
-      if (!canStart && waiting.length >= maxWaiting)
-        throw new LimiterQueueFullError();
+        !starting && waiting === 0 && performance.now() >= nextStart;
+      if (!canStart && waiting >= maxWaiting) throw new LimiterQueueFullError();
       const abort = () => {
-        waiting.splice(waiting.indexOf(waiter), 1);
+        remove(waiter);
         signal.removeEventListener("abort", abort);
         reject(signal.reason);
         drain();
       };
       const waiter: Waiter = {
+        previous: last,
+        next: undefined,
         grant() {
           signal.removeEventListener("abort", abort);
           resolve();
         },
       };
       signal.addEventListener("abort", abort, { once: true });
-      waiting.push(waiter);
+      if (last) last.next = waiter;
+      else first = waiter;
+      last = waiter;
+      waiting++;
       drain();
     });
   }

@@ -234,3 +234,30 @@ test("configuration is validated and zero waiting capacity permits only immediat
   await time.advance(10);
   await limiter.run(freshSignal(), async () => {});
 });
+
+test("bulk cancellation preserves FIFO for survivors and newly queued callers", async (t) => {
+  const time = clock(t);
+  const limiter = createSharedLimiter(1, 128);
+  await limiter.run(freshSignal(), async () => {});
+  const controllers = Array.from({ length: 128 }, () => new AbortController());
+  const reason = new Error("remove queued callers");
+  const starts = [];
+  const pending = controllers.map((controller, index) =>
+    limiter
+      .run(controller.signal, async () => starts.push(index))
+      .catch((error) => {
+        assert.equal(error, reason);
+      }),
+  );
+  for (let index = 126; index >= 0; index -= 2)
+    controllers[index].abort(reason);
+  pending.push(limiter.run(freshSignal(), async () => starts.push(128)));
+  for (let index = 0; index < 65; index++) await time.advance(1);
+  await Promise.all(pending);
+  assert.deepEqual(starts, [
+    ...Array.from({ length: 64 }, (_, index) => index * 2 + 1),
+    128,
+  ]);
+  for (const controller of controllers)
+    assert.equal(getEventListeners(controller.signal, "abort").length, 0);
+});

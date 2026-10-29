@@ -259,3 +259,31 @@ for (const options of [
     assert.deepEqual(output, [1]);
   });
 }
+
+test("unordered map preserves completion order through repeated buffered bursts", async () => {
+  const expected = [];
+  let pending = [];
+  const result = await stream
+    .range(0, 4096)
+    .pipe(
+      stream.map(
+        (value) =>
+          new Promise((resolve) => {
+            pending.push({ value, resolve });
+            if (pending.length === 1)
+              setImmediate(() => {
+                const batch = pending;
+                pending = [];
+                for (const entry of batch.toReversed()) {
+                  expected.push(entry.value);
+                  entry.resolve(entry.value);
+                }
+              });
+          }),
+        { concurrency: 128, capacity: 256, ordered: false },
+      ),
+    )
+    .toArray();
+  assert.equal(expected.length, 4096);
+  assert.deepEqual(result, expected);
+});

@@ -80,7 +80,7 @@ AsyncIterable inputs and Promise-returning transforms, without I/O waits. Top to
 
 ![Node.js and Bun elapsed times for sequential async map, bounded async map, and a 13-stage async pipeline.](benchmarks/results/readme/comparison.svg)
 
-100,000 inputs · Node.js v24.22.0 / Bun v1.4.3 · Apple M1 Pro · Normal GC. Median of 7 runs after 5 warmups. Seconds; lower is faster. Each panel has its own scale. [Methodology and reproduction](benchmarks/README.md).
+100,000 inputs · Node.js v26.13.0 / Bun v1.4.3 · Apple M1 Pro · Normal GC. Median of 7 runs after 5 warmups. Seconds; lower is faster. Each panel has its own scale. [Methodology and reproduction](benchmarks/README.md).
 
 ## Development
 

@@ -82,6 +82,7 @@ export interface RateLimitOptions {
   /** Sliding window duration in milliseconds. Must be finite and positive. */
   readonly perMs: number;
 }
+
 /**
  * Limits how many upstream reads can start within a sliding window of `perMs` milliseconds.
  *
@@ -102,14 +103,29 @@ export function rateLimit({
   return <T>(source: AsyncIterable<T>) =>
     create((scope) => {
       const upstream = open(source, scope);
-      const starts: number[] = [];
+      let starts: number[] = [];
+      let head = 0;
       return {
         async next() {
           for (;;) {
             const now = scope.scheduler.now();
-            while (starts.length && starts[0]! <= now - perMs) starts.shift();
-            if (starts.length < count) break;
-            await scope.scheduler.sleep(starts[0]! + perMs - now, scope.signal);
+            if (starts.length && now - starts[starts.length - 1]! >= perMs) {
+              starts.length = 0;
+              head = 0;
+            } else {
+              while (head < starts.length && now - starts[head]! >= perMs)
+                head++;
+              // Keep fewer expired entries than live entries between compactions.
+              if (head > 0 && head >= starts.length - head) {
+                starts = starts.slice(head);
+                head = 0;
+              }
+            }
+            if (starts.length - head < count) break;
+            await scope.scheduler.sleep(
+              perMs - (now - starts[head]!),
+              scope.signal,
+            );
           }
           scope.check();
           starts.push(scope.scheduler.now());
