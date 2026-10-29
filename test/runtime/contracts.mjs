@@ -21,6 +21,65 @@ export async function runContracts() {
     ["root", stream],
     ["core", core],
   ]) {
+    await check(`${entry} Web Streams queued demand`, async () => {
+      let produced = 0;
+      const input = new ReadableStream(
+        {
+          async pull(controller) {
+            await Promise.resolve();
+            if (produced === 20) controller.close();
+            else controller.enqueue(produced++);
+          },
+        },
+        { highWaterMark: 0 },
+      );
+      const output = api.toReadableStream(api.fromReadableStream(input));
+      await Promise.resolve();
+      equal(produced, 0);
+      equal(input.locked, false);
+      const reader = output.getReader();
+      const results = await Promise.all(
+        Array.from({ length: 25 }, () => reader.read()),
+      );
+      equal(
+        results.slice(0, 20).map((result) => result.value),
+        Array.from({ length: 20 }, (_, i) => i),
+      );
+      equal(
+        results.slice(20).every((result) => result.done),
+        true,
+      );
+      reader.releaseLock();
+      equal(input.locked, false);
+    });
+    await check(`${entry} Web Streams pending cancellation`, async () => {
+      let reason;
+      let acquired;
+      const started = new Promise((resolve) => {
+        acquired = resolve;
+      });
+      const input = new ReadableStream(
+        {
+          pull() {
+            acquired();
+          },
+          cancel(value) {
+            reason = value;
+          },
+        },
+        { highWaterMark: 0 },
+      );
+      const reader = api
+        .toReadableStream(api.fromReadableStream(input))
+        .getReader();
+      const pending = reader.read();
+      await started;
+      await reader.cancel("stop");
+      equal((await pending).done, true);
+      equal(reason, "stop");
+      equal(input.locked, false);
+      reader.releaseLock();
+    });
     await check(`${entry} named broadcast`, async () => {
       const group = api.broadcast([1, 2], {
         branches: ["a", "b"],
