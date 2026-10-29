@@ -6,7 +6,11 @@ import {
   type Read,
   type Source,
 } from "../core/stream.js";
-import { ChildSlot } from "../internal/child-slots.js";
+import {
+  ChildSlot,
+  ChildList,
+  LinkedChildSlot,
+} from "../internal/child-slots.js";
 import { notifications } from "../internal/notifications.js";
 import { done, item } from "../internal/deferred.js";
 import { integer } from "../internal/errors.js";
@@ -85,13 +89,13 @@ function combineChildren<T>(
     create((scope) => {
       const outer = open(source, scope);
       const changed = notifications(scope);
-      const slots: ChildSlot<T>[] = [];
+      const slots = new ChildList<T>();
       const cleanupStates = new Map<ChildSlot<T>, "pending" | "finished">();
       let pulling = false;
       let filling = false;
       let outerDone = false;
       let demand = false;
-      let cursor = 0;
+      let cursor: LinkedChildSlot<T> | undefined;
       let failure: { error: unknown } | undefined;
       let refill: ChildSlot<T> | undefined;
 
@@ -114,7 +118,7 @@ function combineChildren<T>(
             !outerDone &&
             !failure &&
             !scope.signal.aborted &&
-            slots.length < concurrency
+            slots.size < concurrency
           ) {
             pulling = true;
             outer.read((result) => {
@@ -125,12 +129,12 @@ function combineChildren<T>(
                   outerDone = true;
                   changed.notify();
                 } else {
-                  const child = new ChildSlot(
+                  const child = new LinkedChildSlot(
                     result.value,
                     scope,
                     changed.notify,
                   );
-                  slots.push(child);
+                  slots.append(child);
                   child.start();
                 }
                 fill();
@@ -156,42 +160,40 @@ function combineChildren<T>(
               refill = undefined;
               fill();
               let retired = false;
-              for (let offset = 0; offset < slots.length; offset++) {
-                const index = ordered
-                  ? offset
-                  : (cursor + offset) % slots.length;
-                const slot = slots[index]!;
-                if (slot.failure) throw slot.failure.error;
-                if (ordered && index > 0) break;
-                if (!slot.result) continue;
-                const result = slot.result;
+              let slot = ordered ? slots.first : (cursor ?? slots.first);
+              for (let remaining = slots.size; remaining > 0; remaining--) {
+                const current = slot!;
+                slot = current.next;
+                if (current.failure) throw current.failure.error;
+                if (ordered && remaining < slots.size) break;
+                if (!current.result) continue;
+                const result = current.result;
                 if (result.done) {
                   // A completed child retains its slot until cleanup has finished.
-                  if (ordered) await slot.reader.scope.close();
+                  if (ordered) await current.reader.scope.close();
                   else {
-                    const cleanup = cleanupStates.get(slot);
+                    const cleanup = cleanupStates.get(current);
                     if (!cleanup) {
-                      cleanupStates.set(slot, "pending");
-                      void slot.reader.scope.close().then(() => {
-                        cleanupStates.set(slot, "finished");
+                      cleanupStates.set(current, "pending");
+                      void current.reader.scope.close().then(() => {
+                        cleanupStates.set(current, "finished");
                         changed.notify();
                       }, fail);
                     }
                     // Unordered siblings can still deliver while this slot closes.
                     if (cleanup !== "finished") continue;
-                    cleanupStates.delete(slot);
+                    cleanupStates.delete(current);
                   }
-                  slots.splice(index, 1);
-                  cursor = slots.length ? index % slots.length : 0;
+                  cursor = slots.remove(current);
                   retired = true;
                   break;
                 }
-                cursor = (index + 1) % slots.length;
-                refill = slot;
-                return slot.consume();
+                cursor = current.next;
+                refill = current;
+                return current.consume();
               }
               if (retired) continue;
-              if (outerDone && slots.length === 0) return done();
+              if (outerDone && slots.size === 0) return done();
               // A synchronous refill may have notified while we inspected slots.
               if (changed.version !== version) continue;
               await changed.promise;

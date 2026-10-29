@@ -1,9 +1,9 @@
 {
-  "schemaVersion": 1,
-  "createdAt": "2026-10-19T19:18:51.826Z",
+  "schemaVersion": 2,
+  "createdAt": "2026-10-29T11:49:24.199Z",
   "runtime": {
     "name": "node",
-    "version": "v26.5.0",
+    "version": "v26.13.0",
     "platform": "darwin",
     "arch": "arm64",
     "cpu": "Apple M1 Pro",
@@ -18,7 +18,7 @@
     "json": "benchmarks/representative-results.json"
   },
   "dependencies": {
-    "mogami": "0.1.0",
+    "mogami": "0.3.2",
     "pMap": {
       "version": "7.1.1",
       "entrypointSha256": "cc7f3717cef13b84dd673c6eea25346b6fbb047840b77ff835e718ed87adc3a4"
@@ -27,10 +27,10 @@
   "methodology": {
     "isolation": "One fresh process per scenario/library; jobs run sequentially in seeded shuffled order; one default warmup, three default measured samples with the same seed; optional GC between iterations; imports, oracle arrays and GC outside timing",
     "timing": "Includes pipeline construction, timer waits, output validation, instrumentation, and cleanup; excludes process startup; cancellation next() settlement and iterator.closed measured separately from actual abort time",
-    "memory": "process.memoryUsage() sampled every sampleMs and once after cleanup; independent peak for each field, not a simultaneous snapshot or guaranteed upper bound; event-loop delays can miss peaks; process RSS/heap includes runtime, library and instrumentation; preallocated oracle arrays scale with input count and are included in baseline; no memory ceiling or leak proof",
+    "memory": "runtimeApi records process.memoryUsage() with runtime/version and per-field accounting status; missing fields are null; Bun external/arrayBuffers accounting is unverified, not zero usage; OS ps RSS is observed before workload and after cleanup outside timing, not simultaneously with API readings and not as a peak; process.memoryUsage() sampled every sampleMs and once after cleanup; independent peak for each field, not a simultaneous snapshot or guaranteed upper bound; event-loop delays can miss peaks; process RSS/heap includes runtime, library and instrumentation; preallocated oracle arrays scale with input count and are included in baseline; no memory ceiling or leak proof",
     "bounds": "maxActive counts active attempts; retries retain stage slots between attempts; maxAhead = yielded inputs minus sink receipts; maxReady = successful attempts minus sink receipts; logical bounds asserted per transition, not heap limits; includes at most one item handed to sink",
     "comparison": "Ordered delayed/slow-sink/retry only, same lazy async numeric source, payload, timer function, concurrency, capacity/backpressure, validation and sink; retry is one retry after 2 ms, failing every fifth ID only on attempt 1; p-map uses a matching callback wrapper; cancellation and unordered/rate have no library ranking",
-    "rate": "rateLimit counts source next() including final done; timestamp oracle observes inside source after admission, permits 1 ms observation skew at sliding-window boundaries; no per-attempt rate limiting claimed",
+    "rate": "rateLimit counts source next() including final done; admission is bracketed by downstream request and source observation; the oracle rejects windows that violate the limit even with observation delays; strict observed window maxima are reported separately",
     "statistics": "Every sample plus median/min/max; host-specific synthetic timers, not network/storage I/O; no confidence interval or causal queue comparison"
   },
   "executionOrder": [
@@ -64,144 +64,231 @@
       "library": "mogami",
       "summary": {
         "elapsedMs": {
-          "median": 262.189125,
-          "min": 260.429042,
-          "max": 264.48087499999986
+          "median": 272.905,
+          "min": 266.41704200000004,
+          "max": 301.591792
         },
         "itemsPerSecond": {
-          "median": 7811.1554016590135,
-          "min": 7743.471054381536,
-          "max": 7863.9462952062
+          "median": 7504.442938018726,
+          "min": 6790.635734542801,
+          "max": 7687.195926452781
         },
         "firstItemMs": {
-          "median": 14.361291999999992,
-          "min": 13.872082999999975,
-          "max": 15.500249999999937
+          "median": 15.591791000000057,
+          "min": 14.449333000000024,
+          "max": 15.68141700000001
         },
         "cancelToSettlementMs": null,
         "cancelToClosedMs": null
       },
       "samples": [
         {
-          "elapsedMs": 260.429042,
-          "itemsPerSecond": 7863.9462952062,
-          "firstItemMs": 14.361291999999992,
+          "elapsedMs": 301.591792,
+          "itemsPerSecond": 6790.635734542801,
+          "firstItemMs": 14.449333000000024,
           "received": 2048,
           "pulled": 2048,
           "attempts": 2458,
           "abortedAttempts": 0,
           "maxActive": 64,
           "maxAhead": 128,
-          "maxReady": 114,
+          "maxReady": 122,
           "maxRateWindow": null,
           "rateStarts": null,
           "cancelToSettlementMs": null,
           "cancelToClosedMs": null,
           "memory": {
-            "sampleMs": 5,
-            "samples": 51,
-            "baseline": {
-              "rss": 61718528,
-              "heapTotal": 10633216,
-              "heapUsed": 5772880,
-              "external": 2542029,
-              "arrayBuffers": 145659
+            "runtimeApi": {
+              "method": "process.memoryUsage",
+              "runtime": "node",
+              "version": "v26.13.0",
+              "sampleMs": 5,
+              "samples": 52,
+              "fieldStatus": {
+                "rss": "reported",
+                "heapTotal": "reported",
+                "heapUsed": "reported",
+                "external": "reported",
+                "arrayBuffers": "reported"
+              },
+              "baseline": {
+                "rss": 72679424,
+                "heapTotal": 11157504,
+                "heapUsed": 6189552,
+                "external": 2703377,
+                "arrayBuffers": 146102
+              },
+              "peak": {
+                "rss": 72941568,
+                "heapTotal": 11157504,
+                "heapUsed": 7918928,
+                "external": 2703377,
+                "arrayBuffers": 146102
+              },
+              "delta": {
+                "rss": 262144,
+                "heapTotal": 0,
+                "heapUsed": 1729376,
+                "external": 0,
+                "arrayBuffers": 0
+              }
             },
-            "peak": {
-              "rss": 61865984,
-              "heapTotal": 10633216,
-              "heapUsed": 7546968,
-              "external": 2542029,
-              "arrayBuffers": 145659
-            },
-            "delta": {
-              "rss": 147456,
-              "heapTotal": 0,
-              "heapUsed": 1774088,
-              "external": 0,
-              "arrayBuffers": 0
+            "os": {
+              "method": "ps -o rss= -p PID (KiB converted to bytes)",
+              "platform": "darwin",
+              "scope": "before workload and after cleanup; not a peak measurement",
+              "before": {
+                "observedAt": "2026-10-29T11:49:24.549Z",
+                "rssBytes": 72679424,
+                "status": "measured",
+                "reason": null
+              },
+              "after": {
+                "observedAt": "2026-10-29T11:49:24.856Z",
+                "rssBytes": 72941568,
+                "status": "measured",
+                "reason": null
+              }
             }
           }
         },
         {
-          "elapsedMs": 262.189125,
-          "itemsPerSecond": 7811.1554016590135,
-          "firstItemMs": 15.500249999999937,
+          "elapsedMs": 272.905,
+          "itemsPerSecond": 7504.442938018726,
+          "firstItemMs": 15.591791000000057,
           "received": 2048,
           "pulled": 2048,
           "attempts": 2458,
           "abortedAttempts": 0,
           "maxActive": 64,
           "maxAhead": 128,
-          "maxReady": 121,
+          "maxReady": 115,
           "maxRateWindow": null,
           "rateStarts": null,
           "cancelToSettlementMs": null,
           "cancelToClosedMs": null,
           "memory": {
-            "sampleMs": 5,
-            "samples": 51,
-            "baseline": {
-              "rss": 61865984,
-              "heapTotal": 10633216,
-              "heapUsed": 5748544,
-              "external": 2542029,
-              "arrayBuffers": 145659
+            "runtimeApi": {
+              "method": "process.memoryUsage",
+              "runtime": "node",
+              "version": "v26.13.0",
+              "sampleMs": 5,
+              "samples": 52,
+              "fieldStatus": {
+                "rss": "reported",
+                "heapTotal": "reported",
+                "heapUsed": "reported",
+                "external": "reported",
+                "arrayBuffers": "reported"
+              },
+              "baseline": {
+                "rss": 72990720,
+                "heapTotal": 11157504,
+                "heapUsed": 6165552,
+                "external": 2703377,
+                "arrayBuffers": 146102
+              },
+              "peak": {
+                "rss": 76611584,
+                "heapTotal": 14827520,
+                "heapUsed": 9572776,
+                "external": 2703377,
+                "arrayBuffers": 146102
+              },
+              "delta": {
+                "rss": 3620864,
+                "heapTotal": 3670016,
+                "heapUsed": 3407224,
+                "external": 0,
+                "arrayBuffers": 0
+              }
             },
-            "peak": {
-              "rss": 65159168,
-              "heapTotal": 13778944,
-              "heapUsed": 9134824,
-              "external": 2542029,
-              "arrayBuffers": 145659
-            },
-            "delta": {
-              "rss": 3293184,
-              "heapTotal": 3145728,
-              "heapUsed": 3386280,
-              "external": 0,
-              "arrayBuffers": 0
+            "os": {
+              "method": "ps -o rss= -p PID (KiB converted to bytes)",
+              "platform": "darwin",
+              "scope": "before workload and after cleanup; not a peak measurement",
+              "before": {
+                "observedAt": "2026-10-29T11:49:24.862Z",
+                "rssBytes": 72990720,
+                "status": "measured",
+                "reason": null
+              },
+              "after": {
+                "observedAt": "2026-10-29T11:49:25.138Z",
+                "rssBytes": 76611584,
+                "status": "measured",
+                "reason": null
+              }
             }
           }
         },
         {
-          "elapsedMs": 264.48087499999986,
-          "itemsPerSecond": 7743.471054381536,
-          "firstItemMs": 13.872082999999975,
+          "elapsedMs": 266.41704200000004,
+          "itemsPerSecond": 7687.195926452781,
+          "firstItemMs": 15.68141700000001,
           "received": 2048,
           "pulled": 2048,
           "attempts": 2458,
           "abortedAttempts": 0,
           "maxActive": 64,
           "maxAhead": 128,
-          "maxReady": 114,
+          "maxReady": 118,
           "maxRateWindow": null,
           "rateStarts": null,
           "cancelToSettlementMs": null,
           "cancelToClosedMs": null,
           "memory": {
-            "sampleMs": 5,
-            "samples": 51,
-            "baseline": {
-              "rss": 65159168,
-              "heapTotal": 13778944,
-              "heapUsed": 5752104,
-              "external": 2542029,
-              "arrayBuffers": 145659
+            "runtimeApi": {
+              "method": "process.memoryUsage",
+              "runtime": "node",
+              "version": "v26.13.0",
+              "sampleMs": 5,
+              "samples": 52,
+              "fieldStatus": {
+                "rss": "reported",
+                "heapTotal": "reported",
+                "heapUsed": "reported",
+                "external": "reported",
+                "arrayBuffers": "reported"
+              },
+              "baseline": {
+                "rss": 76627968,
+                "heapTotal": 14827520,
+                "heapUsed": 6183144,
+                "external": 2703377,
+                "arrayBuffers": 146102
+              },
+              "peak": {
+                "rss": 76644352,
+                "heapTotal": 14827520,
+                "heapUsed": 9517936,
+                "external": 2703377,
+                "arrayBuffers": 146102
+              },
+              "delta": {
+                "rss": 16384,
+                "heapTotal": 0,
+                "heapUsed": 3334792,
+                "external": 0,
+                "arrayBuffers": 0
+              }
             },
-            "peak": {
-              "rss": 65208320,
-              "heapTotal": 13778944,
-              "heapUsed": 9146912,
-              "external": 2542029,
-              "arrayBuffers": 145659
-            },
-            "delta": {
-              "rss": 49152,
-              "heapTotal": 0,
-              "heapUsed": 3394808,
-              "external": 0,
-              "arrayBuffers": 0
+            "os": {
+              "method": "ps -o rss= -p PID (KiB converted to bytes)",
+              "platform": "darwin",
+              "scope": "before workload and after cleanup; not a peak measurement",
+              "before": {
+                "observedAt": "2026-10-29T11:49:25.143Z",
+                "rssBytes": 76627968,
+                "status": "measured",
+                "reason": null
+              },
+              "after": {
+                "observedAt": "2026-10-29T11:49:25.414Z",
+                "rssBytes": 76644352,
+                "status": "measured",
+                "reason": null
+              }
             }
           }
         }
@@ -224,69 +311,28 @@
       "library": "p-map-iterable",
       "summary": {
         "elapsedMs": {
-          "median": 2431.89725,
-          "min": 2362.5667919999996,
-          "max": 2472.401167
+          "median": 2613.0438330000006,
+          "min": 2486.180625,
+          "max": 2632.270541
         },
         "itemsPerSecond": {
-          "median": 842.1408429159579,
-          "min": 828.3445370174427,
-          "max": 866.8537994078436
+          "median": 783.7602929334402,
+          "min": 778.0355279218239,
+          "max": 823.7535034285773
         },
         "firstItemMs": {
-          "median": 8.697583000000122,
-          "min": 7.742291999999907,
-          "max": 8.733374999999796
+          "median": 8.735208000000057,
+          "min": 8.543625000000247,
+          "max": 8.828665999999885
         },
         "cancelToSettlementMs": null,
         "cancelToClosedMs": null
       },
       "samples": [
         {
-          "elapsedMs": 2431.89725,
-          "itemsPerSecond": 842.1408429159579,
-          "firstItemMs": 8.697583000000122,
-          "received": 2048,
-          "pulled": 2048,
-          "attempts": 2048,
-          "abortedAttempts": 0,
-          "maxActive": 64,
-          "maxAhead": 129,
-          "maxReady": 127,
-          "maxRateWindow": null,
-          "rateStarts": null,
-          "cancelToSettlementMs": null,
-          "cancelToClosedMs": null,
-          "memory": {
-            "sampleMs": 5,
-            "samples": 463,
-            "baseline": {
-              "rss": 60915712,
-              "heapTotal": 10108928,
-              "heapUsed": 5629480,
-              "external": 2542029,
-              "arrayBuffers": 145659
-            },
-            "peak": {
-              "rss": 60964864,
-              "heapTotal": 10108928,
-              "heapUsed": 7348480,
-              "external": 2542029,
-              "arrayBuffers": 145659
-            },
-            "delta": {
-              "rss": 49152,
-              "heapTotal": 0,
-              "heapUsed": 1719000,
-              "external": 0,
-              "arrayBuffers": 0
-            }
-          }
-        },
-        {
-          "elapsedMs": 2472.401167,
-          "itemsPerSecond": 828.3445370174427,
-          "firstItemMs": 7.742291999999907,
+          "elapsedMs": 2486.180625,
+          "itemsPerSecond": 823.7535034285773,
+          "firstItemMs": 8.828665999999885,
           "received": 2048,
           "pulled": 2048,
           "attempts": 2048,
@@ -299,35 +345,64 @@
           "cancelToSettlementMs": null,
           "cancelToClosedMs": null,
           "memory": {
-            "sampleMs": 5,
-            "samples": 476,
-            "baseline": {
-              "rss": 60964864,
-              "heapTotal": 10108928,
-              "heapUsed": 5620408,
-              "external": 2544077,
-              "arrayBuffers": 147707
+            "runtimeApi": {
+              "method": "process.memoryUsage",
+              "runtime": "node",
+              "version": "v26.13.0",
+              "sampleMs": 5,
+              "samples": 476,
+              "fieldStatus": {
+                "rss": "reported",
+                "heapTotal": "reported",
+                "heapUsed": "reported",
+                "external": "reported",
+                "arrayBuffers": "reported"
+              },
+              "baseline": {
+                "rss": 71745536,
+                "heapTotal": 10633216,
+                "heapUsed": 6030672,
+                "external": 2703377,
+                "arrayBuffers": 146102
+              },
+              "peak": {
+                "rss": 71974912,
+                "heapTotal": 11157504,
+                "heapUsed": 7744264,
+                "external": 2703377,
+                "arrayBuffers": 146102
+              },
+              "delta": {
+                "rss": 229376,
+                "heapTotal": 524288,
+                "heapUsed": 1713592,
+                "external": 0,
+                "arrayBuffers": 0
+              }
             },
-            "peak": {
-              "rss": 60981248,
-              "heapTotal": 10108928,
-              "heapUsed": 7348032,
-              "external": 2544077,
-              "arrayBuffers": 147707
-            },
-            "delta": {
-              "rss": 16384,
-              "heapTotal": 0,
-              "heapUsed": 1727624,
-              "external": 0,
-              "arrayBuffers": 0
+            "os": {
+              "method": "ps -o rss= -p PID (KiB converted to bytes)",
+              "platform": "darwin",
+              "scope": "before workload and after cleanup; not a peak measurement",
+              "before": {
+                "observedAt": "2026-10-29T11:49:28.100Z",
+                "rssBytes": 71745536,
+                "status": "measured",
+                "reason": null
+              },
+              "after": {
+                "observedAt": "2026-10-29T11:49:30.592Z",
+                "rssBytes": 71974912,
+                "status": "measured",
+                "reason": null
+              }
             }
           }
         },
         {
-          "elapsedMs": 2362.5667919999996,
-          "itemsPerSecond": 866.8537994078436,
-          "firstItemMs": 8.733374999999796,
+          "elapsedMs": 2613.0438330000006,
+          "itemsPerSecond": 783.7602929334402,
+          "firstItemMs": 8.735208000000057,
           "received": 2048,
           "pulled": 2048,
           "attempts": 2048,
@@ -340,28 +415,127 @@
           "cancelToSettlementMs": null,
           "cancelToClosedMs": null,
           "memory": {
-            "sampleMs": 5,
-            "samples": 458,
-            "baseline": {
-              "rss": 60981248,
-              "heapTotal": 10108928,
-              "heapUsed": 5618360,
-              "external": 2542029,
-              "arrayBuffers": 145659
+            "runtimeApi": {
+              "method": "process.memoryUsage",
+              "runtime": "node",
+              "version": "v26.13.0",
+              "sampleMs": 5,
+              "samples": 497,
+              "fieldStatus": {
+                "rss": "reported",
+                "heapTotal": "reported",
+                "heapUsed": "reported",
+                "external": "reported",
+                "arrayBuffers": "reported"
+              },
+              "baseline": {
+                "rss": 71991296,
+                "heapTotal": 10895360,
+                "heapUsed": 6263280,
+                "external": 2703377,
+                "arrayBuffers": 146102
+              },
+              "peak": {
+                "rss": 72024064,
+                "heapTotal": 10895360,
+                "heapUsed": 7761512,
+                "external": 2703377,
+                "arrayBuffers": 146102
+              },
+              "delta": {
+                "rss": 32768,
+                "heapTotal": 0,
+                "heapUsed": 1498232,
+                "external": 0,
+                "arrayBuffers": 0
+              }
             },
-            "peak": {
-              "rss": 61095936,
-              "heapTotal": 10108928,
-              "heapUsed": 7320808,
-              "external": 2542029,
-              "arrayBuffers": 145659
+            "os": {
+              "method": "ps -o rss= -p PID (KiB converted to bytes)",
+              "platform": "darwin",
+              "scope": "before workload and after cleanup; not a peak measurement",
+              "before": {
+                "observedAt": "2026-10-29T11:49:30.602Z",
+                "rssBytes": 71991296,
+                "status": "measured",
+                "reason": null
+              },
+              "after": {
+                "observedAt": "2026-10-29T11:49:33.221Z",
+                "rssBytes": 72024064,
+                "status": "measured",
+                "reason": null
+              }
+            }
+          }
+        },
+        {
+          "elapsedMs": 2632.270541,
+          "itemsPerSecond": 778.0355279218239,
+          "firstItemMs": 8.543625000000247,
+          "received": 2048,
+          "pulled": 2048,
+          "attempts": 2048,
+          "abortedAttempts": 0,
+          "maxActive": 64,
+          "maxAhead": 129,
+          "maxReady": 128,
+          "maxRateWindow": null,
+          "rateStarts": null,
+          "cancelToSettlementMs": null,
+          "cancelToClosedMs": null,
+          "memory": {
+            "runtimeApi": {
+              "method": "process.memoryUsage",
+              "runtime": "node",
+              "version": "v26.13.0",
+              "sampleMs": 5,
+              "samples": 495,
+              "fieldStatus": {
+                "rss": "reported",
+                "heapTotal": "reported",
+                "heapUsed": "reported",
+                "external": "reported",
+                "arrayBuffers": "reported"
+              },
+              "baseline": {
+                "rss": 72040448,
+                "heapTotal": 10895360,
+                "heapUsed": 6043344,
+                "external": 2703377,
+                "arrayBuffers": 146102
+              },
+              "peak": {
+                "rss": 72204288,
+                "heapTotal": 10895360,
+                "heapUsed": 7731440,
+                "external": 2703377,
+                "arrayBuffers": 146102
+              },
+              "delta": {
+                "rss": 163840,
+                "heapTotal": 0,
+                "heapUsed": 1688096,
+                "external": 0,
+                "arrayBuffers": 0
+              }
             },
-            "delta": {
-              "rss": 114688,
-              "heapTotal": 0,
-              "heapUsed": 1702448,
-              "external": 0,
-              "arrayBuffers": 0
+            "os": {
+              "method": "ps -o rss= -p PID (KiB converted to bytes)",
+              "platform": "darwin",
+              "scope": "before workload and after cleanup; not a peak measurement",
+              "before": {
+                "observedAt": "2026-10-29T11:49:33.227Z",
+                "rssBytes": 72040448,
+                "status": "measured",
+                "reason": null
+              },
+              "after": {
+                "observedAt": "2026-10-29T11:49:35.864Z",
+                "rssBytes": 72204288,
+                "status": "measured",
+                "reason": null
+              }
             }
           }
         }
@@ -387,9 +561,9 @@
       "library": "mogami",
       "summary": {
         "elapsedMs": {
-          "median": 11.506250000000001,
-          "min": 11.423500000000004,
-          "max": 12.074874999999992
+          "median": 11.852874999999997,
+          "min": 10.707667,
+          "max": 11.923167000000007
         },
         "itemsPerSecond": {
           "median": 0,
@@ -398,19 +572,19 @@
         },
         "firstItemMs": null,
         "cancelToSettlementMs": {
-          "median": 0.4457079999999962,
-          "min": 0.42470800000000963,
-          "max": 0.6420829999999995
+          "median": 0.25779099999999744,
+          "min": 0.2562910000000045,
+          "max": 0.30129199999998946
         },
         "cancelToClosedMs": {
-          "median": 6.019542000000001,
-          "min": 5.8089999999999975,
-          "max": 6.264124999999993
+          "median": 5.564042000000001,
+          "min": 5.563375000000008,
+          "max": 5.6286249999999995
         }
       },
       "samples": [
         {
-          "elapsedMs": 11.506250000000001,
+          "elapsedMs": 10.707667,
           "itemsPerSecond": 0,
           "firstItemMs": null,
           "received": 0,
@@ -422,36 +596,65 @@
           "maxReady": 0,
           "maxRateWindow": null,
           "rateStarts": null,
-          "cancelToSettlementMs": 0.6420829999999995,
-          "cancelToClosedMs": 6.264124999999993,
+          "cancelToSettlementMs": 0.2562910000000045,
+          "cancelToClosedMs": 5.563375000000008,
           "memory": {
-            "sampleMs": 5,
-            "samples": 3,
-            "baseline": {
-              "rss": 56328192,
-              "heapTotal": 9060352,
-              "heapUsed": 5605696,
-              "external": 2544077,
-              "arrayBuffers": 147707
+            "runtimeApi": {
+              "method": "process.memoryUsage",
+              "runtime": "node",
+              "version": "v26.13.0",
+              "sampleMs": 5,
+              "samples": 3,
+              "fieldStatus": {
+                "rss": "reported",
+                "heapTotal": "reported",
+                "heapUsed": "reported",
+                "external": "reported",
+                "arrayBuffers": "reported"
+              },
+              "baseline": {
+                "rss": 66519040,
+                "heapTotal": 10108928,
+                "heapUsed": 6014064,
+                "external": 2705425,
+                "arrayBuffers": 148150
+              },
+              "peak": {
+                "rss": 66551808,
+                "heapTotal": 10108928,
+                "heapUsed": 6614976,
+                "external": 2705425,
+                "arrayBuffers": 148150
+              },
+              "delta": {
+                "rss": 32768,
+                "heapTotal": 0,
+                "heapUsed": 600912,
+                "external": 0,
+                "arrayBuffers": 0
+              }
             },
-            "peak": {
-              "rss": 56344576,
-              "heapTotal": 9060352,
-              "heapUsed": 6497040,
-              "external": 2544077,
-              "arrayBuffers": 147707
-            },
-            "delta": {
-              "rss": 16384,
-              "heapTotal": 0,
-              "heapUsed": 891344,
-              "external": 0,
-              "arrayBuffers": 0
+            "os": {
+              "method": "ps -o rss= -p PID (KiB converted to bytes)",
+              "platform": "darwin",
+              "scope": "before workload and after cleanup; not a peak measurement",
+              "before": {
+                "observedAt": "2026-10-29T11:49:35.961Z",
+                "rssBytes": 66519040,
+                "status": "measured",
+                "reason": null
+              },
+              "after": {
+                "observedAt": "2026-10-29T11:49:35.975Z",
+                "rssBytes": 66568192,
+                "status": "measured",
+                "reason": null
+              }
             }
           }
         },
         {
-          "elapsedMs": 11.423500000000004,
+          "elapsedMs": 11.852874999999997,
           "itemsPerSecond": 0,
           "firstItemMs": null,
           "received": 0,
@@ -463,36 +666,65 @@
           "maxReady": 0,
           "maxRateWindow": null,
           "rateStarts": null,
-          "cancelToSettlementMs": 0.4457079999999962,
-          "cancelToClosedMs": 6.019542000000001,
+          "cancelToSettlementMs": 0.25779099999999744,
+          "cancelToClosedMs": 5.6286249999999995,
           "memory": {
-            "sampleMs": 5,
-            "samples": 3,
-            "baseline": {
-              "rss": 56344576,
-              "heapTotal": 9060352,
-              "heapUsed": 5632528,
-              "external": 2544077,
-              "arrayBuffers": 147707
+            "runtimeApi": {
+              "method": "process.memoryUsage",
+              "runtime": "node",
+              "version": "v26.13.0",
+              "sampleMs": 5,
+              "samples": 3,
+              "fieldStatus": {
+                "rss": "reported",
+                "heapTotal": "reported",
+                "heapUsed": "reported",
+                "external": "reported",
+                "arrayBuffers": "reported"
+              },
+              "baseline": {
+                "rss": 66600960,
+                "heapTotal": 10108928,
+                "heapUsed": 6038400,
+                "external": 2705425,
+                "arrayBuffers": 148150
+              },
+              "peak": {
+                "rss": 66682880,
+                "heapTotal": 10108928,
+                "heapUsed": 6674576,
+                "external": 2705425,
+                "arrayBuffers": 148150
+              },
+              "delta": {
+                "rss": 81920,
+                "heapTotal": 0,
+                "heapUsed": 636176,
+                "external": 0,
+                "arrayBuffers": 0
+              }
             },
-            "peak": {
-              "rss": 56410112,
-              "heapTotal": 9060352,
-              "heapUsed": 6270208,
-              "external": 2544077,
-              "arrayBuffers": 147707
-            },
-            "delta": {
-              "rss": 65536,
-              "heapTotal": 0,
-              "heapUsed": 637680,
-              "external": 0,
-              "arrayBuffers": 0
+            "os": {
+              "method": "ps -o rss= -p PID (KiB converted to bytes)",
+              "platform": "darwin",
+              "scope": "before workload and after cleanup; not a peak measurement",
+              "before": {
+                "observedAt": "2026-10-29T11:49:35.980Z",
+                "rssBytes": 66600960,
+                "status": "measured",
+                "reason": null
+              },
+              "after": {
+                "observedAt": "2026-10-29T11:49:35.996Z",
+                "rssBytes": 66682880,
+                "status": "measured",
+                "reason": null
+              }
             }
           }
         },
         {
-          "elapsedMs": 12.074874999999992,
+          "elapsedMs": 11.923167000000007,
           "itemsPerSecond": 0,
           "firstItemMs": null,
           "received": 0,
@@ -504,31 +736,60 @@
           "maxReady": 0,
           "maxRateWindow": null,
           "rateStarts": null,
-          "cancelToSettlementMs": 0.42470800000000963,
-          "cancelToClosedMs": 5.8089999999999975,
+          "cancelToSettlementMs": 0.30129199999998946,
+          "cancelToClosedMs": 5.564042000000001,
           "memory": {
-            "sampleMs": 5,
-            "samples": 3,
-            "baseline": {
-              "rss": 56410112,
-              "heapTotal": 9060352,
-              "heapUsed": 5671368,
-              "external": 2544077,
-              "arrayBuffers": 147707
+            "runtimeApi": {
+              "method": "process.memoryUsage",
+              "runtime": "node",
+              "version": "v26.13.0",
+              "sampleMs": 5,
+              "samples": 3,
+              "fieldStatus": {
+                "rss": "reported",
+                "heapTotal": "reported",
+                "heapUsed": "reported",
+                "external": "reported",
+                "arrayBuffers": "reported"
+              },
+              "baseline": {
+                "rss": 66732032,
+                "heapTotal": 10108928,
+                "heapUsed": 6091160,
+                "external": 2705425,
+                "arrayBuffers": 148150
+              },
+              "peak": {
+                "rss": 66764800,
+                "heapTotal": 10108928,
+                "heapUsed": 6689160,
+                "external": 2705425,
+                "arrayBuffers": 148150
+              },
+              "delta": {
+                "rss": 32768,
+                "heapTotal": 0,
+                "heapUsed": 598000,
+                "external": 0,
+                "arrayBuffers": 0
+              }
             },
-            "peak": {
-              "rss": 56557568,
-              "heapTotal": 9060352,
-              "heapUsed": 6285504,
-              "external": 2544077,
-              "arrayBuffers": 147707
-            },
-            "delta": {
-              "rss": 147456,
-              "heapTotal": 0,
-              "heapUsed": 614136,
-              "external": 0,
-              "arrayBuffers": 0
+            "os": {
+              "method": "ps -o rss= -p PID (KiB converted to bytes)",
+              "platform": "darwin",
+              "scope": "before workload and after cleanup; not a peak measurement",
+              "before": {
+                "observedAt": "2026-10-29T11:49:36.001Z",
+                "rssBytes": 66715648,
+                "status": "measured",
+                "reason": null
+              },
+              "after": {
+                "observedAt": "2026-10-29T11:49:36.016Z",
+                "rssBytes": 66764800,
+                "status": "measured",
+                "reason": null
+              }
             }
           }
         }
@@ -553,28 +814,28 @@
       "library": "p-map-iterable",
       "summary": {
         "elapsedMs": {
-          "median": 256.98,
-          "min": 254.235167,
-          "max": 261.0367090000001
+          "median": 255.14016700000002,
+          "min": 254.70691599999998,
+          "max": 259.09520799999984
         },
         "itemsPerSecond": {
-          "median": 7969.491789244298,
-          "min": 7845.6398253166735,
-          "max": 8055.533875059858
+          "median": 8026.960333533057,
+          "min": 7904.430250983264,
+          "max": 8040.61402086153
         },
         "firstItemMs": {
-          "median": 14.912207999999964,
-          "min": 13.579208999999992,
-          "max": 15.051625000000058
+          "median": 13.549750000000017,
+          "min": 13.524875000000009,
+          "max": 16.08391599999993
         },
         "cancelToSettlementMs": null,
         "cancelToClosedMs": null
       },
       "samples": [
         {
-          "elapsedMs": 254.235167,
-          "itemsPerSecond": 8055.533875059858,
-          "firstItemMs": 14.912207999999964,
+          "elapsedMs": 254.70691599999998,
+          "itemsPerSecond": 8040.61402086153,
+          "firstItemMs": 13.524875000000009,
           "received": 2048,
           "pulled": 2048,
           "attempts": 2458,
@@ -587,110 +848,197 @@
           "cancelToSettlementMs": null,
           "cancelToClosedMs": null,
           "memory": {
-            "sampleMs": 5,
-            "samples": 50,
-            "baseline": {
-              "rss": 61177856,
-              "heapTotal": 10371072,
-              "heapUsed": 5615336,
-              "external": 2542029,
-              "arrayBuffers": 145659
+            "runtimeApi": {
+              "method": "process.memoryUsage",
+              "runtime": "node",
+              "version": "v26.13.0",
+              "sampleMs": 5,
+              "samples": 49,
+              "fieldStatus": {
+                "rss": "reported",
+                "heapTotal": "reported",
+                "heapUsed": "reported",
+                "external": "reported",
+                "arrayBuffers": "reported"
+              },
+              "baseline": {
+                "rss": 72122368,
+                "heapTotal": 10633216,
+                "heapUsed": 6022952,
+                "external": 2703377,
+                "arrayBuffers": 146102
+              },
+              "peak": {
+                "rss": 72908800,
+                "heapTotal": 11419648,
+                "heapUsed": 8429040,
+                "external": 2703377,
+                "arrayBuffers": 146102
+              },
+              "delta": {
+                "rss": 786432,
+                "heapTotal": 786432,
+                "heapUsed": 2406088,
+                "external": 0,
+                "arrayBuffers": 0
+              }
             },
-            "peak": {
-              "rss": 61243392,
-              "heapTotal": 10371072,
-              "heapUsed": 7313008,
-              "external": 2542029,
-              "arrayBuffers": 145659
-            },
-            "delta": {
-              "rss": 65536,
-              "heapTotal": 0,
-              "heapUsed": 1697672,
-              "external": 0,
-              "arrayBuffers": 0
+            "os": {
+              "method": "ps -o rss= -p PID (KiB converted to bytes)",
+              "platform": "darwin",
+              "scope": "before workload and after cleanup; not a peak measurement",
+              "before": {
+                "observedAt": "2026-10-29T11:49:36.358Z",
+                "rssBytes": 72122368,
+                "status": "measured",
+                "reason": null
+              },
+              "after": {
+                "observedAt": "2026-10-29T11:49:36.616Z",
+                "rssBytes": 72941568,
+                "status": "measured",
+                "reason": null
+              }
             }
           }
         },
         {
-          "elapsedMs": 261.0367090000001,
-          "itemsPerSecond": 7845.6398253166735,
-          "firstItemMs": 15.051625000000058,
+          "elapsedMs": 255.14016700000002,
+          "itemsPerSecond": 8026.960333533057,
+          "firstItemMs": 13.549750000000017,
           "received": 2048,
           "pulled": 2048,
           "attempts": 2458,
           "abortedAttempts": 0,
           "maxActive": 64,
           "maxAhead": 129,
-          "maxReady": 116,
+          "maxReady": 115,
           "maxRateWindow": null,
           "rateStarts": null,
           "cancelToSettlementMs": null,
           "cancelToClosedMs": null,
           "memory": {
-            "sampleMs": 5,
-            "samples": 51,
-            "baseline": {
-              "rss": 61243392,
-              "heapTotal": 10371072,
-              "heapUsed": 5606344,
-              "external": 2542029,
-              "arrayBuffers": 145659
+            "runtimeApi": {
+              "method": "process.memoryUsage",
+              "runtime": "node",
+              "version": "v26.13.0",
+              "sampleMs": 5,
+              "samples": 49,
+              "fieldStatus": {
+                "rss": "reported",
+                "heapTotal": "reported",
+                "heapUsed": "reported",
+                "external": "reported",
+                "arrayBuffers": "reported"
+              },
+              "baseline": {
+                "rss": 72974336,
+                "heapTotal": 11419648,
+                "heapUsed": 6028824,
+                "external": 2703377,
+                "arrayBuffers": 146102
+              },
+              "peak": {
+                "rss": 75595776,
+                "heapTotal": 13778944,
+                "heapUsed": 9344608,
+                "external": 2703377,
+                "arrayBuffers": 146102
+              },
+              "delta": {
+                "rss": 2621440,
+                "heapTotal": 2359296,
+                "heapUsed": 3315784,
+                "external": 0,
+                "arrayBuffers": 0
+              }
             },
-            "peak": {
-              "rss": 64503808,
-              "heapTotal": 13516800,
-              "heapUsed": 9014088,
-              "external": 2542029,
-              "arrayBuffers": 145659
-            },
-            "delta": {
-              "rss": 3260416,
-              "heapTotal": 3145728,
-              "heapUsed": 3407744,
-              "external": 0,
-              "arrayBuffers": 0
+            "os": {
+              "method": "ps -o rss= -p PID (KiB converted to bytes)",
+              "platform": "darwin",
+              "scope": "before workload and after cleanup; not a peak measurement",
+              "before": {
+                "observedAt": "2026-10-29T11:49:36.622Z",
+                "rssBytes": 72957952,
+                "status": "measured",
+                "reason": null
+              },
+              "after": {
+                "observedAt": "2026-10-29T11:49:36.881Z",
+                "rssBytes": 75595776,
+                "status": "measured",
+                "reason": null
+              }
             }
           }
         },
         {
-          "elapsedMs": 256.98,
-          "itemsPerSecond": 7969.491789244298,
-          "firstItemMs": 13.579208999999992,
+          "elapsedMs": 259.09520799999984,
+          "itemsPerSecond": 7904.430250983264,
+          "firstItemMs": 16.08391599999993,
           "received": 2048,
           "pulled": 2048,
           "attempts": 2458,
           "abortedAttempts": 0,
           "maxActive": 64,
           "maxAhead": 129,
-          "maxReady": 113,
+          "maxReady": 119,
           "maxRateWindow": null,
           "rateStarts": null,
           "cancelToSettlementMs": null,
           "cancelToClosedMs": null,
           "memory": {
-            "sampleMs": 5,
-            "samples": 50,
-            "baseline": {
-              "rss": 64503808,
-              "heapTotal": 13516800,
-              "heapUsed": 5599176,
-              "external": 2542029,
-              "arrayBuffers": 145659
+            "runtimeApi": {
+              "method": "process.memoryUsage",
+              "runtime": "node",
+              "version": "v26.13.0",
+              "sampleMs": 5,
+              "samples": 52,
+              "fieldStatus": {
+                "rss": "reported",
+                "heapTotal": "reported",
+                "heapUsed": "reported",
+                "external": "reported",
+                "arrayBuffers": "reported"
+              },
+              "baseline": {
+                "rss": 75628544,
+                "heapTotal": 13778944,
+                "heapUsed": 6027624,
+                "external": 2703377,
+                "arrayBuffers": 146102
+              },
+              "peak": {
+                "rss": 75677696,
+                "heapTotal": 13778944,
+                "heapUsed": 9340104,
+                "external": 2703377,
+                "arrayBuffers": 146102
+              },
+              "delta": {
+                "rss": 49152,
+                "heapTotal": 0,
+                "heapUsed": 3312480,
+                "external": 0,
+                "arrayBuffers": 0
+              }
             },
-            "peak": {
-              "rss": 64503808,
-              "heapTotal": 13516800,
-              "heapUsed": 8935568,
-              "external": 2542029,
-              "arrayBuffers": 145659
-            },
-            "delta": {
-              "rss": 0,
-              "heapTotal": 0,
-              "heapUsed": 3336392,
-              "external": 0,
-              "arrayBuffers": 0
+            "os": {
+              "method": "ps -o rss= -p PID (KiB converted to bytes)",
+              "platform": "darwin",
+              "scope": "before workload and after cleanup; not a peak measurement",
+              "before": {
+                "observedAt": "2026-10-29T11:49:36.887Z",
+                "rssBytes": 75628544,
+                "status": "measured",
+                "reason": null
+              },
+              "after": {
+                "observedAt": "2026-10-29T11:49:37.149Z",
+                "rssBytes": 75677696,
+                "status": "measured",
+                "reason": null
+              }
             }
           }
         }
@@ -716,9 +1064,9 @@
       "library": "mogami",
       "summary": {
         "elapsedMs": {
-          "median": 50.793874999999986,
-          "min": 50.412375,
-          "max": 51.10466599999998
+          "median": 50.377624999999995,
+          "min": 50.12212500000001,
+          "max": 50.80445800000001
         },
         "itemsPerSecond": {
           "median": 0,
@@ -727,19 +1075,19 @@
         },
         "firstItemMs": null,
         "cancelToSettlementMs": {
-          "median": 0.14249999999998408,
-          "min": 0.12691699999999173,
-          "max": 0.2227500000000049
+          "median": 0.15083400000000324,
+          "min": 0.1198750000000075,
+          "max": 0.15104199999998968
         },
         "cancelToClosedMs": {
-          "median": 45.03375,
-          "min": 44.598333999999994,
-          "max": 45.03699999999999
+          "median": 44.646375000000006,
+          "min": 44.00941700000001,
+          "max": 45.354083
         }
       },
       "samples": [
         {
-          "elapsedMs": 50.793874999999986,
+          "elapsedMs": 50.12212500000001,
           "itemsPerSecond": 0,
           "firstItemMs": null,
           "received": 0,
@@ -751,36 +1099,65 @@
           "maxReady": 64,
           "maxRateWindow": null,
           "rateStarts": null,
-          "cancelToSettlementMs": 0.2227500000000049,
-          "cancelToClosedMs": 45.03699999999999,
+          "cancelToSettlementMs": 0.15083400000000324,
+          "cancelToClosedMs": 44.00941700000001,
           "memory": {
-            "sampleMs": 5,
-            "samples": 10,
-            "baseline": {
-              "rss": 55951360,
-              "heapTotal": 8798208,
-              "heapUsed": 5563816,
-              "external": 2544077,
-              "arrayBuffers": 147707
+            "runtimeApi": {
+              "method": "process.memoryUsage",
+              "runtime": "node",
+              "version": "v26.13.0",
+              "sampleMs": 5,
+              "samples": 9,
+              "fieldStatus": {
+                "rss": "reported",
+                "heapTotal": "reported",
+                "heapUsed": "reported",
+                "external": "reported",
+                "arrayBuffers": "reported"
+              },
+              "baseline": {
+                "rss": 66158592,
+                "heapTotal": 9846784,
+                "heapUsed": 5970400,
+                "external": 2705425,
+                "arrayBuffers": 148150
+              },
+              "peak": {
+                "rss": 66207744,
+                "heapTotal": 9846784,
+                "heapUsed": 6516104,
+                "external": 2705425,
+                "arrayBuffers": 148150
+              },
+              "delta": {
+                "rss": 49152,
+                "heapTotal": 0,
+                "heapUsed": 545704,
+                "external": 0,
+                "arrayBuffers": 0
+              }
             },
-            "peak": {
-              "rss": 55967744,
-              "heapTotal": 8798208,
-              "heapUsed": 5967992,
-              "external": 2544077,
-              "arrayBuffers": 147707
-            },
-            "delta": {
-              "rss": 16384,
-              "heapTotal": 0,
-              "heapUsed": 404176,
-              "external": 0,
-              "arrayBuffers": 0
+            "os": {
+              "method": "ps -o rss= -p PID (KiB converted to bytes)",
+              "platform": "darwin",
+              "scope": "before workload and after cleanup; not a peak measurement",
+              "before": {
+                "observedAt": "2026-10-29T11:49:37.290Z",
+                "rssBytes": 66158592,
+                "status": "measured",
+                "reason": null
+              },
+              "after": {
+                "observedAt": "2026-10-29T11:49:37.344Z",
+                "rssBytes": 66224128,
+                "status": "measured",
+                "reason": null
+              }
             }
           }
         },
         {
-          "elapsedMs": 51.10466599999998,
+          "elapsedMs": 50.80445800000001,
           "itemsPerSecond": 0,
           "firstItemMs": null,
           "received": 0,
@@ -792,36 +1169,65 @@
           "maxReady": 64,
           "maxRateWindow": null,
           "rateStarts": null,
-          "cancelToSettlementMs": 0.12691699999999173,
-          "cancelToClosedMs": 45.03375,
+          "cancelToSettlementMs": 0.15104199999998968,
+          "cancelToClosedMs": 44.646375000000006,
           "memory": {
-            "sampleMs": 5,
-            "samples": 10,
-            "baseline": {
-              "rss": 55984128,
-              "heapTotal": 8798208,
-              "heapUsed": 5580440,
-              "external": 2544077,
-              "arrayBuffers": 147707
+            "runtimeApi": {
+              "method": "process.memoryUsage",
+              "runtime": "node",
+              "version": "v26.13.0",
+              "sampleMs": 5,
+              "samples": 10,
+              "fieldStatus": {
+                "rss": "reported",
+                "heapTotal": "reported",
+                "heapUsed": "reported",
+                "external": "reported",
+                "arrayBuffers": "reported"
+              },
+              "baseline": {
+                "rss": 66240512,
+                "heapTotal": 9846784,
+                "heapUsed": 5994016,
+                "external": 2705425,
+                "arrayBuffers": 148150
+              },
+              "peak": {
+                "rss": 66306048,
+                "heapTotal": 9846784,
+                "heapUsed": 6347112,
+                "external": 2705425,
+                "arrayBuffers": 148150
+              },
+              "delta": {
+                "rss": 65536,
+                "heapTotal": 0,
+                "heapUsed": 353096,
+                "external": 0,
+                "arrayBuffers": 0
+              }
             },
-            "peak": {
-              "rss": 56049664,
-              "heapTotal": 9060352,
-              "heapUsed": 5930264,
-              "external": 2544077,
-              "arrayBuffers": 147707
-            },
-            "delta": {
-              "rss": 65536,
-              "heapTotal": 262144,
-              "heapUsed": 349824,
-              "external": 0,
-              "arrayBuffers": 0
+            "os": {
+              "method": "ps -o rss= -p PID (KiB converted to bytes)",
+              "platform": "darwin",
+              "scope": "before workload and after cleanup; not a peak measurement",
+              "before": {
+                "observedAt": "2026-10-29T11:49:37.350Z",
+                "rssBytes": 66240512,
+                "status": "measured",
+                "reason": null
+              },
+              "after": {
+                "observedAt": "2026-10-29T11:49:37.404Z",
+                "rssBytes": 66306048,
+                "status": "measured",
+                "reason": null
+              }
             }
           }
         },
         {
-          "elapsedMs": 50.412375,
+          "elapsedMs": 50.377624999999995,
           "itemsPerSecond": 0,
           "firstItemMs": null,
           "received": 0,
@@ -833,31 +1239,60 @@
           "maxReady": 64,
           "maxRateWindow": null,
           "rateStarts": null,
-          "cancelToSettlementMs": 0.14249999999998408,
-          "cancelToClosedMs": 44.598333999999994,
+          "cancelToSettlementMs": 0.1198750000000075,
+          "cancelToClosedMs": 45.354083,
           "memory": {
-            "sampleMs": 5,
-            "samples": 10,
-            "baseline": {
-              "rss": 56049664,
-              "heapTotal": 9060352,
-              "heapUsed": 5619696,
-              "external": 2544077,
-              "arrayBuffers": 147707
+            "runtimeApi": {
+              "method": "process.memoryUsage",
+              "runtime": "node",
+              "version": "v26.13.0",
+              "sampleMs": 5,
+              "samples": 10,
+              "fieldStatus": {
+                "rss": "reported",
+                "heapTotal": "reported",
+                "heapUsed": "reported",
+                "external": "reported",
+                "arrayBuffers": "reported"
+              },
+              "baseline": {
+                "rss": 66322432,
+                "heapTotal": 9846784,
+                "heapUsed": 6038624,
+                "external": 2705425,
+                "arrayBuffers": 148150
+              },
+              "peak": {
+                "rss": 66338816,
+                "heapTotal": 9846784,
+                "heapUsed": 6341976,
+                "external": 2705425,
+                "arrayBuffers": 148150
+              },
+              "delta": {
+                "rss": 16384,
+                "heapTotal": 0,
+                "heapUsed": 303352,
+                "external": 0,
+                "arrayBuffers": 0
+              }
             },
-            "peak": {
-              "rss": 56066048,
-              "heapTotal": 9060352,
-              "heapUsed": 5923608,
-              "external": 2544077,
-              "arrayBuffers": 147707
-            },
-            "delta": {
-              "rss": 16384,
-              "heapTotal": 0,
-              "heapUsed": 303912,
-              "external": 0,
-              "arrayBuffers": 0
+            "os": {
+              "method": "ps -o rss= -p PID (KiB converted to bytes)",
+              "platform": "darwin",
+              "scope": "before workload and after cleanup; not a peak measurement",
+              "before": {
+                "observedAt": "2026-10-29T11:49:37.410Z",
+                "rssBytes": 66322432,
+                "status": "measured",
+                "reason": null
+              },
+              "after": {
+                "observedAt": "2026-10-29T11:49:37.465Z",
+                "rssBytes": 66338816,
+                "status": "measured",
+                "reason": null
+              }
             }
           }
         }
@@ -881,28 +1316,28 @@
       "library": "mogami",
       "summary": {
         "elapsedMs": {
-          "median": 302.06716700000004,
-          "min": 301.524083,
-          "max": 302.3058340000001
+          "median": 301.721083,
+          "min": 301.139625,
+          "max": 302.6065
         },
         "itemsPerSecond": {
-          "median": 99315.65981813574,
-          "min": 99237.25124008024,
-          "max": 99494.54020891592
+          "median": 99429.57814452761,
+          "min": 99138.65035946023,
+          "max": 99621.56258911459
         },
         "firstItemMs": {
-          "median": 0.11729200000002038,
-          "min": 0.10770800000000236,
-          "max": 0.12858400000004622
+          "median": 0.17679199999997763,
+          "min": 0.15704199999993307,
+          "max": 0.2091250000000855
         },
         "cancelToSettlementMs": null,
         "cancelToClosedMs": null
       },
       "samples": [
         {
-          "elapsedMs": 301.524083,
-          "itemsPerSecond": 99494.54020891592,
-          "firstItemMs": 0.10770800000000236,
+          "elapsedMs": 301.139625,
+          "itemsPerSecond": 99621.56258911459,
+          "firstItemMs": 0.17679199999997763,
           "received": 30000,
           "pulled": 30000,
           "attempts": 0,
@@ -910,40 +1345,69 @@
           "maxActive": 0,
           "maxAhead": 1,
           "maxReady": 0,
-          "maxRateWindow": 10000,
+          "maxRateWindow": 10001,
           "rateStarts": 30001,
           "cancelToSettlementMs": null,
           "cancelToClosedMs": null,
           "memory": {
-            "sampleMs": 5,
-            "samples": 51,
-            "baseline": {
-              "rss": 68730880,
-              "heapTotal": 11157504,
-              "heapUsed": 5616560,
-              "external": 2809989,
-              "arrayBuffers": 413619
+            "runtimeApi": {
+              "method": "process.memoryUsage",
+              "runtime": "node",
+              "version": "v26.13.0",
+              "sampleMs": 5,
+              "samples": 54,
+              "fieldStatus": {
+                "rss": "reported",
+                "heapTotal": "reported",
+                "heapUsed": "reported",
+                "external": "reported",
+                "arrayBuffers": "reported"
+              },
+              "baseline": {
+                "rss": 80920576,
+                "heapTotal": 12206080,
+                "heapUsed": 6075408,
+                "external": 3211345,
+                "arrayBuffers": 654070
+              },
+              "peak": {
+                "rss": 85868544,
+                "heapTotal": 16777216,
+                "heapUsed": 10305192,
+                "external": 3211345,
+                "arrayBuffers": 654070
+              },
+              "delta": {
+                "rss": 4947968,
+                "heapTotal": 4571136,
+                "heapUsed": 4229784,
+                "external": 0,
+                "arrayBuffers": 0
+              }
             },
-            "peak": {
-              "rss": 73383936,
-              "heapTotal": 16662528,
-              "heapUsed": 9473384,
-              "external": 2809989,
-              "arrayBuffers": 413619
-            },
-            "delta": {
-              "rss": 4653056,
-              "heapTotal": 5505024,
-              "heapUsed": 3856824,
-              "external": 0,
-              "arrayBuffers": 0
+            "os": {
+              "method": "ps -o rss= -p PID (KiB converted to bytes)",
+              "platform": "darwin",
+              "scope": "before workload and after cleanup; not a peak measurement",
+              "before": {
+                "observedAt": "2026-10-29T11:49:37.857Z",
+                "rssBytes": 80920576,
+                "status": "measured",
+                "reason": null
+              },
+              "after": {
+                "observedAt": "2026-10-29T11:49:38.164Z",
+                "rssBytes": 85884928,
+                "status": "measured",
+                "reason": null
+              }
             }
           }
         },
         {
-          "elapsedMs": 302.06716700000004,
-          "itemsPerSecond": 99315.65981813574,
-          "firstItemMs": 0.12858400000004622,
+          "elapsedMs": 302.6065,
+          "itemsPerSecond": 99138.65035946023,
+          "firstItemMs": 0.15704199999993307,
           "received": 30000,
           "pulled": 30000,
           "attempts": 0,
@@ -956,35 +1420,64 @@
           "cancelToSettlementMs": null,
           "cancelToClosedMs": null,
           "memory": {
-            "sampleMs": 5,
-            "samples": 52,
-            "baseline": {
-              "rss": 73433088,
-              "heapTotal": 15876096,
-              "heapUsed": 5633976,
-              "external": 2809989,
-              "arrayBuffers": 413619
+            "runtimeApi": {
+              "method": "process.memoryUsage",
+              "runtime": "node",
+              "version": "v26.13.0",
+              "sampleMs": 5,
+              "samples": 53,
+              "fieldStatus": {
+                "rss": "reported",
+                "heapTotal": "reported",
+                "heapUsed": "reported",
+                "external": "reported",
+                "arrayBuffers": "reported"
+              },
+              "baseline": {
+                "rss": 85590016,
+                "heapTotal": 16138240,
+                "heapUsed": 6070160,
+                "external": 3211345,
+                "arrayBuffers": 654070
+              },
+              "peak": {
+                "rss": 88309760,
+                "heapTotal": 16728064,
+                "heapUsed": 10046872,
+                "external": 3211345,
+                "arrayBuffers": 654070
+              },
+              "delta": {
+                "rss": 2719744,
+                "heapTotal": 589824,
+                "heapUsed": 3976712,
+                "external": 0,
+                "arrayBuffers": 0
+              }
             },
-            "peak": {
-              "rss": 77512704,
-              "heapTotal": 16924672,
-              "heapUsed": 9281264,
-              "external": 2809989,
-              "arrayBuffers": 413619
-            },
-            "delta": {
-              "rss": 4079616,
-              "heapTotal": 1048576,
-              "heapUsed": 3647288,
-              "external": 0,
-              "arrayBuffers": 0
+            "os": {
+              "method": "ps -o rss= -p PID (KiB converted to bytes)",
+              "platform": "darwin",
+              "scope": "before workload and after cleanup; not a peak measurement",
+              "before": {
+                "observedAt": "2026-10-29T11:49:38.172Z",
+                "rssBytes": 85590016,
+                "status": "measured",
+                "reason": null
+              },
+              "after": {
+                "observedAt": "2026-10-29T11:49:38.479Z",
+                "rssBytes": 88309760,
+                "status": "measured",
+                "reason": null
+              }
             }
           }
         },
         {
-          "elapsedMs": 302.3058340000001,
-          "itemsPerSecond": 99237.25124008024,
-          "firstItemMs": 0.11729200000002038,
+          "elapsedMs": 301.721083,
+          "itemsPerSecond": 99429.57814452761,
+          "firstItemMs": 0.2091250000000855,
           "received": 30000,
           "pulled": 30000,
           "attempts": 0,
@@ -997,28 +1490,57 @@
           "cancelToSettlementMs": null,
           "cancelToClosedMs": null,
           "memory": {
-            "sampleMs": 5,
-            "samples": 52,
-            "baseline": {
-              "rss": 77529088,
-              "heapTotal": 15876096,
-              "heapUsed": 5686080,
-              "external": 2809989,
-              "arrayBuffers": 413619
+            "runtimeApi": {
+              "method": "process.memoryUsage",
+              "runtime": "node",
+              "version": "v26.13.0",
+              "sampleMs": 5,
+              "samples": 53,
+              "fieldStatus": {
+                "rss": "reported",
+                "heapTotal": "reported",
+                "heapUsed": "reported",
+                "external": "reported",
+                "arrayBuffers": "reported"
+              },
+              "baseline": {
+                "rss": 87736320,
+                "heapTotal": 16138240,
+                "heapUsed": 6127744,
+                "external": 3211345,
+                "arrayBuffers": 654070
+              },
+              "peak": {
+                "rss": 88276992,
+                "heapTotal": 16777216,
+                "heapUsed": 9298256,
+                "external": 3211345,
+                "arrayBuffers": 654070
+              },
+              "delta": {
+                "rss": 540672,
+                "heapTotal": 638976,
+                "heapUsed": 3170512,
+                "external": 0,
+                "arrayBuffers": 0
+              }
             },
-            "peak": {
-              "rss": 77561856,
-              "heapTotal": 16400384,
-              "heapUsed": 8655296,
-              "external": 2809989,
-              "arrayBuffers": 413619
-            },
-            "delta": {
-              "rss": 32768,
-              "heapTotal": 524288,
-              "heapUsed": 2969216,
-              "external": 0,
-              "arrayBuffers": 0
+            "os": {
+              "method": "ps -o rss= -p PID (KiB converted to bytes)",
+              "platform": "darwin",
+              "scope": "before workload and after cleanup; not a peak measurement",
+              "before": {
+                "observedAt": "2026-10-29T11:49:38.485Z",
+                "rssBytes": 87736320,
+                "status": "measured",
+                "reason": null
+              },
+              "after": {
+                "observedAt": "2026-10-29T11:49:38.791Z",
+                "rssBytes": 88276992,
+                "status": "measured",
+                "reason": null
+              }
             }
           }
         }
@@ -1041,69 +1563,168 @@
       "library": "p-map-iterable",
       "summary": {
         "elapsedMs": {
-          "median": 171.17062499999997,
-          "min": 169.20770900000002,
-          "max": 172.22579099999996
+          "median": 168.969583,
+          "min": 168.42512499999998,
+          "max": 170.18687499999993
         },
         "itemsPerSecond": {
-          "median": 11964.669755689683,
-          "min": 11891.366491096565,
-          "max": 12103.46746081173
+          "median": 12120.524674550448,
+          "min": 12033.830458429893,
+          "max": 12159.705982109263
         },
         "firstItemMs": {
-          "median": 8.445582999999942,
-          "min": 7.386583999999999,
-          "max": 8.762875000000008
+          "median": 8.438208000000031,
+          "min": 8.422624999999982,
+          "max": 8.47954200000001
         },
         "cancelToSettlementMs": null,
         "cancelToClosedMs": null
       },
       "samples": [
         {
-          "elapsedMs": 169.20770900000002,
-          "itemsPerSecond": 12103.46746081173,
-          "firstItemMs": 7.386583999999999,
+          "elapsedMs": 168.969583,
+          "itemsPerSecond": 12120.524674550448,
+          "firstItemMs": 8.47954200000001,
           "received": 2048,
           "pulled": 2048,
           "attempts": 2048,
           "abortedAttempts": 0,
           "maxActive": 64,
           "maxAhead": 129,
-          "maxReady": 80,
+          "maxReady": 74,
           "maxRateWindow": null,
           "rateStarts": null,
           "cancelToSettlementMs": null,
           "cancelToClosedMs": null,
           "memory": {
-            "sampleMs": 5,
-            "samples": 34,
-            "baseline": {
-              "rss": 60915712,
-              "heapTotal": 10108928,
-              "heapUsed": 5611080,
-              "external": 2542029,
-              "arrayBuffers": 145659
+            "runtimeApi": {
+              "method": "process.memoryUsage",
+              "runtime": "node",
+              "version": "v26.13.0",
+              "sampleMs": 5,
+              "samples": 32,
+              "fieldStatus": {
+                "rss": "reported",
+                "heapTotal": "reported",
+                "heapUsed": "reported",
+                "external": "reported",
+                "arrayBuffers": "reported"
+              },
+              "baseline": {
+                "rss": 72122368,
+                "heapTotal": 10633216,
+                "heapUsed": 6022368,
+                "external": 2703377,
+                "arrayBuffers": 146102
+              },
+              "peak": {
+                "rss": 74153984,
+                "heapTotal": 12206080,
+                "heapUsed": 9222072,
+                "external": 2703377,
+                "arrayBuffers": 146102
+              },
+              "delta": {
+                "rss": 2031616,
+                "heapTotal": 1572864,
+                "heapUsed": 3199704,
+                "external": 0,
+                "arrayBuffers": 0
+              }
             },
-            "peak": {
-              "rss": 61341696,
-              "heapTotal": 10371072,
-              "heapUsed": 7676280,
-              "external": 2542029,
-              "arrayBuffers": 145659
-            },
-            "delta": {
-              "rss": 425984,
-              "heapTotal": 262144,
-              "heapUsed": 2065200,
-              "external": 0,
-              "arrayBuffers": 0
+            "os": {
+              "method": "ps -o rss= -p PID (KiB converted to bytes)",
+              "platform": "darwin",
+              "scope": "before workload and after cleanup; not a peak measurement",
+              "before": {
+                "observedAt": "2026-10-29T11:49:39.047Z",
+                "rssBytes": 72122368,
+                "status": "measured",
+                "reason": null
+              },
+              "after": {
+                "observedAt": "2026-10-29T11:49:39.219Z",
+                "rssBytes": 74186752,
+                "status": "measured",
+                "reason": null
+              }
             }
           }
         },
         {
-          "elapsedMs": 172.22579099999996,
-          "itemsPerSecond": 11891.366491096565,
-          "firstItemMs": 8.762875000000008,
+          "elapsedMs": 170.18687499999993,
+          "itemsPerSecond": 12033.830458429893,
+          "firstItemMs": 8.422624999999982,
+          "received": 2048,
+          "pulled": 2048,
+          "attempts": 2048,
+          "abortedAttempts": 0,
+          "maxActive": 64,
+          "maxAhead": 129,
+          "maxReady": 74,
+          "maxRateWindow": null,
+          "rateStarts": null,
+          "cancelToSettlementMs": null,
+          "cancelToClosedMs": null,
+          "memory": {
+            "runtimeApi": {
+              "method": "process.memoryUsage",
+              "runtime": "node",
+              "version": "v26.13.0",
+              "sampleMs": 5,
+              "samples": 32,
+              "fieldStatus": {
+                "rss": "reported",
+                "heapTotal": "reported",
+                "heapUsed": "reported",
+                "external": "reported",
+                "arrayBuffers": "reported"
+              },
+              "baseline": {
+                "rss": 74203136,
+                "heapTotal": 12206080,
+                "heapUsed": 6028200,
+                "external": 2703377,
+                "arrayBuffers": 146102
+              },
+              "peak": {
+                "rss": 75874304,
+                "heapTotal": 14041088,
+                "heapUsed": 9367664,
+                "external": 2703377,
+                "arrayBuffers": 146102
+              },
+              "delta": {
+                "rss": 1671168,
+                "heapTotal": 1835008,
+                "heapUsed": 3339464,
+                "external": 0,
+                "arrayBuffers": 0
+              }
+            },
+            "os": {
+              "method": "ps -o rss= -p PID (KiB converted to bytes)",
+              "platform": "darwin",
+              "scope": "before workload and after cleanup; not a peak measurement",
+              "before": {
+                "observedAt": "2026-10-29T11:49:39.225Z",
+                "rssBytes": 74203136,
+                "status": "measured",
+                "reason": null
+              },
+              "after": {
+                "observedAt": "2026-10-29T11:49:39.399Z",
+                "rssBytes": 75874304,
+                "status": "measured",
+                "reason": null
+              }
+            }
+          }
+        },
+        {
+          "elapsedMs": 168.42512499999998,
+          "itemsPerSecond": 12159.705982109263,
+          "firstItemMs": 8.438208000000031,
           "received": 2048,
           "pulled": 2048,
           "attempts": 2048,
@@ -1116,69 +1737,57 @@
           "cancelToSettlementMs": null,
           "cancelToClosedMs": null,
           "memory": {
-            "sampleMs": 5,
-            "samples": 34,
-            "baseline": {
-              "rss": 61358080,
-              "heapTotal": 10371072,
-              "heapUsed": 5608280,
-              "external": 2542029,
-              "arrayBuffers": 145659
+            "runtimeApi": {
+              "method": "process.memoryUsage",
+              "runtime": "node",
+              "version": "v26.13.0",
+              "sampleMs": 5,
+              "samples": 32,
+              "fieldStatus": {
+                "rss": "reported",
+                "heapTotal": "reported",
+                "heapUsed": "reported",
+                "external": "reported",
+                "arrayBuffers": "reported"
+              },
+              "baseline": {
+                "rss": 75907072,
+                "heapTotal": 14041088,
+                "heapUsed": 6027088,
+                "external": 2703377,
+                "arrayBuffers": 146102
+              },
+              "peak": {
+                "rss": 75923456,
+                "heapTotal": 14041088,
+                "heapUsed": 9222992,
+                "external": 2703377,
+                "arrayBuffers": 146102
+              },
+              "delta": {
+                "rss": 16384,
+                "heapTotal": 0,
+                "heapUsed": 3195904,
+                "external": 0,
+                "arrayBuffers": 0
+              }
             },
-            "peak": {
-              "rss": 64503808,
-              "heapTotal": 13778944,
-              "heapUsed": 9046648,
-              "external": 2542029,
-              "arrayBuffers": 145659
-            },
-            "delta": {
-              "rss": 3145728,
-              "heapTotal": 3407872,
-              "heapUsed": 3438368,
-              "external": 0,
-              "arrayBuffers": 0
-            }
-          }
-        },
-        {
-          "elapsedMs": 171.17062499999997,
-          "itemsPerSecond": 11964.669755689683,
-          "firstItemMs": 8.445582999999942,
-          "received": 2048,
-          "pulled": 2048,
-          "attempts": 2048,
-          "abortedAttempts": 0,
-          "maxActive": 64,
-          "maxAhead": 129,
-          "maxReady": 71,
-          "maxRateWindow": null,
-          "rateStarts": null,
-          "cancelToSettlementMs": null,
-          "cancelToClosedMs": null,
-          "memory": {
-            "sampleMs": 5,
-            "samples": 33,
-            "baseline": {
-              "rss": 64503808,
-              "heapTotal": 13778944,
-              "heapUsed": 5607512,
-              "external": 2542029,
-              "arrayBuffers": 145659
-            },
-            "peak": {
-              "rss": 64503808,
-              "heapTotal": 13778944,
-              "heapUsed": 8918808,
-              "external": 2542029,
-              "arrayBuffers": 145659
-            },
-            "delta": {
-              "rss": 0,
-              "heapTotal": 0,
-              "heapUsed": 3311296,
-              "external": 0,
-              "arrayBuffers": 0
+            "os": {
+              "method": "ps -o rss= -p PID (KiB converted to bytes)",
+              "platform": "darwin",
+              "scope": "before workload and after cleanup; not a peak measurement",
+              "before": {
+                "observedAt": "2026-10-29T11:49:39.404Z",
+                "rssBytes": 75907072,
+                "status": "measured",
+                "reason": null
+              },
+              "after": {
+                "observedAt": "2026-10-29T11:49:39.576Z",
+                "rssBytes": 75923456,
+                "status": "measured",
+                "reason": null
+              }
             }
           }
         }
@@ -1200,144 +1809,231 @@
       "library": "mogami",
       "summary": {
         "elapsedMs": {
-          "median": 321.029584,
-          "min": 312.54608300000007,
-          "max": 324.07749999999993
+          "median": 312.87925000000007,
+          "min": 310.034,
+          "max": 314.032125
         },
         "itemsPerSecond": {
-          "median": 51035.79488175769,
-          "min": 50555.80841002539,
-          "max": 52421.069695504695
+          "median": 52365.24953316654,
+          "min": 52173.00618527483,
+          "max": 52845.81691040338
         },
         "firstItemMs": {
-          "median": 2.661666999999966,
-          "min": 2.611709000000019,
-          "max": 2.726624999999956
+          "median": 1.9269580000000133,
+          "min": 1.6870420000000195,
+          "max": 2.9936669999999594
         },
         "cancelToSettlementMs": null,
         "cancelToClosedMs": null
       },
       "samples": [
         {
-          "elapsedMs": 324.07749999999993,
-          "itemsPerSecond": 50555.80841002539,
-          "firstItemMs": 2.726624999999956,
+          "elapsedMs": 314.032125,
+          "itemsPerSecond": 52173.00618527483,
+          "firstItemMs": 1.9269580000000133,
           "received": 16384,
           "pulled": 16384,
           "attempts": 16384,
           "abortedAttempts": 0,
           "maxActive": 1024,
           "maxAhead": 1024,
-          "maxReady": 804,
+          "maxReady": 810,
           "maxRateWindow": null,
           "rateStarts": null,
           "cancelToSettlementMs": null,
           "cancelToClosedMs": null,
           "memory": {
-            "sampleMs": 5,
-            "samples": 63,
-            "baseline": {
-              "rss": 77660160,
-              "heapTotal": 22691840,
-              "heapUsed": 5676696,
-              "external": 2556365,
-              "arrayBuffers": 159995
+            "runtimeApi": {
+              "method": "process.memoryUsage",
+              "runtime": "node",
+              "version": "v26.13.0",
+              "sampleMs": 5,
+              "samples": 61,
+              "fieldStatus": {
+                "rss": "reported",
+                "heapTotal": "reported",
+                "heapUsed": "reported",
+                "external": "reported",
+                "arrayBuffers": "reported"
+              },
+              "baseline": {
+                "rss": 88375296,
+                "heapTotal": 24264704,
+                "heapUsed": 6094104,
+                "external": 2717713,
+                "arrayBuffers": 160438
+              },
+              "peak": {
+                "rss": 94535680,
+                "heapTotal": 30556160,
+                "heapUsed": 19545232,
+                "external": 2717713,
+                "arrayBuffers": 160438
+              },
+              "delta": {
+                "rss": 6160384,
+                "heapTotal": 6291456,
+                "heapUsed": 13451128,
+                "external": 0,
+                "arrayBuffers": 0
+              }
             },
-            "peak": {
-              "rss": 78381056,
-              "heapTotal": 22691840,
-              "heapUsed": 12723216,
-              "external": 2556365,
-              "arrayBuffers": 159995
-            },
-            "delta": {
-              "rss": 720896,
-              "heapTotal": 0,
-              "heapUsed": 7046520,
-              "external": 0,
-              "arrayBuffers": 0
+            "os": {
+              "method": "ps -o rss= -p PID (KiB converted to bytes)",
+              "platform": "darwin",
+              "scope": "before workload and after cleanup; not a peak measurement",
+              "before": {
+                "observedAt": "2026-10-29T11:49:39.976Z",
+                "rssBytes": 88375296,
+                "status": "measured",
+                "reason": null
+              },
+              "after": {
+                "observedAt": "2026-10-29T11:49:40.294Z",
+                "rssBytes": 94552064,
+                "status": "measured",
+                "reason": null
+              }
             }
           }
         },
         {
-          "elapsedMs": 321.029584,
-          "itemsPerSecond": 51035.79488175769,
-          "firstItemMs": 2.611709000000019,
+          "elapsedMs": 310.034,
+          "itemsPerSecond": 52845.81691040338,
+          "firstItemMs": 2.9936669999999594,
           "received": 16384,
           "pulled": 16384,
           "attempts": 16384,
           "abortedAttempts": 0,
           "maxActive": 1024,
           "maxAhead": 1024,
-          "maxReady": 827,
+          "maxReady": 825,
           "maxRateWindow": null,
           "rateStarts": null,
           "cancelToSettlementMs": null,
           "cancelToClosedMs": null,
           "memory": {
-            "sampleMs": 5,
-            "samples": 63,
-            "baseline": {
-              "rss": 78381056,
-              "heapTotal": 20856832,
-              "heapUsed": 5696376,
-              "external": 2556365,
-              "arrayBuffers": 159995
+            "runtimeApi": {
+              "method": "process.memoryUsage",
+              "runtime": "node",
+              "version": "v26.13.0",
+              "sampleMs": 5,
+              "samples": 60,
+              "fieldStatus": {
+                "rss": "reported",
+                "heapTotal": "reported",
+                "heapUsed": "reported",
+                "external": "reported",
+                "arrayBuffers": "reported"
+              },
+              "baseline": {
+                "rss": 94748672,
+                "heapTotal": 28459008,
+                "heapUsed": 6094696,
+                "external": 2717713,
+                "arrayBuffers": 160438
+              },
+              "peak": {
+                "rss": 101056512,
+                "heapTotal": 36061184,
+                "heapUsed": 19507672,
+                "external": 2717713,
+                "arrayBuffers": 160438
+              },
+              "delta": {
+                "rss": 6307840,
+                "heapTotal": 7602176,
+                "heapUsed": 13412976,
+                "external": 0,
+                "arrayBuffers": 0
+              }
             },
-            "peak": {
-              "rss": 78413824,
-              "heapTotal": 20856832,
-              "heapUsed": 12862736,
-              "external": 2556365,
-              "arrayBuffers": 159995
-            },
-            "delta": {
-              "rss": 32768,
-              "heapTotal": 0,
-              "heapUsed": 7166360,
-              "external": 0,
-              "arrayBuffers": 0
+            "os": {
+              "method": "ps -o rss= -p PID (KiB converted to bytes)",
+              "platform": "darwin",
+              "scope": "before workload and after cleanup; not a peak measurement",
+              "before": {
+                "observedAt": "2026-10-29T11:49:40.300Z",
+                "rssBytes": 94748672,
+                "status": "measured",
+                "reason": null
+              },
+              "after": {
+                "observedAt": "2026-10-29T11:49:40.613Z",
+                "rssBytes": 101056512,
+                "status": "measured",
+                "reason": null
+              }
             }
           }
         },
         {
-          "elapsedMs": 312.54608300000007,
-          "itemsPerSecond": 52421.069695504695,
-          "firstItemMs": 2.661666999999966,
+          "elapsedMs": 312.87925000000007,
+          "itemsPerSecond": 52365.24953316654,
+          "firstItemMs": 1.6870420000000195,
           "received": 16384,
           "pulled": 16384,
           "attempts": 16384,
           "abortedAttempts": 0,
           "maxActive": 1024,
           "maxAhead": 1024,
-          "maxReady": 916,
+          "maxReady": 802,
           "maxRateWindow": null,
           "rateStarts": null,
           "cancelToSettlementMs": null,
           "cancelToClosedMs": null,
           "memory": {
-            "sampleMs": 5,
-            "samples": 61,
-            "baseline": {
-              "rss": 78413824,
-              "heapTotal": 20856832,
-              "heapUsed": 5727912,
-              "external": 2556365,
-              "arrayBuffers": 159995
+            "runtimeApi": {
+              "method": "process.memoryUsage",
+              "runtime": "node",
+              "version": "v26.13.0",
+              "sampleMs": 5,
+              "samples": 61,
+              "fieldStatus": {
+                "rss": "reported",
+                "heapTotal": "reported",
+                "heapUsed": "reported",
+                "external": "reported",
+                "arrayBuffers": "reported"
+              },
+              "baseline": {
+                "rss": 101089280,
+                "heapTotal": 36061184,
+                "heapUsed": 6163624,
+                "external": 2717713,
+                "arrayBuffers": 160438
+              },
+              "peak": {
+                "rss": 102121472,
+                "heapTotal": 37109760,
+                "heapUsed": 21678368,
+                "external": 2717713,
+                "arrayBuffers": 160438
+              },
+              "delta": {
+                "rss": 1032192,
+                "heapTotal": 1048576,
+                "heapUsed": 15514744,
+                "external": 0,
+                "arrayBuffers": 0
+              }
             },
-            "peak": {
-              "rss": 92946432,
-              "heapTotal": 36847616,
-              "heapUsed": 20294432,
-              "external": 2556365,
-              "arrayBuffers": 159995
-            },
-            "delta": {
-              "rss": 14532608,
-              "heapTotal": 15990784,
-              "heapUsed": 14566520,
-              "external": 0,
-              "arrayBuffers": 0
+            "os": {
+              "method": "ps -o rss= -p PID (KiB converted to bytes)",
+              "platform": "darwin",
+              "scope": "before workload and after cleanup; not a peak measurement",
+              "before": {
+                "observedAt": "2026-10-29T11:49:40.620Z",
+                "rssBytes": 101089280,
+                "status": "measured",
+                "reason": null
+              },
+              "after": {
+                "observedAt": "2026-10-29T11:49:40.936Z",
+                "rssBytes": 102121472,
+                "status": "measured",
+                "reason": null
+              }
             }
           }
         }
@@ -1360,28 +2056,98 @@
       "library": "mogami",
       "summary": {
         "elapsedMs": {
-          "median": 171.18999999999997,
-          "min": 170.765083,
-          "max": 171.339834
+          "median": 171.32062499999995,
+          "min": 170.12916600000003,
+          "max": 172.22391600000003
         },
         "itemsPerSecond": {
-          "median": 11963.315614229805,
-          "min": 11952.853882185973,
-          "max": 11993.084089678918
+          "median": 11954.194073247168,
+          "min": 11891.495952281097,
+          "max": 12037.91241767446
         },
         "firstItemMs": {
-          "median": 8.719208999999978,
-          "min": 8.574915999999916,
-          "max": 8.815041999999977
+          "median": 8.559708,
+          "min": 7.683041000000003,
+          "max": 8.88229100000001
         },
         "cancelToSettlementMs": null,
         "cancelToClosedMs": null
       },
       "samples": [
         {
-          "elapsedMs": 171.18999999999997,
-          "itemsPerSecond": 11963.315614229805,
-          "firstItemMs": 8.815041999999977,
+          "elapsedMs": 170.12916600000003,
+          "itemsPerSecond": 12037.91241767446,
+          "firstItemMs": 7.683041000000003,
+          "received": 2048,
+          "pulled": 2048,
+          "attempts": 2048,
+          "abortedAttempts": 0,
+          "maxActive": 64,
+          "maxAhead": 128,
+          "maxReady": 66,
+          "maxRateWindow": null,
+          "rateStarts": null,
+          "cancelToSettlementMs": null,
+          "cancelToClosedMs": null,
+          "memory": {
+            "runtimeApi": {
+              "method": "process.memoryUsage",
+              "runtime": "node",
+              "version": "v26.13.0",
+              "sampleMs": 5,
+              "samples": 33,
+              "fieldStatus": {
+                "rss": "reported",
+                "heapTotal": "reported",
+                "heapUsed": "reported",
+                "external": "reported",
+                "arrayBuffers": "reported"
+              },
+              "baseline": {
+                "rss": 72384512,
+                "heapTotal": 11157504,
+                "heapUsed": 6080840,
+                "external": 2703377,
+                "arrayBuffers": 146102
+              },
+              "peak": {
+                "rss": 72581120,
+                "heapTotal": 11157504,
+                "heapUsed": 7772576,
+                "external": 2703377,
+                "arrayBuffers": 146102
+              },
+              "delta": {
+                "rss": 196608,
+                "heapTotal": 0,
+                "heapUsed": 1691736,
+                "external": 0,
+                "arrayBuffers": 0
+              }
+            },
+            "os": {
+              "method": "ps -o rss= -p PID (KiB converted to bytes)",
+              "platform": "darwin",
+              "scope": "before workload and after cleanup; not a peak measurement",
+              "before": {
+                "observedAt": "2026-10-29T11:49:41.212Z",
+                "rssBytes": 72384512,
+                "status": "measured",
+                "reason": null
+              },
+              "after": {
+                "observedAt": "2026-10-29T11:49:41.385Z",
+                "rssBytes": 72581120,
+                "status": "measured",
+                "reason": null
+              }
+            }
+          }
+        },
+        {
+          "elapsedMs": 172.22391600000003,
+          "itemsPerSecond": 11891.495952281097,
+          "firstItemMs": 8.88229100000001,
           "received": 2048,
           "pulled": 2048,
           "attempts": 2048,
@@ -1394,76 +2160,64 @@
           "cancelToSettlementMs": null,
           "cancelToClosedMs": null,
           "memory": {
-            "sampleMs": 5,
-            "samples": 34,
-            "baseline": {
-              "rss": 61194240,
-              "heapTotal": 10108928,
-              "heapUsed": 5666056,
-              "external": 2542029,
-              "arrayBuffers": 145659
+            "runtimeApi": {
+              "method": "process.memoryUsage",
+              "runtime": "node",
+              "version": "v26.13.0",
+              "sampleMs": 5,
+              "samples": 34,
+              "fieldStatus": {
+                "rss": "reported",
+                "heapTotal": "reported",
+                "heapUsed": "reported",
+                "external": "reported",
+                "arrayBuffers": "reported"
+              },
+              "baseline": {
+                "rss": 72695808,
+                "heapTotal": 10895360,
+                "heapUsed": 6081152,
+                "external": 2703377,
+                "arrayBuffers": 146102
+              },
+              "peak": {
+                "rss": 73744384,
+                "heapTotal": 11943936,
+                "heapUsed": 8860096,
+                "external": 2703377,
+                "arrayBuffers": 146102
+              },
+              "delta": {
+                "rss": 1048576,
+                "heapTotal": 1048576,
+                "heapUsed": 2778944,
+                "external": 0,
+                "arrayBuffers": 0
+              }
             },
-            "peak": {
-              "rss": 61276160,
-              "heapTotal": 10108928,
-              "heapUsed": 7420120,
-              "external": 2542029,
-              "arrayBuffers": 145659
-            },
-            "delta": {
-              "rss": 81920,
-              "heapTotal": 0,
-              "heapUsed": 1754064,
-              "external": 0,
-              "arrayBuffers": 0
+            "os": {
+              "method": "ps -o rss= -p PID (KiB converted to bytes)",
+              "platform": "darwin",
+              "scope": "before workload and after cleanup; not a peak measurement",
+              "before": {
+                "observedAt": "2026-10-29T11:49:41.390Z",
+                "rssBytes": 72695808,
+                "status": "measured",
+                "reason": null
+              },
+              "after": {
+                "observedAt": "2026-10-29T11:49:41.566Z",
+                "rssBytes": 73760768,
+                "status": "measured",
+                "reason": null
+              }
             }
           }
         },
         {
-          "elapsedMs": 171.339834,
-          "itemsPerSecond": 11952.853882185973,
-          "firstItemMs": 8.719208999999978,
-          "received": 2048,
-          "pulled": 2048,
-          "attempts": 2048,
-          "abortedAttempts": 0,
-          "maxActive": 64,
-          "maxAhead": 128,
-          "maxReady": 74,
-          "maxRateWindow": null,
-          "rateStarts": null,
-          "cancelToSettlementMs": null,
-          "cancelToClosedMs": null,
-          "memory": {
-            "sampleMs": 5,
-            "samples": 34,
-            "baseline": {
-              "rss": 61276160,
-              "heapTotal": 10108928,
-              "heapUsed": 5658208,
-              "external": 2544077,
-              "arrayBuffers": 147707
-            },
-            "peak": {
-              "rss": 61292544,
-              "heapTotal": 10108928,
-              "heapUsed": 7388056,
-              "external": 2544077,
-              "arrayBuffers": 147707
-            },
-            "delta": {
-              "rss": 16384,
-              "heapTotal": 0,
-              "heapUsed": 1729848,
-              "external": 0,
-              "arrayBuffers": 0
-            }
-          }
-        },
-        {
-          "elapsedMs": 170.765083,
-          "itemsPerSecond": 11993.084089678918,
-          "firstItemMs": 8.574915999999916,
+          "elapsedMs": 171.32062499999995,
+          "itemsPerSecond": 11954.194073247168,
+          "firstItemMs": 8.559708,
           "received": 2048,
           "pulled": 2048,
           "attempts": 2048,
@@ -1476,28 +2230,57 @@
           "cancelToSettlementMs": null,
           "cancelToClosedMs": null,
           "memory": {
-            "sampleMs": 5,
-            "samples": 32,
-            "baseline": {
-              "rss": 61292544,
-              "heapTotal": 10108928,
-              "heapUsed": 5671344,
-              "external": 2542029,
-              "arrayBuffers": 145659
+            "runtimeApi": {
+              "method": "process.memoryUsage",
+              "runtime": "node",
+              "version": "v26.13.0",
+              "sampleMs": 5,
+              "samples": 33,
+              "fieldStatus": {
+                "rss": "reported",
+                "heapTotal": "reported",
+                "heapUsed": "reported",
+                "external": "reported",
+                "arrayBuffers": "reported"
+              },
+              "baseline": {
+                "rss": 73777152,
+                "heapTotal": 11943936,
+                "heapUsed": 6102648,
+                "external": 2703377,
+                "arrayBuffers": 146102
+              },
+              "peak": {
+                "rss": 76136448,
+                "heapTotal": 14041088,
+                "heapUsed": 9414680,
+                "external": 2703377,
+                "arrayBuffers": 146102
+              },
+              "delta": {
+                "rss": 2359296,
+                "heapTotal": 2097152,
+                "heapUsed": 3312032,
+                "external": 0,
+                "arrayBuffers": 0
+              }
             },
-            "peak": {
-              "rss": 64569344,
-              "heapTotal": 13254656,
-              "heapUsed": 8997688,
-              "external": 2542029,
-              "arrayBuffers": 145659
-            },
-            "delta": {
-              "rss": 3276800,
-              "heapTotal": 3145728,
-              "heapUsed": 3326344,
-              "external": 0,
-              "arrayBuffers": 0
+            "os": {
+              "method": "ps -o rss= -p PID (KiB converted to bytes)",
+              "platform": "darwin",
+              "scope": "before workload and after cleanup; not a peak measurement",
+              "before": {
+                "observedAt": "2026-10-29T11:49:41.572Z",
+                "rssBytes": 73777152,
+                "status": "measured",
+                "reason": null
+              },
+              "after": {
+                "observedAt": "2026-10-29T11:49:41.747Z",
+                "rssBytes": 76136448,
+                "status": "measured",
+                "reason": null
+              }
             }
           }
         }
@@ -1520,28 +2303,28 @@
       "library": "mogami",
       "summary": {
         "elapsedMs": {
-          "median": 2414.7877500000004,
-          "min": 2388.18775,
-          "max": 2480.404957999999
+          "median": 2373.683666,
+          "min": 2369.279584,
+          "max": 2376.0909170000004
         },
         "itemsPerSecond": {
-          "median": 848.1076649490208,
-          "min": 825.6716280922708,
-          "max": 857.554017685586
+          "median": 862.7939895003685,
+          "min": 861.9198808207892,
+          "max": 864.3977746781613
         },
         "firstItemMs": {
-          "median": 7.886707999999999,
-          "min": 7.863833000000341,
-          "max": 8.843540999999277
+          "median": 8.635999999999967,
+          "min": 8.571624999999585,
+          "max": 8.654875000000175
         },
         "cancelToSettlementMs": null,
         "cancelToClosedMs": null
       },
       "samples": [
         {
-          "elapsedMs": 2388.18775,
-          "itemsPerSecond": 857.554017685586,
-          "firstItemMs": 7.863833000000341,
+          "elapsedMs": 2373.683666,
+          "itemsPerSecond": 862.7939895003685,
+          "firstItemMs": 8.635999999999967,
           "received": 2048,
           "pulled": 2048,
           "attempts": 2048,
@@ -1554,76 +2337,134 @@
           "cancelToSettlementMs": null,
           "cancelToClosedMs": null,
           "memory": {
-            "sampleMs": 5,
-            "samples": 460,
-            "baseline": {
-              "rss": 61030400,
-              "heapTotal": 10633216,
-              "heapUsed": 5684112,
-              "external": 2542029,
-              "arrayBuffers": 145659
+            "runtimeApi": {
+              "method": "process.memoryUsage",
+              "runtime": "node",
+              "version": "v26.13.0",
+              "sampleMs": 5,
+              "samples": 460,
+              "fieldStatus": {
+                "rss": "reported",
+                "heapTotal": "reported",
+                "heapUsed": "reported",
+                "external": "reported",
+                "arrayBuffers": "reported"
+              },
+              "baseline": {
+                "rss": 71925760,
+                "heapTotal": 10895360,
+                "heapUsed": 6093328,
+                "external": 2703377,
+                "arrayBuffers": 146102
+              },
+              "peak": {
+                "rss": 72122368,
+                "heapTotal": 10895360,
+                "heapUsed": 7836432,
+                "external": 2703377,
+                "arrayBuffers": 146102
+              },
+              "delta": {
+                "rss": 196608,
+                "heapTotal": 0,
+                "heapUsed": 1743104,
+                "external": 0,
+                "arrayBuffers": 0
+              }
             },
-            "peak": {
-              "rss": 61161472,
-              "heapTotal": 10633216,
-              "heapUsed": 7429784,
-              "external": 2542029,
-              "arrayBuffers": 145659
-            },
-            "delta": {
-              "rss": 131072,
-              "heapTotal": 0,
-              "heapUsed": 1745672,
-              "external": 0,
-              "arrayBuffers": 0
+            "os": {
+              "method": "ps -o rss= -p PID (KiB converted to bytes)",
+              "platform": "darwin",
+              "scope": "before workload and after cleanup; not a peak measurement",
+              "before": {
+                "observedAt": "2026-10-29T11:49:44.190Z",
+                "rssBytes": 71925760,
+                "status": "measured",
+                "reason": null
+              },
+              "after": {
+                "observedAt": "2026-10-29T11:49:46.567Z",
+                "rssBytes": 72122368,
+                "status": "measured",
+                "reason": null
+              }
             }
           }
         },
         {
-          "elapsedMs": 2414.7877500000004,
-          "itemsPerSecond": 848.1076649490208,
-          "firstItemMs": 7.886707999999999,
+          "elapsedMs": 2369.279584,
+          "itemsPerSecond": 864.3977746781613,
+          "firstItemMs": 8.654875000000175,
           "received": 2048,
           "pulled": 2048,
           "attempts": 2048,
           "abortedAttempts": 0,
           "maxActive": 64,
           "maxAhead": 128,
-          "maxReady": 127,
+          "maxReady": 126,
           "maxRateWindow": null,
           "rateStarts": null,
           "cancelToSettlementMs": null,
           "cancelToClosedMs": null,
           "memory": {
-            "sampleMs": 5,
-            "samples": 459,
-            "baseline": {
-              "rss": 61128704,
-              "heapTotal": 10371072,
-              "heapUsed": 5668840,
-              "external": 2542029,
-              "arrayBuffers": 145659
+            "runtimeApi": {
+              "method": "process.memoryUsage",
+              "runtime": "node",
+              "version": "v26.13.0",
+              "sampleMs": 5,
+              "samples": 460,
+              "fieldStatus": {
+                "rss": "reported",
+                "heapTotal": "reported",
+                "heapUsed": "reported",
+                "external": "reported",
+                "arrayBuffers": "reported"
+              },
+              "baseline": {
+                "rss": 72155136,
+                "heapTotal": 10895360,
+                "heapUsed": 6091536,
+                "external": 2703377,
+                "arrayBuffers": 146102
+              },
+              "peak": {
+                "rss": 72204288,
+                "heapTotal": 10895360,
+                "heapUsed": 7818920,
+                "external": 2703377,
+                "arrayBuffers": 146102
+              },
+              "delta": {
+                "rss": 49152,
+                "heapTotal": 0,
+                "heapUsed": 1727384,
+                "external": 0,
+                "arrayBuffers": 0
+              }
             },
-            "peak": {
-              "rss": 61161472,
-              "heapTotal": 10371072,
-              "heapUsed": 7393936,
-              "external": 2542029,
-              "arrayBuffers": 145659
-            },
-            "delta": {
-              "rss": 32768,
-              "heapTotal": 0,
-              "heapUsed": 1725096,
-              "external": 0,
-              "arrayBuffers": 0
+            "os": {
+              "method": "ps -o rss= -p PID (KiB converted to bytes)",
+              "platform": "darwin",
+              "scope": "before workload and after cleanup; not a peak measurement",
+              "before": {
+                "observedAt": "2026-10-29T11:49:46.572Z",
+                "rssBytes": 72155136,
+                "status": "measured",
+                "reason": null
+              },
+              "after": {
+                "observedAt": "2026-10-29T11:49:48.945Z",
+                "rssBytes": 72204288,
+                "status": "measured",
+                "reason": null
+              }
             }
           }
         },
         {
-          "elapsedMs": 2480.404957999999,
-          "itemsPerSecond": 825.6716280922708,
-          "firstItemMs": 8.843540999999277,
+          "elapsedMs": 2376.0909170000004,
+          "itemsPerSecond": 861.9198808207892,
+          "firstItemMs": 8.571624999999585,
           "received": 2048,
           "pulled": 2048,
           "attempts": 2048,
@@ -1636,28 +2477,57 @@
           "cancelToSettlementMs": null,
           "cancelToClosedMs": null,
           "memory": {
-            "sampleMs": 5,
-            "samples": 474,
-            "baseline": {
-              "rss": 61161472,
-              "heapTotal": 10371072,
-              "heapUsed": 5685288,
-              "external": 2542029,
-              "arrayBuffers": 145659
+            "runtimeApi": {
+              "method": "process.memoryUsage",
+              "runtime": "node",
+              "version": "v26.13.0",
+              "sampleMs": 5,
+              "samples": 462,
+              "fieldStatus": {
+                "rss": "reported",
+                "heapTotal": "reported",
+                "heapUsed": "reported",
+                "external": "reported",
+                "arrayBuffers": "reported"
+              },
+              "baseline": {
+                "rss": 72220672,
+                "heapTotal": 10895360,
+                "heapUsed": 6118624,
+                "external": 2703377,
+                "arrayBuffers": 146102
+              },
+              "peak": {
+                "rss": 72351744,
+                "heapTotal": 10895360,
+                "heapUsed": 7835232,
+                "external": 2703377,
+                "arrayBuffers": 146102
+              },
+              "delta": {
+                "rss": 131072,
+                "heapTotal": 0,
+                "heapUsed": 1716608,
+                "external": 0,
+                "arrayBuffers": 0
+              }
             },
-            "peak": {
-              "rss": 61341696,
-              "heapTotal": 10371072,
-              "heapUsed": 7412776,
-              "external": 2542029,
-              "arrayBuffers": 145659
-            },
-            "delta": {
-              "rss": 180224,
-              "heapTotal": 0,
-              "heapUsed": 1727488,
-              "external": 0,
-              "arrayBuffers": 0
+            "os": {
+              "method": "ps -o rss= -p PID (KiB converted to bytes)",
+              "platform": "darwin",
+              "scope": "before workload and after cleanup; not a peak measurement",
+              "before": {
+                "observedAt": "2026-10-29T11:49:48.951Z",
+                "rssBytes": 72220672,
+                "status": "measured",
+                "reason": null
+              },
+              "after": {
+                "observedAt": "2026-10-29T11:49:51.331Z",
+                "rssBytes": 72351744,
+                "status": "measured",
+                "reason": null
+              }
             }
           }
         }

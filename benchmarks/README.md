@@ -73,4 +73,4 @@ Raw samples are generated locally as `results/readme/node.json` and `bun.json` a
 
 ## Representative waits and cleanup
 
-[`representative.mjs`](representative.mjs) adds seeded timer jitter, a slow sink, retries, cooperative/uncooperative cancellation, concurrency 1,024 and a 10,000-start rate window. See [loads, raw samples, sampled-memory limits and the decision to defer queue changes](representative.md). It runs separately from the Promise-only overhead cases and README chart.
+[`representative.mjs`](representative.mjs) adds seeded timer jitter, a slow sink, retries, cooperative/uncooperative cancellation, concurrency 1,024 and a 10,000-start rate window. See [loads, raw samples, sampled-memory limits, and queue design](representative.md). It runs separately from the Promise-only overhead cases and README chart.

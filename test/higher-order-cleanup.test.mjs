@@ -218,3 +218,27 @@ for (const termination of ["cancel", "child failure", "cleanup failure"]) {
     assert.equal((await iterator.next()).done, true);
   });
 }
+
+for (const name of ["concat", "flatten"]) {
+  test(`${name} retires and refills uneven children without losing per-child order`, async () => {
+    const children = Array.from({ length: 2048 }, (_, id) =>
+      Array.from({ length: (id * 17) % 7 }, (_, sequence) => ({
+        id,
+        sequence,
+      })),
+    );
+    const result = await s
+      .from(children)
+      .pipe(s[name]({ concurrency: 128 }))
+      .toArray();
+    if (name === "concat") assert.deepEqual(result, children.flat());
+    else {
+      const next = new Uint8Array(children.length);
+      for (const { id, sequence } of result) assert.equal(sequence, next[id]++);
+      assert.deepEqual(
+        Array.from(next),
+        children.map((child) => child.length),
+      );
+    }
+  });
+}

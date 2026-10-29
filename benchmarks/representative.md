@@ -50,33 +50,33 @@ Cancellation measures from the actual abort callback to rejection of pending `ne
 
 ## Recorded run
 
-See [`representative-results.json`](representative-results.json) for every sample, min/median/max, environment metadata, loads, seed, dependency fingerprint, execution order, logical maxima, memory observations, and worker diagnostics (recorded on 2026-10-20 JST).
+See [`representative-results.json`](representative-results.json) for every sample, min/median/max, environment metadata, loads, seed, dependency fingerprint, execution order, logical maxima, memory observations, and worker diagnostics (recorded on 2026-10-29 JST).
 
-Node.js v26.5.0, darwin arm64, Apple M1 Pro; seed 42; one warmup plus 3 measured iterations per pair; forced GC between iterations. Values below are median [min–max] for elapsed time, median throughput, and maxima across the three samples for counters and sampled process memory. MiB = 2²⁰ bytes.
+Node.js v26.13.0, darwin arm64, Apple M1 Pro; seed 42; one warmup plus 3 measured iterations per pair; forced GC between iterations. Values below are median [min–max] for elapsed time, median throughput, and maxima across the three samples for counters and sampled process memory. MiB = 2²⁰ bytes.
 
 | Profile / adapter                |      Elapsed ms [min–max] | Items/s | Active / ahead / ready | Sampled heapUsed / RSS MiB |
 | -------------------------------- | ------------------------: | ------: | ---------------------: | -------------------------: |
-| retry / mogami                   |    262.19 [260.43–264.48] |    7811 |         64 / 128 / 121 |               8.72 / 62.19 |
-| slow-sink / p-map-iterable       | 2431.90 [2362.57–2472.40] |     842 |         64 / 129 / 128 |               7.01 / 58.27 |
-| cancel-cooperative / mogami      |       11.51 [11.42–12.07] |       0 |            64 / 64 / 0 |               6.20 / 53.94 |
-| retry / p-map-iterable           |    256.98 [254.24–261.04] |    7969 |         64 / 129 / 116 |               8.60 / 61.52 |
-| cancel-uncooperative / mogami    |       50.79 [50.41–51.10] |       0 |           64 / 64 / 64 |               5.69 / 53.47 |
-| large-rate-window / mogami       |    302.07 [301.52–302.31] |   99316 |              0 / 1 / 0 |               9.03 / 73.97 |
-| delayed-ordered / p-map-iterable |    171.17 [169.21–172.23] |   11965 |          64 / 129 / 80 |               8.63 / 61.52 |
-| large-unordered / mogami         |    321.03 [312.55–324.08] |   51036 |      1024 / 1024 / 916 |              19.35 / 88.64 |
-| delayed-ordered / mogami         |    171.19 [170.77–171.34] |   11963 |          64 / 128 / 76 |               8.58 / 61.58 |
-| slow-sink / mogami               | 2414.79 [2388.19–2480.40] |     848 |         64 / 128 / 127 |               7.09 / 58.50 |
+| retry / mogami                   |    272.90 [266.42–301.59] |    7504 |         64 / 128 / 122 |               9.13 / 73.09 |
+| slow-sink / p-map-iterable       | 2613.04 [2486.18–2632.27] |     784 |         64 / 129 / 128 |               7.40 / 68.86 |
+| cancel-cooperative / mogami      |       11.85 [10.71–11.92] |       0 |            64 / 64 / 0 |               6.38 / 63.67 |
+| retry / p-map-iterable           |    255.14 [254.71–259.10] |    8027 |         64 / 129 / 119 |               8.91 / 72.17 |
+| cancel-uncooperative / mogami    |       50.38 [50.12–50.80] |       0 |           64 / 64 / 64 |               6.21 / 63.27 |
+| large-rate-window / mogami       |    301.72 [301.14–302.61] |   99430 |              0 / 1 / 0 |               9.83 / 84.22 |
+| delayed-ordered / p-map-iterable |    168.97 [168.43–170.19] |   12121 |          64 / 129 / 76 |               8.93 / 72.41 |
+| large-unordered / mogami         |    312.88 [310.03–314.03] |   52365 |      1024 / 1024 / 825 |              20.67 / 97.39 |
+| delayed-ordered / mogami         |    171.32 [170.13–172.22] |   11954 |          64 / 128 / 76 |               8.98 / 72.61 |
+| slow-sink / mogami               | 2373.68 [2369.28–2376.09] |     863 |         64 / 128 / 127 |               7.47 / 69.00 |
 
 | Cancellation profile | Abort → next settlement ms, median [min–max] | Abort → closed ms, median [min–max] |
 | -------------------- | -------------------------------------------: | ----------------------------------: |
-| cancel-cooperative   |                          0.446 [0.425–0.642] |                 6.020 [5.809–6.264] |
-| cancel-uncooperative |                          0.142 [0.127–0.223] |              45.034 [44.598–45.037] |
+| cancel-cooperative   |                          0.258 [0.256–0.301] |                 5.564 [5.563–5.629] |
+| cancel-uncooperative |                          0.151 [0.120–0.151] |              44.646 [44.009–45.354] |
 
-The rate profile records 30,001 upstream starts including `done`. Its strict observed 100 ms window maximum was 10,000. Cooperative cancellation finishes in ~11.5 ms, so the 5 ms sampler captures only a few memory snapshots during that profile.
+The rate profile records 30,001 upstream starts including `done`. Its strict observed 100 ms window maximum ranged from 10,000 to 10,001. Cooperative cancellation finishes in ~11.9 ms, so the 5 ms sampler captures only a few memory snapshots during that profile.
 
 ## Queue design notes
 
-The current `completionOrder.shift()` and rate-window `starts.shift()` array queues are retained. Even when `large-unordered` reaches 1,024 concurrent callbacks and `large-rate-window` cycles through 10,000-entry windows, timer dispatch and callback execution dominate elapsed time. Replacing these arrays with a ring buffer or head-index queue would add compaction complexity without measurable gain unless a workload is specifically CPU-bound on queue shifts.
+Completion indices and rate-window timestamps use head indices with periodic compaction. Active child streams keep their rotation order in a linked list, so retiring a child does not move its siblings. The timer workloads above measure these queues together with timer dispatch and callback execution.
 
 ## Tests
 

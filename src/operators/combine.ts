@@ -1,5 +1,9 @@
 import { create, open, type Source, type Stream } from "../core/stream.js";
-import { ChildSlot } from "../internal/child-slots.js";
+import {
+  ChildSlot,
+  ChildList,
+  LinkedChildSlot,
+} from "../internal/child-slots.js";
 import { notifications } from "../internal/notifications.js";
 import { done, item } from "../internal/deferred.js";
 
@@ -51,12 +55,12 @@ export function merge<T>(...sources: Source<T>[]): Stream<T>;
 export function merge(...sources: Source<unknown>[]): Stream<unknown> {
   return create((scope) => {
     const changed = notifications(scope);
-    const slots = sources.map(
-      (source) => new ChildSlot(source, scope, changed.notify),
-    );
+    const slots = new ChildList<unknown>();
+    for (const source of sources)
+      slots.append(new LinkedChildSlot(source, scope, changed.notify));
     let started = false;
     let refill: ChildSlot<unknown> | undefined;
-    let cursor = 0;
+    let cursor = slots.first;
     return {
       async next() {
         for (;;) {
@@ -64,29 +68,31 @@ export function merge(...sources: Source<unknown>[]): Stream<unknown> {
           const version = changed.version;
           if (!started) {
             started = true;
-            slots.forEach((slot) => slot.start());
+            let slot = slots.first;
+            for (let remaining = slots.size; remaining > 0; remaining--) {
+              slot!.start();
+              slot = slot!.next;
+            }
           }
           refill?.start();
           refill = undefined;
-          for (let remaining = slots.length; remaining > 0; remaining--) {
-            if (cursor === slots.length) cursor = 0;
-            const slot = slots[cursor]!;
+          for (let remaining = slots.size; remaining > 0; remaining--) {
+            const slot = cursor!;
             if (slot.failure) throw slot.failure.error;
             if (!slot.result) {
-              cursor++;
+              cursor = slot.next;
               continue;
             }
             const result = slot.consume();
             if (result.done) {
-              // Keep the cursor on the successor shifted into this position.
-              slots.splice(cursor, 1);
+              cursor = slots.remove(slot);
               continue;
             }
-            cursor++;
+            cursor = slot.next;
             refill = slot;
             return result;
           }
-          if (!slots.length) return done();
+          if (!slots.size) return done();
           // A synchronous refill may have notified while we inspected slots.
           if (changed.version !== version) continue;
           await changed.promise;

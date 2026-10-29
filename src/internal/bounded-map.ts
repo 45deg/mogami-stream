@@ -101,7 +101,8 @@ export function scopedMap<T, U>(
       const upstream = open(source, scope);
       const signal = scope.signal;
       const results = new Map<number, Awaited<U>>();
-      const completionOrder: number[] = [];
+      let completionOrder: number[] = [];
+      let completionHead = 0;
       let waiter:
         | {
             receive: Parameters<Read<Awaited<U>>>[0];
@@ -246,12 +247,21 @@ export function scopedMap<T, U>(
         try {
           scope.check();
           if (failure) throw failure.error;
-          const index = ordered ? nextOutputIndex : completionOrder[0];
+          const index = ordered
+            ? nextOutputIndex
+            : completionOrder[completionHead];
           if (index !== undefined && results.has(index)) {
             result = item(results.get(index)!);
             results.delete(index);
             if (ordered) nextOutputIndex++;
-            else completionOrder.shift();
+            else if (completionOrder.length === 1) completionOrder.pop();
+            else {
+              completionHead++;
+              if (completionHead >= completionOrder.length - completionHead) {
+                completionOrder = completionOrder.slice(completionHead);
+                completionHead = 0;
+              }
+            }
             checkBounds();
           } else if (inputDone && running === 0) result = done();
           else return;

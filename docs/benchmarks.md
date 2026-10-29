@@ -4,7 +4,7 @@ Async iteration and operator overhead for 100,000 inputs. Bars show median elaps
 
 ![Sequential async map; concurrent ordered map; 13-stage map/filter pipeline. Node.js and Bun elapsed times in seconds.](/benchmarks.svg)
 
-Node.js v24.22.0 / Bun v1.4.3 · Apple M1 Pro · Normal GC.
+Node.js v26.13.0 / Bun v1.4.3 · Apple M1 Pro · Normal GC.
 
 | Chart                        | Workload                                                                        |
 | ---------------------------- | ------------------------------------------------------------------------------- |

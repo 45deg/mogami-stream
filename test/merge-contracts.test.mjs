@@ -99,3 +99,14 @@ test("merge reports an idle sibling failure and waits for pending reads on close
   assert.equal((await iterator.closed).reason, error);
   assert.ok(inputs.every((input) => input.returns === 1));
 });
+
+test("merge preserves round-robin order across many uneven input lifetimes", async () => {
+  const inputs = Array.from({ length: 1024 }, (_, index) =>
+    Array.from({ length: (index * 17) % 7 }, (_, turn) => index * 10 + turn),
+  );
+  const expected = [];
+  for (let turn = 0; turn < 7; turn++)
+    for (const input of inputs)
+      if (turn < input.length) expected.push(input[turn]);
+  assert.deepEqual(await toArray(merge(...inputs)), expected);
+});

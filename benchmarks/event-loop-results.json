@@ -1,5 +1,5 @@
 {
-  "runtime": "Node.js v26.5.0",
+  "runtime": "Node.js v26.13.0",
   "platform": "darwin arm64",
   "cpu": "Apple M1 Pro",
   "settings": {
@@ -12,9 +12,9 @@
     "default": {
       "throughput": [
         {
-          "elapsedMs": 23.018124999999998,
-          "itemsPerSecond": 434440.25088924496,
-          "timerDelayMs": 23.147582999999997,
+          "elapsedMs": 20.136124999999993,
+          "itemsPerSecond": 496619.88093538367,
+          "timerDelayMs": 20.25479200000001,
           "itemsAtTimer": 10000,
           "completedBeforeTimer": true,
           "cancellationFromScheduledMs": null,
@@ -22,9 +22,9 @@
           "processed": 10000
         },
         {
-          "elapsedMs": 16.91166599999997,
-          "itemsPerSecond": 591307.7990069115,
-          "timerDelayMs": 16.93724999999904,
+          "elapsedMs": 14.19525000000067,
+          "itemsPerSecond": 704460.9992778943,
+          "timerDelayMs": 14.24079200000051,
           "itemsAtTimer": 10000,
           "completedBeforeTimer": true,
           "cancellationFromScheduledMs": null,
@@ -32,9 +32,9 @@
           "processed": 10000
         },
         {
-          "elapsedMs": 16.403375000001688,
-          "itemsPerSecond": 609630.6400359055,
-          "timerDelayMs": 16.43537500000093,
+          "elapsedMs": 12.887249999999767,
+          "itemsPerSecond": 775960.7363867529,
+          "timerDelayMs": 12.912750000003143,
           "itemsAtTimer": 10000,
           "completedBeforeTimer": true,
           "cancellationFromScheduledMs": null,
@@ -44,9 +44,9 @@
       ],
       "cancellation": [
         {
-          "elapsedMs": 25.22025000000002,
-          "itemsPerSecond": 396506.77530952275,
-          "timerDelayMs": 25.25395800000001,
+          "elapsedMs": 20.635749999999973,
+          "itemsPerSecond": 484595.90758756106,
+          "timerDelayMs": 20.80541599999998,
           "itemsAtTimer": 10000,
           "completedBeforeTimer": true,
           "cancellationFromScheduledMs": null,
@@ -54,9 +54,9 @@
           "processed": 10000
         },
         {
-          "elapsedMs": 15.764917000000423,
-          "itemsPerSecond": 634319.8635298703,
-          "timerDelayMs": 15.784875000001193,
+          "elapsedMs": 13.29254199999923,
+          "itemsPerSecond": 752301.5537585346,
+          "timerDelayMs": 13.312999999998283,
           "itemsAtTimer": 10000,
           "completedBeforeTimer": true,
           "cancellationFromScheduledMs": null,
@@ -64,9 +64,9 @@
           "processed": 10000
         },
         {
-          "elapsedMs": 15.427875000001222,
-          "itemsPerSecond": 648177.4061560136,
-          "timerDelayMs": 15.446416000006138,
+          "elapsedMs": 12.799166999997396,
+          "itemsPerSecond": 781300.8455942511,
+          "timerDelayMs": 12.828708000000915,
           "itemsAtTimer": 10000,
           "completedBeforeTimer": true,
           "cancellationFromScheduledMs": null,
@@ -78,9 +78,9 @@
     "tap-control": {
       "throughput": [
         {
-          "elapsedMs": 20.659167000000025,
-          "itemsPerSecond": 484046.62201530143,
-          "timerDelayMs": 20.699208,
+          "elapsedMs": 18.307875000000024,
+          "itemsPerSecond": 546213.0367396537,
+          "timerDelayMs": 18.350000000000023,
           "itemsAtTimer": 10000,
           "completedBeforeTimer": true,
           "cancellationFromScheduledMs": null,
@@ -88,9 +88,9 @@
           "processed": 10000
         },
         {
-          "elapsedMs": 17.866249999999127,
-          "itemsPerSecond": 559714.5455817807,
-          "timerDelayMs": 17.906042000000525,
+          "elapsedMs": 15.303583999999319,
+          "itemsPerSecond": 653441.7035905083,
+          "timerDelayMs": 15.322000000000116,
           "itemsAtTimer": 10000,
           "completedBeforeTimer": true,
           "cancellationFromScheduledMs": null,
@@ -98,9 +98,9 @@
           "processed": 10000
         },
         {
-          "elapsedMs": 18.399583999998868,
-          "itemsPerSecond": 543490.5484819991,
-          "timerDelayMs": 18.424334000003,
+          "elapsedMs": 14.009541999999783,
+          "itemsPerSecond": 713799.2091390393,
+          "timerDelayMs": 14.06104200000118,
           "itemsAtTimer": 10000,
           "completedBeforeTimer": true,
           "cancellationFromScheduledMs": null,
@@ -110,9 +110,9 @@
       ],
       "cancellation": [
         {
-          "elapsedMs": 12.409125000000017,
-          "itemsPerSecond": 805858.591963574,
-          "timerDelayMs": 12.443125000000009,
+          "elapsedMs": 8.847250000000031,
+          "itemsPerSecond": 1130294.7243493702,
+          "timerDelayMs": 8.881833000000029,
           "itemsAtTimer": 10000,
           "completedBeforeTimer": true,
           "cancellationFromScheduledMs": null,
@@ -120,9 +120,9 @@
           "processed": 10000
         },
         {
-          "elapsedMs": 18.384374999999636,
-          "itemsPerSecond": 543940.1665816867,
-          "timerDelayMs": 18.48120800000106,
+          "elapsedMs": 15.027291999998852,
+          "itemsPerSecond": 665455.8918533535,
+          "timerDelayMs": 15.05987499999901,
           "itemsAtTimer": 10000,
           "completedBeforeTimer": true,
           "cancellationFromScheduledMs": null,
@@ -130,9 +130,9 @@
           "processed": 10000
         },
         {
-          "elapsedMs": 17.546708000001672,
-          "itemsPerSecond": 569907.472102405,
-          "timerDelayMs": 17.56091600000218,
+          "elapsedMs": 14.331875000003492,
+          "itemsPerSecond": 697745.4101433038,
+          "timerDelayMs": 14.359917000001587,
           "itemsAtTimer": 10000,
           "completedBeforeTimer": true,
           "cancellationFromScheduledMs": null,
@@ -144,9 +144,9 @@
     "per-item": {
       "throughput": [
         {
-          "elapsedMs": 11539.732667,
-          "itemsPerSecond": 866.5712013066689,
-          "timerDelayMs": 1.2693749999999682,
+          "elapsedMs": 12186.821875,
+          "itemsPerSecond": 820.558477228092,
+          "timerDelayMs": 0.07683399999996254,
           "itemsAtTimer": 0,
           "completedBeforeTimer": false,
           "cancellationFromScheduledMs": null,
@@ -154,9 +154,9 @@
           "processed": 10000
         },
         {
-          "elapsedMs": 11850.899750000002,
-          "itemsPerSecond": 843.8177869152929,
-          "timerDelayMs": 1.229125000001659,
+          "elapsedMs": 12327.353958,
+          "itemsPerSecond": 811.2040940878775,
+          "timerDelayMs": 1.206000000000131,
           "itemsAtTimer": 0,
           "completedBeforeTimer": false,
           "cancellationFromScheduledMs": null,
@@ -164,9 +164,9 @@
           "processed": 10000
         },
         {
-          "elapsedMs": 11508.917665999998,
-          "itemsPerSecond": 868.8914362070998,
-          "timerDelayMs": 1.1875829999989946,
+          "elapsedMs": 12496.834874999997,
+          "itemsPerSecond": 800.2026193052344,
+          "timerDelayMs": 1.1714160000010452,
           "itemsAtTimer": 0,
           "completedBeforeTimer": false,
           "cancellationFromScheduledMs": null,
@@ -176,33 +176,33 @@
       ],
       "cancellation": [
         {
-          "elapsedMs": 1.7038749999992433,
+          "elapsedMs": 1.7584160000005795,
           "itemsPerSecond": 0,
-          "timerDelayMs": 1.2492079999992711,
+          "timerDelayMs": 1.2555830000001151,
           "itemsAtTimer": 0,
           "completedBeforeTimer": false,
-          "cancellationFromScheduledMs": 1.7038749999992433,
-          "abortToSettlementMs": 0.4546669999999722,
+          "cancellationFromScheduledMs": 1.7584160000005795,
+          "abortToSettlementMs": 0.5028330000004644,
           "processed": 0
         },
         {
-          "elapsedMs": 1.2565840000024764,
+          "elapsedMs": 1.4623329999994894,
           "itemsPerSecond": 0,
-          "timerDelayMs": 1.187459000000672,
+          "timerDelayMs": 1.2611250000009022,
           "itemsAtTimer": 0,
           "completedBeforeTimer": false,
-          "cancellationFromScheduledMs": 1.2565840000024764,
-          "abortToSettlementMs": 0.06912500000180444,
+          "cancellationFromScheduledMs": 1.4623329999994894,
+          "abortToSettlementMs": 0.20120799999858718,
           "processed": 0
         },
         {
-          "elapsedMs": 1.3126249999986612,
+          "elapsedMs": 1.3020419999957085,
           "itemsPerSecond": 0,
-          "timerDelayMs": 1.2153749999997672,
+          "timerDelayMs": 1.2150839999958407,
           "itemsAtTimer": 0,
           "completedBeforeTimer": false,
-          "cancellationFromScheduledMs": 1.3126249999986612,
-          "abortToSettlementMs": 0.09724999999889405,
+          "cancellationFromScheduledMs": 1.3020419999957085,
+          "abortToSettlementMs": 0.08695799999986775,
           "processed": 0
         }
       ]
@@ -210,9 +210,9 @@
     "count-256": {
       "throughput": [
         {
-          "elapsedMs": 59.85691600000064,
-          "itemsPerSecond": 167065.07231344652,
-          "timerDelayMs": 1.1466660000005504,
+          "elapsedMs": 57.52470899999935,
+          "itemsPerSecond": 173838.3413638844,
+          "timerDelayMs": 1.0823749999999563,
           "itemsAtTimer": 255,
           "completedBeforeTimer": false,
           "cancellationFromScheduledMs": null,
@@ -220,9 +220,9 @@
           "processed": 10000
         },
         {
-          "elapsedMs": 65.75895799999853,
-          "itemsPerSecond": 152070.53615418027,
-          "timerDelayMs": 1.6922080000003916,
+          "elapsedMs": 67.9598330000008,
+          "itemsPerSecond": 147145.74122040413,
+          "timerDelayMs": 1.0559170000015001,
           "itemsAtTimer": 255,
           "completedBeforeTimer": false,
           "cancellationFromScheduledMs": null,
@@ -230,9 +230,9 @@
           "processed": 10000
         },
         {
-          "elapsedMs": 65.50587500000256,
-          "itemsPerSecond": 152658.0631126538,
-          "timerDelayMs": 0.6945830000040587,
+          "elapsedMs": 58.00483399999939,
+          "itemsPerSecond": 172399.4245031389,
+          "timerDelayMs": 1.5534590000024764,
           "itemsAtTimer": 255,
           "completedBeforeTimer": false,
           "cancellationFromScheduledMs": null,
@@ -242,33 +242,33 @@
       ],
       "cancellation": [
         {
-          "elapsedMs": 1.655083999999988,
-          "itemsPerSecond": 154070.72994482567,
-          "timerDelayMs": 1.517874999999549,
+          "elapsedMs": 1.8204160000004777,
+          "itemsPerSecond": 140077.87231046808,
+          "timerDelayMs": 1.5418750000008004,
           "itemsAtTimer": 255,
           "completedBeforeTimer": false,
-          "cancellationFromScheduledMs": 1.655083999999988,
-          "abortToSettlementMs": 0.13720900000043912,
+          "cancellationFromScheduledMs": 1.8204160000004777,
+          "abortToSettlementMs": 0.2785409999996773,
           "processed": 255
         },
         {
-          "elapsedMs": 0.6940839999988384,
-          "itemsPerSecond": 367390.6904645933,
-          "timerDelayMs": 0.6059170000007725,
+          "elapsedMs": 0.9117919999989681,
+          "itemsPerSecond": 279669.0473268998,
+          "timerDelayMs": 0.801500000001397,
           "itemsAtTimer": 255,
           "completedBeforeTimer": false,
-          "cancellationFromScheduledMs": 0.6940839999988384,
-          "abortToSettlementMs": 0.08816699999806588,
+          "cancellationFromScheduledMs": 0.9117919999989681,
+          "abortToSettlementMs": 0.11029199999757111,
           "processed": 255
         },
         {
-          "elapsedMs": 1.831624999998894,
-          "itemsPerSecond": 139220.6374122181,
-          "timerDelayMs": 1.6822920000049635,
+          "elapsedMs": 1.7768749999959255,
+          "itemsPerSecond": 143510.37636332592,
+          "timerDelayMs": 1.6999999999970896,
           "itemsAtTimer": 255,
           "completedBeforeTimer": false,
-          "cancellationFromScheduledMs": 1.831624999998894,
-          "abortToSettlementMs": 0.14933299999393057,
+          "cancellationFromScheduledMs": 1.7768749999959255,
+          "abortToSettlementMs": 0.07687499999883585,
           "processed": 255
         }
       ]
@@ -276,9 +276,9 @@
     "count-1024": {
       "throughput": [
         {
-          "elapsedMs": 24.42687500000102,
-          "itemsPerSecond": 409385.1546708117,
-          "timerDelayMs": 1.5115000000005239,
+          "elapsedMs": 23.9168750000008,
+          "itemsPerSecond": 418114.8247837422,
+          "timerDelayMs": 1.5702090000013413,
           "itemsAtTimer": 1023,
           "completedBeforeTimer": false,
           "cancellationFromScheduledMs": null,
@@ -286,9 +286,9 @@
           "processed": 10000
         },
         {
-          "elapsedMs": 29.555958000000828,
-          "itemsPerSecond": 338341.25762391865,
-          "timerDelayMs": 2.067332999999053,
+          "elapsedMs": 34.41349999999875,
+          "itemsPerSecond": 290583.6372353978,
+          "timerDelayMs": 3.0207919999993464,
           "itemsAtTimer": 1023,
           "completedBeforeTimer": false,
           "cancellationFromScheduledMs": null,
@@ -296,9 +296,9 @@
           "processed": 10000
         },
         {
-          "elapsedMs": 29.67479199999798,
-          "itemsPerSecond": 336986.3552877028,
-          "timerDelayMs": 1.879084000000148,
+          "elapsedMs": 27.669082999993407,
+          "itemsPerSecond": 361414.21817276644,
+          "timerDelayMs": 1.713166999994428,
           "itemsAtTimer": 1023,
           "completedBeforeTimer": false,
           "cancellationFromScheduledMs": null,
@@ -308,33 +308,33 @@
       ],
       "cancellation": [
         {
-          "elapsedMs": 2.1534579999988637,
-          "itemsPerSecond": 475049.8964923113,
-          "timerDelayMs": 2.045165999999881,
+          "elapsedMs": 2.3244999999988067,
+          "itemsPerSecond": 440094.6440096903,
+          "timerDelayMs": 2.236957999999504,
           "itemsAtTimer": 1023,
           "completedBeforeTimer": false,
-          "cancellationFromScheduledMs": 2.1534579999988637,
-          "abortToSettlementMs": 0.10829199999898265,
+          "cancellationFromScheduledMs": 2.3244999999988067,
+          "abortToSettlementMs": 0.08754199999930279,
           "processed": 1023
         },
         {
-          "elapsedMs": 2.0263749999976426,
-          "itemsPerSecond": 504842.3909696824,
-          "timerDelayMs": 1.936915999998746,
+          "elapsedMs": 2.4470000000001164,
+          "itemsPerSecond": 418062.9342051292,
+          "timerDelayMs": 2.3395830000008573,
           "itemsAtTimer": 1023,
           "completedBeforeTimer": false,
-          "cancellationFromScheduledMs": 2.0263749999976426,
-          "abortToSettlementMs": 0.08945899999889662,
+          "cancellationFromScheduledMs": 2.4470000000001164,
+          "abortToSettlementMs": 0.10741699999925913,
           "processed": 1023
         },
         {
-          "elapsedMs": 2.1323750000010477,
-          "itemsPerSecond": 479746.7612401652,
-          "timerDelayMs": 2.042583000002196,
+          "elapsedMs": 2.0357090000034077,
+          "itemsPerSecond": 502527.6205971913,
+          "timerDelayMs": 1.9550840000010794,
           "itemsAtTimer": 1023,
           "completedBeforeTimer": false,
-          "cancellationFromScheduledMs": 2.1323750000010477,
-          "abortToSettlementMs": 0.08979199999885168,
+          "cancellationFromScheduledMs": 2.0357090000034077,
+          "abortToSettlementMs": 0.0806250000023283,
           "processed": 1023
         }
       ]
@@ -342,30 +342,30 @@
     "time-4ms": {
       "throughput": [
         {
-          "elapsedMs": 29.7568339999998,
-          "itemsPerSecond": 336057.2566288493,
-          "timerDelayMs": 4.160499999999956,
-          "itemsAtTimer": 1820,
+          "elapsedMs": 28.141250000000582,
+          "itemsPerSecond": 355350.24208234507,
+          "timerDelayMs": 4.171041999999943,
+          "itemsAtTimer": 1624,
           "completedBeforeTimer": false,
           "cancellationFromScheduledMs": null,
           "abortToSettlementMs": null,
           "processed": 10000
         },
         {
-          "elapsedMs": 27.090958000000683,
-          "itemsPerSecond": 369126.8503682944,
-          "timerDelayMs": 4.032875000000786,
-          "itemsAtTimer": 1953,
+          "elapsedMs": 28.281332999998995,
+          "itemsPerSecond": 353590.12250237126,
+          "timerDelayMs": 4.0509579999998095,
+          "itemsAtTimer": 1633,
           "completedBeforeTimer": false,
           "cancellationFromScheduledMs": null,
           "abortToSettlementMs": null,
           "processed": 10000
         },
         {
-          "elapsedMs": 27.6675000000032,
-          "itemsPerSecond": 361434.8965392191,
-          "timerDelayMs": 4.098375000001397,
-          "itemsAtTimer": 1886,
+          "elapsedMs": 22.60858300000109,
+          "itemsPerSecond": 442309.8962017884,
+          "timerDelayMs": 4.044667000001937,
+          "itemsAtTimer": 2014,
           "completedBeforeTimer": false,
           "cancellationFromScheduledMs": null,
           "abortToSettlementMs": null,
@@ -374,43 +374,43 @@
       ],
       "cancellation": [
         {
-          "elapsedMs": 4.214125000000422,
-          "itemsPerSecond": 443271.1416960372,
-          "timerDelayMs": 4.092709000000468,
-          "itemsAtTimer": 1868,
+          "elapsedMs": 4.215457999998762,
+          "itemsPerSecond": 512874.2831741261,
+          "timerDelayMs": 4.104624999999942,
+          "itemsAtTimer": 2162,
           "completedBeforeTimer": false,
-          "cancellationFromScheduledMs": 4.214125000000422,
-          "abortToSettlementMs": 0.12141599999995378,
-          "processed": 1868
+          "cancellationFromScheduledMs": 4.215457999998762,
+          "abortToSettlementMs": 0.11083299999882001,
+          "processed": 2162
         },
         {
-          "elapsedMs": 4.240374999997584,
-          "itemsPerSecond": 498540.81301800057,
-          "timerDelayMs": 4.142541999997775,
-          "itemsAtTimer": 2114,
+          "elapsedMs": 4.173750000001746,
+          "itemsPerSecond": 483498.05330917175,
+          "timerDelayMs": 4.0818749999998545,
+          "itemsAtTimer": 2018,
           "completedBeforeTimer": false,
-          "cancellationFromScheduledMs": 4.240374999997584,
-          "abortToSettlementMs": 0.09783299999980954,
-          "processed": 2114
+          "cancellationFromScheduledMs": 4.173750000001746,
+          "abortToSettlementMs": 0.09187500000189175,
+          "processed": 2018
         },
         {
-          "elapsedMs": 4.137749999994412,
-          "itemsPerSecond": 493021.5696943399,
-          "timerDelayMs": 4.054707999996026,
-          "itemsAtTimer": 2040,
+          "elapsedMs": 4.263707999998587,
+          "itemsPerSecond": 474469.6400411732,
+          "timerDelayMs": 4.164290999993682,
+          "itemsAtTimer": 2023,
           "completedBeforeTimer": false,
-          "cancellationFromScheduledMs": 4.137749999994412,
-          "abortToSettlementMs": 0.08304199999838602,
-          "processed": 2040
+          "cancellationFromScheduledMs": 4.263707999998587,
+          "abortToSettlementMs": 0.09941700000490528,
+          "processed": 2023
         }
       ]
     },
     "prototype-count-1024": {
       "throughput": [
         {
-          "elapsedMs": 30.195166999999856,
-          "itemsPerSecond": 331178.82739314035,
-          "timerDelayMs": 2.5636670000003505,
+          "elapsedMs": 28.17820799999936,
+          "itemsPerSecond": 354884.17148458224,
+          "timerDelayMs": 2.065042000000176,
           "itemsAtTimer": 1023,
           "completedBeforeTimer": false,
           "cancellationFromScheduledMs": null,
@@ -418,9 +418,9 @@
           "processed": 10000
         },
         {
-          "elapsedMs": 27.827041000000463,
-          "itemsPerSecond": 359362.678913645,
-          "timerDelayMs": 1.885374999998021,
+          "elapsedMs": 27.109457999998995,
+          "itemsPerSecond": 368874.951317742,
+          "timerDelayMs": 2.0568329999987327,
           "itemsAtTimer": 1023,
           "completedBeforeTimer": false,
           "cancellationFromScheduledMs": null,
@@ -428,9 +428,9 @@
           "processed": 10000
         },
         {
-          "elapsedMs": 30.261249999995925,
-          "itemsPerSecond": 330455.61568016344,
-          "timerDelayMs": 1.7524999999950523,
+          "elapsedMs": 23.91425000000163,
+          "itemsPerSecond": 418160.7200727315,
+          "timerDelayMs": 1.6436669999966398,
           "itemsAtTimer": 1023,
           "completedBeforeTimer": false,
           "cancellationFromScheduledMs": null,
@@ -440,33 +440,33 @@
       ],
       "cancellation": [
         {
-          "elapsedMs": 2.3250829999997222,
-          "itemsPerSecond": 439984.29303389264,
-          "timerDelayMs": 2.159541999999419,
+          "elapsedMs": 1.9052080000001297,
+          "itemsPerSecond": 536949.2464864363,
+          "timerDelayMs": 1.7757500000006985,
           "itemsAtTimer": 1023,
           "completedBeforeTimer": false,
-          "cancellationFromScheduledMs": 2.3250829999997222,
-          "abortToSettlementMs": 0.16554100000030303,
+          "cancellationFromScheduledMs": 1.9052080000001297,
+          "abortToSettlementMs": 0.1294579999994312,
           "processed": 1023
         },
         {
-          "elapsedMs": 2.0277080000014394,
-          "itemsPerSecond": 504510.511375047,
-          "timerDelayMs": 1.8439580000012938,
+          "elapsedMs": 1.857584000001225,
+          "itemsPerSecond": 550715.3377717107,
+          "timerDelayMs": 1.8002500000002328,
           "itemsAtTimer": 1023,
           "completedBeforeTimer": false,
-          "cancellationFromScheduledMs": 2.0277080000014394,
-          "abortToSettlementMs": 0.18375000000014552,
+          "cancellationFromScheduledMs": 1.857584000001225,
+          "abortToSettlementMs": 0.05733400000099209,
           "processed": 1023
         },
         {
-          "elapsedMs": 2.517708000006678,
-          "itemsPerSecond": 406321.9404304576,
-          "timerDelayMs": 2.374416000006022,
+          "elapsedMs": 1.6975839999940945,
+          "itemsPerSecond": 602621.1368648378,
+          "timerDelayMs": 1.6384589999943273,
           "itemsAtTimer": 1023,
           "completedBeforeTimer": false,
-          "cancellationFromScheduledMs": 2.517708000006678,
-          "abortToSettlementMs": 0.14329200000065612,
+          "cancellationFromScheduledMs": 1.6975839999940945,
+          "abortToSettlementMs": 0.05912499999976717,
           "processed": 1023
         }
       ]
